@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
-<!--Generated with glade3 3.4.5 on Wed Nov 18 22:17:55 2009 -->
+<!--Generated with glade3 3.4.5 on Thu Nov 19 03:09:09 2009 -->
 <glade-interface>
   <widget class="GtkWindow" id="window1">
     <child>
@@ -71,9 +71,11 @@
                                 <child>
                                   <widget class="GtkEntry" id="md5_entry">
                                     <property name="visible">True</property>
+                                    <property name="sensitive">False</property>
                                     <property name="can_focus">True</property>
                                     <property name="editable">False</property>
                                     <property name="invisible_char">●</property>
+                                    <property name="text" translatable="yes">implement me!!!11</property>
                                   </widget>
                                 </child>
                               </widget>
@@ -222,8 +224,11 @@
                       <widget class="GtkHBox" id="hbox6">
                         <property name="visible">True</property>
                         <child>
-                          <widget class="GtkLabel" id="label6">
+                          <widget class="GtkEventBox" id="eventbox4">
                             <property name="visible">True</property>
+                            <child>
+                              <placeholder/>
+                            </child>
                           </widget>
                         </child>
                         <child>
@@ -242,8 +247,11 @@
                           </packing>
                         </child>
                         <child>
-                          <widget class="GtkLabel" id="label5">
+                          <widget class="GtkEventBox" id="eventbox5">
                             <property name="visible">True</property>
+                            <child>
+                              <placeholder/>
+                            </child>
                           </widget>
                           <packing>
                             <property name="position">2</property>
@@ -340,7 +348,12 @@
                       <widget class="GtkHBox" id="hbox8">
                         <property name="visible">True</property>
                         <child>
-                          <placeholder/>
+                          <widget class="GtkEventBox" id="eventbox1">
+                            <property name="visible">True</property>
+                            <child>
+                              <placeholder/>
+                            </child>
+                          </widget>
                         </child>
                         <child>
                           <widget class="GtkButton" id="update_button">
@@ -356,7 +369,15 @@
                           </packing>
                         </child>
                         <child>
-                          <placeholder/>
+                          <widget class="GtkEventBox" id="eventbox2">
+                            <property name="visible">True</property>
+                            <child>
+                              <placeholder/>
+                            </child>
+                          </widget>
+                          <packing>
+                            <property name="position">2</property>
+                          </packing>
                         </child>
                         <child>
                           <widget class="GtkButton" id="disconnect_button">
@@ -372,7 +393,15 @@
                           </packing>
                         </child>
                         <child>
-                          <placeholder/>
+                          <widget class="GtkEventBox" id="eventbox3">
+                            <property name="visible">True</property>
+                            <child>
+                              <placeholder/>
+                            </child>
+                          </widget>
+                          <packing>
+                            <property name="position">4</property>
+                          </packing>
                         </child>
                       </widget>
                       <packing>

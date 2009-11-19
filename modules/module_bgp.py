@@ -430,22 +430,13 @@ class bgp_session(threading.Thread):
             time.sleep(self.hold_time / 4)
         self.sock.close()
 
-### MODULE_CLASSES ###
-
-class module_bgp(threading.Thread):
-    def __init__(self):
-        self.sem = threading.Semaphore()
-        threading.Thread.__init__(self)
-
-    def run(self):
-        pass
+### MODULE_CLASS ###
 
 class mod_class(object):
     def __init__(self, parent):
         self.parent = parent
         self.name = "bgp"
         self.gladefile = "modules/module_bgp.glade"
-        self.thread = module_bgp()
         self.liststore = gtk.ListStore(str, str) #gtk.ListStore(gtk.gdk.Pixbuf, str)
 
         self.sessions = {}
@@ -528,9 +519,7 @@ class mod_class(object):
         text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
         print "text %s" % (text)
         if text != "":
-            text = "msg = %s" % (text)
-            exec(text)
-            print msg
+            exec("msg = " + text)
             select = self.treeview.get_selection()
             (model, paths) = select.get_selected_rows()
             for i in paths:

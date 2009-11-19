@@ -86,7 +86,7 @@ class loki(object):
                 self.notebook.set_tab_label(root, tab_label=gtk.Label(self.modules[i].name))
             else:
                 self.notebook.append_page(root, tab_label=gtk.Label(self.modules[i].name))
-            self.modules[i].thread.start()
+            #self.modules[i].thread.start()
 
     def log(self, msg):
         #gtk.gdk.threads_enter()
