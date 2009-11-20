@@ -517,7 +517,6 @@ class mod_class(object):
     def on_update_button_clicked(self, data):
         buffer = self.glade_xml.get_widget("msg_view").get_buffer()
         text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
-        print "text %s" % (text)
         if text != "":
             exec("msg = " + text)
             select = self.treeview.get_selection()

@@ -378,14 +378,13 @@ class eigrp_listener(threading.Thread):
         #    self.join()
 
 class eigrp_peer(threading.Thread):
-    def __init__(self, parent, interface, peer, as_num, holdtime, auth=None, spoof=None):
+    def __init__(self, parent, interface, peer, as_num, auth=None, spoof=None):
         threading.Thread.__init__(self)
         self.parent = parent
         self.sem = threading.Semaphore()
         self.interface = interface
         self.peer = peer
         self.as_num = as_num
-        self.holdtime = holdtime
         self.sock = None
         self.msg = None
         #self.msg = eigrp_packet(eigrp_packet.EIGRP_OPTCODE_UPDATE, eigrp_packet.EIGRP_FLAGS_INIT, 0, 0, 1, [])
@@ -420,7 +419,7 @@ class eigrp_peer(threading.Thread):
                         self.sock.sendto(ip + data, (socket.inet_ntoa(self.peer),0))
                 self.msg = None
             self.sem.release()
-            time.sleep(self.holdtime)
+            time.sleep(1)
         self.sock.close()
 
     def input(self, data):
@@ -447,6 +446,28 @@ class eigrp_peer(threading.Thread):
     def quit(self):
         self.running = False
 
+class eigrp_goodbye(threading.Thread):
+    def __init__(self, parent, peer, as_num):
+        threading.Thread.__init__(self)
+        self.parent = parent
+        self.peer = peer
+        self.as_num = as_num
+        self.running = True
+
+    def run(self):
+        params = eigrp_param(255, 255, 255, 255, 255, 15)
+        version = eigrp_version() #(0xc02, 0x300)
+        args = [params, version]
+        msg = eigrp_packet(eigrp_packet.EIGRP_OPTCODE_HELLO, 0, 0, 0, self.as_num, args)
+        while self.running:
+            self.parent.peers[self.peer].update(msg)
+            self.parent.goodbye_progressbar.pulse()
+            time.sleep(1)
+        self.parent.log("EIGRP: Goodbye thread terminated")
+
+    def quit(self):
+        self.running = False
+        
 ### MODULE_CLASS ###
 
 class mod_class(object):
@@ -457,8 +478,10 @@ class mod_class(object):
         self.liststore = gtk.ListStore(str, str) #gtk.ListStore(gtk.gdk.Pixbuf, str)
         self.listen_thread = None
         self.hello_thread = None
+        self.goodbye_thread = None
         self.filter = False
         self.spoof = False
+        self.interface = None
         self.auth = None
         self.as_num = None
         self.peers = {}
@@ -469,8 +492,11 @@ class mod_class(object):
                 "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
                 "on_spoof_togglebutton_toggled" : self.on_spoof_togglebutton_toggled,
                 "on_goodbye_button_clicked" : self.on_goodbye_button_clicked,
+                "on_add_button_clicked" : self.on_add_button_clicked,
+                "on_del_button_clicked" : self.on_del_button_clicked,
                 "on_clear_button_clicked" : self.on_clear_button_clicked,
-                "on_update_button_clicked" : self.on_update_button_clicked
+                "on_update_button_clicked" : self.on_update_button_clicked,
+                "on_stop_button_clicked" : self.on_stop_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -481,6 +507,8 @@ class mod_class(object):
         self.interface_entry = self.glade_xml.get_widget("interface_entry")
         self.as_entry = self.glade_xml.get_widget("as_entry")
         self.spoof_entry = self.glade_xml.get_widget("spoof_entry")
+
+        self.update_textview = self.glade_xml.get_widget("update_textview")
         
         self.treeview = self.glade_xml.get_widget("neighbor_treeview")
         self.treeview.set_model(self.liststore)
@@ -493,27 +521,34 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', 1)
         self.treeview.append_column(column)
 
+        self.goodbye_window = self.glade_xml.get_widget("goodbye_window")
+        #self.goodbye_window.set_parent(self.parent.window)
+        self.goodbye_label = self.glade_xml.get_widget("goodbye_label")
+        self.goodbye_progressbar = self.glade_xml.get_widget("goodbye_progressbar")
+
         return self.glade_xml.get_widget("root")
 
     def set_log(self, log):
         self.log = log
 
     def shutdown(self):
-        if self.listen_thread.running:
-            self.listen_thread.quit()
-        if self.hello_thread.running:
-            self.hello_thread.quit()
+        if self.listen_thread:
+            if self.listen_thread.running:
+                self.listen_thread.quit()
+        if self.hello_thread:
+            if self.hello_thread.running:
+                self.hello_thread.quit()
+        if self.goodbye_thread:
+            if self.goodbye_thread.running:
+                self.goodbye_thread.quit()
         for i in self.peers:
           self.peers[i].quit()  
         
     # PEER HANDLING #
 
-    def add_peer(self, src, data=None, holdtime=None):
+    def add_peer(self, src, data=None):
         self.log("EIGRP: Got new peer " + socket.inet_ntoa(src))
-        if holdtime:
-            self.peers[src] = eigrp_peer(self, self.interface, src, self.as_num, holdtime, self.auth, self.spoof)
-        else:
-            self.peers[src] = eigrp_peer(self, self.interface, src, self.as_num, DEFAULT_HOLD_TIME, self.auth, self.spoof)
+        self.peers[src] = eigrp_peer(self, self.interface, src, self.as_num, self.auth, self.spoof)
         self.peers[src].start()
         if data:
             self.peers[src].input(data)
@@ -521,7 +556,6 @@ class mod_class(object):
     # SIGNALS #
 
     def on_listen_togglebutton_toggled(self, btn):
-        self.spoof = None
         if btn.get_property("active"):
             #check for interface
             self.interface = self.interface_entry.get_text()
@@ -538,22 +572,19 @@ class mod_class(object):
                 os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
                 self.filter = True
             try:
+                self.spoof_togglebutton.set_property("sensitive", False)
                 if self.spoof_togglebutton.get_property("active"):
-                    self.spoof_togglebutton.set_property("sensitive", False)
-                    self.spoof = self.spoof_entry.get_text()
-                    self.spoof_entry.set_property("sensitive", False)
                     self.listen_thread = eigrp_listener(self, self.interface, self.spoof)
                 else:
                     self.listen_thread = eigrp_listener(self, self.interface, self.address)
             except Exception, e:
                     self.log("EIGRP: Cant start listening on %s: %s" % (self.interface, e))
-                    if self.spoof_togglebutton.get_property("active"):
+                    if not self.hello_togglebutton.get_property("active"):
                         self.spoof_togglebutton.set_property("sensitive", True)
-                    self.as_entry.set_property("sensitive", True)
-                    self.interface_entry.set_property("sensitive", True)
+                        self.as_entry.set_property("sensitive", True)
+                        self.interface_entry.set_property("sensitive", True)
                     return
 
-            self.interface_entry.set_property("sensitive", True)
             self.listen_thread.start()
             self.log("EIGRP: Listen thread on %s started" % (self.interface))
         
@@ -564,16 +595,13 @@ class mod_class(object):
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
                 self.filter = False
 
-            if self.spoof_togglebutton.get_property("active"):
-                self.spoof = None
+            if not self.hello_togglebutton.get_property("active"):
                 self.spoof_togglebutton.set_property("sensitive", True)
-
-            self.as_entry.set_property("sensitive", True)
-            self.interface_entry.set_property("sensitive", True)
+                self.as_entry.set_property("sensitive", True)
+                self.interface_entry.set_property("sensitive", True)
 
 
     def on_hello_togglebutton_toggled(self, btn):
-        self.spoof = None
         if btn.get_property("active"):
             #check for interface
             self.interface = self.interface_entry.get_text()
@@ -586,39 +614,68 @@ class mod_class(object):
             self.as_num = int(self.as_entry.get_text())
             self.as_entry.set_property("sensitive", False)
             try:
+                self.spoof_togglebutton.set_property("sensitive", False)
                 if self.spoof_togglebutton.get_property("active"):
-                    self.spoof_togglebutton.set_property("sensitive", False)
-                    self.spoof = self.spoof_entry.get_text()
-                    self.spoof_entry.set_property("sensitive", False)
                     self.hello_thread = eigrp_hello_thread(self, self.interface, self.as_num, self.auth, self.spoof)
                 else:
                     self.hello_thread = eigrp_hello_thread(self, self.interface, self.as_num, self.auth, self.address)
             except Exception, e:
                     self.log("EIGRP: Cant start hello thread on %s: %s" % (self.interface, e))
-                    if self.spoof_togglebutton.get_property("active"):
+                    if not self.listen_togglebutton.get_property("active"):
                         self.spoof_togglebutton.set_property("sensitive", True)
-                    self.as_entry.set_property("sensitive", True)
-                    self.interface_entry.set_property("sensitive", True)
+                        self.as_entry.set_property("sensitive", True)
+                        self.interface_entry.set_property("sensitive", True)
                     return
         
-            self.interface_entry.set_property("sensitive", True)
             self.hello_thread.start()
             self.log("EIGRP: Hello thread on %s started" % (self.interface))
         else:
             self.hello_thread.quit()
-
-            if self.spoof_togglebutton.get_property("active"):
-                self.spoof = None
+            if not self.listen_togglebutton.get_property("active"):
                 self.spoof_togglebutton.set_property("sensitive", True)
+                self.as_entry.set_property("sensitive", True)
+                self.interface_entry.set_property("sensitive", True)
 
-            self.as_entry.set_property("sensitive", True)
-            self.interface_entry.set_property("sensitive", True)
-
-    def on_spoof_togglebutton_toggled(self, data):
-        pass
+    def on_spoof_togglebutton_toggled(self, btn):
+        if btn.get_property("active"):
+            self.spoof = socket.inet_aton(self.spoof_entry.get_text())
+            self.spoof_entry.set_property("sensitive", False)
+        else:
+            self.spoof_entry.set_property("sensitive", True)
+            self.spoof = None
 
     def on_goodbye_button_clicked(self, data):
-        pass
+        select = self.treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        if len(paths) == 1:
+            host = model.get_value(model.get_iter(paths[0]), 1)
+            self.goodbye_thread = eigrp_goodbye(self, socket.inet_aton(host), self.as_num)
+            self.goodbye_label.set_label("Sending Goodbye Messages to %s..." % (host))
+            self.goodbye_window.show_all()
+            self.goodbye_thread.start()
+            self.log("EIGRP: Goodbye thread started for %s" % (host)) 
+
+    def on_add_button_clicked(self, data):
+        dialog = gtk.MessageDialog(self.parent.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Enter IP Address to add:")
+        entry = gtk.Entry(0)
+        dialog.vbox.pack_start(entry)
+        entry.show()
+        ret = dialog.run()
+        dialog.destroy()
+        if ret == gtk.RESPONSE_OK:
+            try:
+                peer = entry.get_text()
+                self.add_peer(socket.inet_aton(peer))
+            except Exception, e:
+                self.log("EIGRP: Cant add peer %s: %s" % (peer, e))
+
+    def on_del_button_clicked(self, data):
+        select = self.treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            host = model.get_value(model.get_iter(i), 1)
+            peer = socket.inet_aton(host)
+            self.peers[peer].quit()
 
     def on_clear_button_clicked(self, data):
         #self.liststore.clear()
@@ -626,5 +683,18 @@ class mod_class(object):
             self.peers[i].quit()
 
     def on_update_button_clicked(self, data):
-        pass
+        buffer = self.update_textview.get_buffer()
+        text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
+        if text != "":
+            exec("msg = " + text)
+            select = self.treeview.get_selection()
+            (model, paths) = select.get_selected_rows()
+            for i in paths:
+                host = model.get_value(model.get_iter(i), 1)
+                self.log("EIGRP: Sending update to %s" % (host))
+                peer = socket.inet_aton(host)
+                self.peers[peer].update(msg)
         
+    def on_stop_button_clicked(self, data):
+        self.goodbye_thread.quit()
+        self.goodbye_window.hide_all()
