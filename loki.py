@@ -1,3 +1,8 @@
+#       loki.py
+#       
+#       Copyright 2009 Daniel Mende <dmende@ernw.de>
+#
+
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
@@ -26,14 +31,29 @@
 
 import sys
 import os
+import platform
 
 import gobject
 import gtk
 gtk.gdk.threads_init()
 
 VERSION = "v0.1"
+PLATFORM = platform.system()
 
-class loki(object):
+class about_window(gtk.Window):
+    def __init__(self, parent):
+        gtk.Window.__init__(self)
+        self.set_property("modal", True)
+        label = gtk.Label("This is %s version %s by Daniel Mende - dmende@ernw.de\nRunning on %s" % (parent.__class__.__name__, VERSION, PLATFORM))
+        button = gtk.Button(gtk.STOCK_CLOSE)
+        button.set_use_stock(True)
+        button.connect_object("clicked", gtk.Widget.destroy, self)
+        vbox = gtk.VBox()
+        vbox.pack_start(label, True, True)
+        vbox.pack_start(button, False, False)
+        self.add(vbox)
+
+class codename_loki(object):
     def __init__(self):
         self.modules = {}
         self.msg_id = 0
@@ -48,7 +68,24 @@ class loki(object):
         self.window.connect("delete_event", self.delete_event)
         self.window.connect("destroy", self.destroy_event)
 
+        self.toolbar = gtk.Toolbar()
+        self.about_button = gtk.ToolButton(gtk.STOCK_ABOUT)
+        self.about_button.connect("clicked", self.on_about_button_clicked)
+        self.toolbar.insert(self.about_button, 0)
+        self.toolbar.insert(gtk.SeparatorToolItem(), 0)
+        self.pref_button = gtk.ToolButton(gtk.STOCK_PREFERENCES)
+        self.pref_button.connect("clicked", self.on_pref_button_clicked)
+        self.toolbar.insert(self.pref_button, 0)
+        self.network_button = gtk.ToolButton(gtk.STOCK_NETWORK)
+        self.network_button.connect("clicked", self.on_network_button_clicked)
+        self.toolbar.insert(self.network_button, 0)
+        self.toolbar.insert(gtk.SeparatorToolItem(), 0)
+        self.quit_button = gtk.ToolButton(gtk.STOCK_QUIT)
+        self.quit_button.connect("clicked", self.on_quit_button_clicked)
+        self.toolbar.insert(self.quit_button, 0)
+
         self.vbox = gtk.VBox(False, 0)
+        self.vbox.pack_start(self.toolbar, False, False, 0)
         self.notebook = gtk.Notebook()
         self.vbox.pack_start(self.notebook, True, True, 0)
         self.statusbar = gtk.Statusbar()
@@ -56,6 +93,9 @@ class loki(object):
         self.window.add(self.vbox)
 
     def main(self):
+        print "This is %s version %s by Daniel Mende - dmende@ernw.de" % (self.__class__.__name__, VERSION)
+        print "Running on %s" %(PLATFORM)
+
         self.load_modules()
         self.init_modules()
 
@@ -65,6 +105,7 @@ class loki(object):
 
     def load_modules(self, path="./modules/"):
         #import the modules
+        sys.path.append(path)
         for i in os.listdir(path):
             if os.path.isfile(os.path.join(path, i)):
                 (name, ext) = os.path.splitext(i)
@@ -72,7 +113,7 @@ class loki(object):
                     try:
                         module = __import__(name)
                         print module
-                        self.modules[name] = module.mod_class(self)
+                        self.modules[name] = module.mod_class(self, PLATFORM)
                         print "Imported module " + name
                     except Exception, e:
                         print e
@@ -103,6 +144,21 @@ class loki(object):
         dialog.destroy()
 
     ### EVENTS ###
+
+    def on_pref_button_clicked(self, data):
+        pass
+        
+    def on_network_button_clicked(self, data):
+        pass
+
+    def on_about_button_clicked(self, data):
+        window = about_window(self)
+        window.show_all()
+
+    def on_quit_button_clicked(self, data):
+        self.delete_event(None, None)
+        self.destroy_event(None)
+    
     def delete_event(self, widget, event, data=None):
         for i in self.modules.keys():
             self.modules[i].shutdown()
@@ -112,5 +168,5 @@ class loki(object):
         gtk.main_quit()
 
 if __name__ == '__main__':
-    app = loki()
+    app = codename_loki()
     app.main()

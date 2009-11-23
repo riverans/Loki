@@ -1,3 +1,8 @@
+#       module_eigrp.py
+#       
+#       Copyright 2009 Daniel Mende <dmende@ernw.de>
+#
+
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
@@ -41,8 +46,6 @@ import dpkt
 import gobject
 import gtk
 import gtk.glade
-
-EIGRP_CLI_VERSION = "0.1.3"
 
 EIGRP_PROTOCOL_NUMBER = 0x58
 EIGRP_MULTICAST_ADDRESS = "224.0.0.10"
@@ -471,8 +474,9 @@ class eigrp_goodbye(threading.Thread):
 ### MODULE_CLASS ###
 
 class mod_class(object):
-    def __init__(self, parent):
+    def __init__(self, parent, platform):
         self.parent = parent
+        self.platform = platform
         self.name = "eigrp"
         self.gladefile = "modules/module_eigrp.glade"
         self.liststore = gtk.ListStore(str, str) #gtk.ListStore(gtk.gdk.Pixbuf, str)

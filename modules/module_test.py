@@ -1,3 +1,8 @@
+#       module_test.py
+#       
+#       Copyright 2009 Daniel Mende <dmende@ernw.de>
+#
+
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
@@ -38,8 +43,9 @@ class module_test(threading.Thread):
         pass
 
 class mod_class(object):
-    def __init__(self, parent):
+    def __init__(self, parent, platform):
         self.parent = parent
+        self.platform = platform
         self.name = "test"
         self.thread = module_test()
 

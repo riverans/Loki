@@ -1,3 +1,8 @@
+#       module_bgp.py
+#       
+#       Copyright 2009 Daniel Mende <dmende@ernw.de>
+#
+
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
@@ -355,7 +360,7 @@ class bgp_nlri(object):
 ### BGP_SESSION_CLASS ###
 
 class bgp_session(threading.Thread):
-    def __init__(self, parent, host, parameters, my_as, hold_time = 256, identity = socket.gethostbyname(socket.gethostname())):
+    def __init__(self, parent, host, parameters, my_as, hold_time = 256, md5 = [], identity = socket.gethostbyname(socket.gethostname())):
         self.parent = parent
         self.log = parent.log
         self.liststore = parent.liststore
@@ -365,6 +370,7 @@ class bgp_session(threading.Thread):
         self.parameters = parameters
         self.my_as = my_as
         self.hold_time = hold_time
+        self.md5 = md5
         self.identity = identity
         self.keepalive_msg = bgp_keepalive()
         self.active = False
@@ -377,9 +383,11 @@ class bgp_session(threading.Thread):
         self.dest = dest
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(timeout)
-#IMPLEMENT ALL THE WUSCH!!!11
-        #for (i, j) in interface.md5:
-        #    tcpmd5.set(self.sock.fileno(), i, BGP_PORT, j)
+
+        if self.parent.platform == "Linux":
+            import tcpmd5
+            for (i, j) in self.md5:
+                tcpmd5.tcpmd5.set(self.sock.fileno(), i, BGP_PORT, j)
             
         self.sock.connect((self.dest, BGP_PORT))
         if not bf:
@@ -433,8 +441,9 @@ class bgp_session(threading.Thread):
 ### MODULE_CLASS ###
 
 class mod_class(object):
-    def __init__(self, parent):
+    def __init__(self, parent, platform):
         self.parent = parent
+        self.platform = platform
         self.name = "bgp"
         self.gladefile = "modules/module_bgp.glade"
         self.liststore = gtk.ListStore(str, str) #gtk.ListStore(gtk.gdk.Pixbuf, str)
@@ -475,6 +484,18 @@ class mod_class(object):
         column2.add_attribute(render_text, 'text', 1)
         self.treeview.append_column(column2)
 
+        self.md5_entry = self.glade_xml.get_widget("md5_entry")
+        if self.platform != "Linux":
+            self.md5_entry.set_text("available only on Linux")
+            self.md5_entry.set_property("sensitive", False)            
+
+        self.ip_entry = self.glade_xml.get_widget("ip_entry")
+        self.as_entry = self.glade_xml.get_widget("as_entry")
+        self.params_entry = self.glade_xml.get_widget("params_entry")
+        self.hold_entry = self.glade_xml.get_widget("hold_entry")
+
+        self.msg_view = self.glade_xml.get_widget("msg_view")
+
         return self.glade_xml.get_widget("root")
 
     def set_log(self, log):
@@ -487,38 +508,54 @@ class mod_class(object):
     # SIGNALS #
 
     def on_connect_button_clicked(self, data):
-        ip = self.glade_xml.get_widget("ip_entry").get_text()
+        ip = self.ip_entry.get_text()
         if self.sessions.has_key(ip):
             self.log("BGP: Host already created")
             return
+
+        md5 = []
+        if self.platform == "Linux":
+            secret = self.md5_entry.get_text()
+            if not secret == "":
+                md5.append((ip, secret))
         
-        params_cmd = self.glade_xml.get_widget("params_entry").get_text()
+        params_cmd = self.params_entry.get_text()
         if params_cmd != "":
             params_cmd = "parameters = %s" % (params_cmd)
-            exec(params_cmd)
+            try:
+                exec(params_cmd)
+            except Exception, e:
+                self.log("BGP: Can't compile connection parameters: %s" % (e))
+                return
         else:
             parameters = []
-        as_num = int(self.glade_xml.get_widget("as_entry").get_text())
-        hold = int(self.glade_xml.get_widget("hold_entry").get_text())
-        self.sessions[ip] = bgp_session(self, ip, parameters, as_num, hold)
+        as_num = int(self.as_entry.get_text())
+        hold = int(self.hold_entry.get_text())
+        self.sessions[ip] = bgp_session(self, ip, parameters, as_num, hold, md5)
         try:
             self.sessions[ip].connect(ip)
         except Exception, e:
             self.log("BGP: Can't connect to %s: %s" %  (ip, e.__str__()))
+            del self.sessions[ip]
             return
         self.log("BGP: Connected to %s" % (ip))
         try:
             self.sessions[ip].start()
         except Exception, e:
             self.log("BGP: Can't start thread for %s: %s" % (ip, e.__str__()))
+            del self.sessions[ip]
             return
         self.log("BGP: Keepalive thread started for %s" % (ip))
 
     def on_update_button_clicked(self, data):
-        buffer = self.glade_xml.get_widget("msg_view").get_buffer()
+        buffer = self.msg_view.get_buffer()
         text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
         if text != "":
-            exec("msg = " + text)
+            try:
+                exec("msg = " + text)
+            except Exception, e:
+                self.log("BGP: Can't compile update statement: %s" % (e))
+                return
             select = self.treeview.get_selection()
             (model, paths) = select.get_selected_rows()
             for i in paths:
