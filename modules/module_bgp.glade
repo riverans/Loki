@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
-<!--Generated with glade3 3.4.5 on Mon Nov 23 01:37:38 2009 -->
+<!--Generated with glade3 3.4.5 on Mon Nov 23 02:22:15 2009 -->
 <glade-interface>
   <widget class="GtkWindow" id="window1">
     <child>
@@ -197,6 +197,13 @@
                               <widget class="GtkEntry" id="params_entry">
                                 <property name="visible">True</property>
                                 <property name="can_focus">True</property>
+                                <property name="has_tooltip">True</property>
+                                <property name="tooltip_text">a list of bgp connection parameters.
+available objects are:&#13;
+&#13;
+bgp_parameter(type)&#13;
+bgp_capability(cap_type)&#13;
+bgp_capability_mp(af, sub_af)</property>
                                 <property name="invisible_char">●</property>
                               </widget>
                             </child>
@@ -323,6 +330,25 @@
                               <widget class="GtkTextView" id="msg_view">
                                 <property name="visible">True</property>
                                 <property name="can_focus">True</property>
+                                <property name="has_tooltip">True</property>
+                                <property name="tooltip_text">a bgp_update object.
+available objects are:&#13;
+&#13;
+bgp_update(w_routes, path_attr, nlri)&#13;
+bgp_withdrawn_route(length, prefix)&#13;
+bgp_path_attr_origin(origin)&#13;
+bgp_path_attr_as_path(value)&#13;
+bgp_as_path_segment(type, values)&#13;
+bgp_path_attr_next_hop(next_hop)&#13;
+bgp_path_attr_multi_exit_disc(multi_exit_disc)&#13;
+bgp_path_attr_local_pref(local_pref)&#13;
+bgp_path_attr_extended_communities(communities)&#13;
+bgp_extended_community(encode, type, subtype, val1, val2, val3)&#13;
+bgp_path_attr_mp_reach_nlri(type, next_hop, snpa, net_reach)&#13;
+bgp_path_attr_mp_unreach_nlri(type)&#13;
+bgp_mp_rfc3107_nlri(length, stack, prefix)&#13;
+bgp_nlri(length, prefix)&#13;
+bgp_notification(err_code, err_sub, data)</property>
                                 <property name="wrap_mode">GTK_WRAP_WORD</property>
                                 <property name="text" translatable="yes">bgp_update([], [bgp_path_attr_origin(0), bgp_path_attr_as_path([bgp_as_path_segment(2, [10])]), bgp_path_attr_next_hop("192.168.210.139"), bgp_path_attr_local_pref(100)], [bgp_nlri(24,"10.0.1.0")])</property>
                               </widget>
