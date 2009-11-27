@@ -32,10 +32,15 @@
 import sys
 import os
 import platform
+import threading
 
 import gobject
 import gtk
 gtk.gdk.threads_init()
+
+import dpkt
+import pcap
+#import dnet
 
 VERSION = "v0.1"
 PLATFORM = platform.system()
@@ -43,6 +48,8 @@ PLATFORM = platform.system()
 class about_window(gtk.Window):
     def __init__(self, parent):
         gtk.Window.__init__(self)
+        self.set_title("About")
+        self.set_default_size(150, 70)
         self.set_property("modal", True)
         label = gtk.Label("This is %s version %s by Daniel Mende - dmende@ernw.de\nRunning on %s" % (parent.__class__.__name__, VERSION, PLATFORM))
         button = gtk.Button(gtk.STOCK_CLOSE)
@@ -53,10 +60,78 @@ class about_window(gtk.Window):
         vbox.pack_start(button, False, False)
         self.add(vbox)
 
+class pcap_thread(threading.Thread):
+    def __init__(self, parent, interface):
+        threading.Thread.__init__(self)
+        self.parent = parent
+        self.running = True
+        self.interface = interface
+
+    def run(self):
+        p = pcap.pcapObject()
+        #check to_ms = 100 for non linux
+        p.open_live(self.interface, 1600, 0, 100)
+        p.setnonblock(1)
+        #try:
+        while self.running:
+            p.dispatch(1, self.dispatch_packet)
+        #except Exception, e:
+        #    print e
+        self.parent.log("Listen thread terminated")
+
+    def quit(self):
+        self.running = False
+
+    def dispatch_packet(self, pktlen, data, timestamp):
+        if not data:
+            return
+        eth = dpkt.ethernet.Ethernet(data)
+        for (check, call) in self.parent.eth_checks:
+            (ret, stop) = check(eth)
+            if ret:
+                call(eth, timestamp)
+                if stop:
+                    return
+        if eth.type == dpkt.ethernet.ETH_TYPE_IP:
+            ip = dpkt.ip.IP(str(eth.data))
+            for (check, call) in self.parent.ip_checks:
+                (ret, stop) = check(ip)
+                if ret:
+                    call(ip, timestamp)
+                    if stop:
+                        return
+        if ip.p == dpkt.ip.IP_PROTO_TCP:
+            tcp = dpkt.tcp.TCP(str(ip.data))
+            for (check, call) in self.parent.tcp_checks:
+                (ret, stop) = check(tcp)
+                if ret:
+                    call(tcp, timestamp)
+                    if stop:
+                        return
+            
+
+class dnet_thread(threading.Thread):
+    def __init__(self, interface):
+        threading.Thread.__init__(self)
+        self.interface = interface
+        self.running = True
+
+    def run(self):
+        pass       
+
+    def quit(self):
+        self.running = False
+
 class codename_loki(object):
     def __init__(self):
         self.modules = {}
         self.msg_id = 0
+        self.configured = False
+        self.pcap_thread = None
+
+        self.eth_checks = []
+        self.ip_checks = []
+        self.tcp_checks = []
         
         #gtk stuff
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
@@ -69,20 +144,23 @@ class codename_loki(object):
         self.window.connect("destroy", self.destroy_event)
 
         self.toolbar = gtk.Toolbar()
+        self.quit_button = gtk.ToolButton(gtk.STOCK_QUIT)
+        self.quit_button.connect("clicked", self.on_quit_button_clicked)
+        self.toolbar.insert(self.quit_button, 0)
         self.about_button = gtk.ToolButton(gtk.STOCK_ABOUT)
         self.about_button.connect("clicked", self.on_about_button_clicked)
         self.toolbar.insert(self.about_button, 0)
         self.toolbar.insert(gtk.SeparatorToolItem(), 0)
         self.pref_button = gtk.ToolButton(gtk.STOCK_PREFERENCES)
         self.pref_button.connect("clicked", self.on_pref_button_clicked)
-        self.toolbar.insert(self.pref_button, 0)
+        #self.toolbar.insert(self.pref_button, 0)
         self.network_button = gtk.ToolButton(gtk.STOCK_NETWORK)
         self.network_button.connect("clicked", self.on_network_button_clicked)
         self.toolbar.insert(self.network_button, 0)
         self.toolbar.insert(gtk.SeparatorToolItem(), 0)
-        self.quit_button = gtk.ToolButton(gtk.STOCK_QUIT)
-        self.quit_button.connect("clicked", self.on_quit_button_clicked)
-        self.toolbar.insert(self.quit_button, 0)
+        self.run_togglebutton = gtk.ToggleToolButton(gtk.STOCK_EXECUTE)
+        self.run_togglebutton.connect("toggled", self.on_run_togglebutton_toogled)
+        self.toolbar.insert(self.run_togglebutton, 0)
 
         self.vbox = gtk.VBox(False, 0)
         self.vbox.pack_start(self.toolbar, False, False, 0)
@@ -105,6 +183,7 @@ class codename_loki(object):
 
     def load_modules(self, path="./modules/"):
         #import the modules
+        print "Loading modules..."
         sys.path.append(path)
         for i in os.listdir(path):
             if os.path.isfile(os.path.join(path, i)):
@@ -114,7 +193,6 @@ class codename_loki(object):
                         module = __import__(name)
                         print module
                         self.modules[name] = module.mod_class(self, PLATFORM)
-                        print "Imported module " + name
                     except Exception, e:
                         print e
 
@@ -127,6 +205,12 @@ class codename_loki(object):
                 self.notebook.set_tab_label(root, tab_label=gtk.Label(self.modules[i].name))
             else:
                 self.notebook.append_page(root, tab_label=gtk.Label(self.modules[i].name))
+            if "get_eth_checks" in dir(self.modules[i]):
+                self.eth_checks.append(self.modules[i].get_eth_checks())
+            if "get_ip_checks" in dir(self.modules[i]):
+                self.eth_checks.append(self.modules[i].get_ip_checks())
+            if "get_tcp_checks" in dir(self.modules[i]):
+                self.eth_checks.append(self.modules[i].get_tcp_checks())
             #self.modules[i].thread.start()
 
     def log(self, msg):
@@ -145,11 +229,44 @@ class codename_loki(object):
 
     ### EVENTS ###
 
+    def on_run_togglebutton_toogled(self, btn):
+        while not self.configured:
+            self.on_network_button_clicked(None)
+        if btn.get_property("active"):
+            self.pcap_thread = pcap_thread(self, self.interface)
+            self.pcap_thread.start()
+            self.log("Listening on %s" % (self.interface))
+        else:
+            self.pcap_thread.quit()
+
     def on_pref_button_clicked(self, data):
         pass
         
     def on_network_button_clicked(self, data):
-        pass
+        dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
+        box = gtk.combo_box_new_text()
+        devs = pcap.findalldevs()
+        for (name, descr, addr, flags) in devs:
+            if len(addr) > 1:
+                (ip, mask, net, gw) = addr[1]
+            else:
+                ip = "no"
+                mask = "address"
+            if descr:
+                line = " %s (%s %s)" % (descr, ip, mask)
+            else:
+                line = " (%s %s)" % (ip, mask)
+            box.append_text(name + line)
+        box.set_active(0)
+        dialog.vbox.pack_start(box)
+        box.show()
+        ret = dialog.run()
+        dialog.destroy()
+        if ret == gtk.RESPONSE_OK:
+            model = box.get_model()
+            active = box.get_active()
+            self.interface = model[active][0].split(" ")[0]
+            self.configured = True
 
     def on_about_button_clicked(self, data):
         window = about_window(self)
@@ -162,6 +279,8 @@ class codename_loki(object):
     def delete_event(self, widget, event, data=None):
         for i in self.modules.keys():
             self.modules[i].shutdown()
+        if self.pcap_thread:
+            self.pcap_thread.quit()
         return False
 
     def destroy_event(self, widget, data=None):

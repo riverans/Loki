@@ -57,3 +57,12 @@ class mod_class(object):
 
     def shutdown(self):
         pass
+
+    #def get_eth_checks(self):
+        #pass
+
+    #def get_ip_checks(self):
+        #pass
+
+    #def get_tcp_checks(self):
+        #pass

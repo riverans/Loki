@@ -38,7 +38,7 @@ import struct
 import time
 import cmd
 import fcntl
-import md5
+#import md5
 
 import pcap
 import dpkt
@@ -191,13 +191,13 @@ class eigrp_authentication(eigrp_tlv):
         self.key_id = key_id
 
     def render(self, data):
-        if self.hash == "md5":
-            m = md5.new()
-            m.update(self.key)
-            m.update(data)
+        #if self.hash == "md5":
+            #m = md5.new()
             #m.update(self.key)
-            return eigrp_tlv.render(self, struct.pack("!4BI12B", 0x00, 0x02, 0x00, 0x10, self.key_id, 0x00, 0x00, 0x00, 0x00 ,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) + m.digest())
-        else:
+            #m.update(data)
+            ##m.update(self.key)
+            #return eigrp_tlv.render(self, struct.pack("!4BI12B", 0x00, 0x02, 0x00, 0x10, self.key_id, 0x00, 0x00, 0x00, 0x00 ,0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00) + m.digest())
+        #else:
             return ""
 
 class eigrp_sequence(eigrp_tlv):
