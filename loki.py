@@ -259,10 +259,16 @@ class codename_loki(object):
             self.dnet_thread.start()
             self.log("Listening on %s" % (self.interface))
             for i in self.modules:
-                if "set_ip" in dir(self.modules[i]):
-                    self.modules[i].set_ip(self.ip)
-                if "set_dnet" in dir(self.modules[i]):
-                    self.modules[i].set_dnet(self.dnet_thread)
+                try:
+                    if "set_ip" in dir(self.modules[i]):
+                        self.modules[i].set_ip(self.ip, self.mask)
+                except Exception, e:
+                    print e
+                try:
+                    if "set_dnet" in dir(self.modules[i]):
+                        self.modules[i].set_dnet(self.dnet_thread)
+                except Exception, e:
+                    print e
         else:
             self.pcap_thread.quit()
             self.pcap_thread = None
@@ -283,7 +289,7 @@ class codename_loki(object):
                 ip = "no"
                 mask = "address"
             if descr:
-                line = " %s (%s %s)" % (descr, ip, mask)
+                line = " (%s %s) - %s" % (ip, mask, descr)
             else:
                 line = " (%s %s)" % (ip, mask)
             box.append_text(name + line)
@@ -297,6 +303,11 @@ class codename_loki(object):
             active = box.get_active()
             self.interface = model[active][0].split(" ")[0]
             self.ip = model[active][0].split("(")[1].split(" ")[0]
+            if self.ip == "no":
+                self.ip = "0.0.0.0"
+            self.mask = model[active][0].split(" ")[2].split(")")[0]
+            if self.mask == "address":
+                self.mask = "0"
             self.configured = True
 
     def on_about_button_clicked(self, data):

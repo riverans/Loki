@@ -52,7 +52,7 @@ class spoof_thread(threading.Thread):
         while self.running:
             if self.parent.dnet:
                 for iter in self.parent.spoofs:
-                    (run, entry) = self.parent.spoofs[iter]
+                    (run, entry, org_data) = self.parent.spoofs[iter]
                     if run:
                         for data in entry:
                             self.parent.dnet.send(data)
@@ -181,7 +181,8 @@ class mod_class(object):
     def shutdown(self):
         self.spoof_thread.quit()
 
-    def set_ip(self, ip):
+    def set_ip(self, ip, mask):
+        self.scan_network_entry.set_text(str(IPy.IP("%s/%s" % (ip, mask), make_net=True)))
         self.ip = dnet.ip_aton(ip)
 
     def set_dnet(self, dnet_thread):
@@ -269,6 +270,8 @@ class mod_class(object):
             return
         parent = self.spoof_treestore.append(None, [self.offline, "%i spoofs" % (len(self.upper_add) * len(self.lower_add)), None])
         cur = self.spoof_treestore.get_string_from_iter(parent)
+        data = []
+        org_data = []
         for host_upper in self.upper_add:
             (ip_upper, rand_mac_upper, iter_upper) = self.upper_add[host_upper]
             for host_lower in self.lower_add:
@@ -277,16 +280,24 @@ class mod_class(object):
                 self.lower_add_liststore.remove(iter_lower)
                 arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(rand_mac_upper), spa=dnet.ip_aton(ip_upper), tpa=dnet.ip_aton(ip_lower))
                 eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_lower), src=dnet.eth_aton(rand_mac_upper), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
-                data = [str(eth)]
+                data.append(str(eth))
+                arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(host_upper), spa=dnet.ip_aton(ip_upper), tpa=dnet.ip_aton(ip_lower))
+                eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_lower), src=dnet.eth_aton(host_upper), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
+                org_data.append(str(eth))
+
                 arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(rand_mac_lower), spa=dnet.ip_aton(ip_lower), tpa=dnet.ip_aton(ip_upper))
                 eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_upper), src=dnet.eth_aton(rand_mac_lower), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
                 data.append(str(eth))
+                arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(host_lower), spa=dnet.ip_aton(ip_lower), tpa=dnet.ip_aton(ip_upper))
+                eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_upper), src=dnet.eth_aton(host_lower), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
+                org_data.append(str(eth))
             self.lower_add = {}
             self.upper_add_liststore.remove(iter_upper)
-        self.spoofs[cur] = (False, data)
+        self.spoofs[cur] = (False, data, org_data)
         self.upper_add = {}
 
     def on_remove_spoof_button_clicked(self, data):
+        self.on_stop_spoof_button_clicked(data)
         select = self.spoof_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
@@ -305,8 +316,11 @@ class mod_class(object):
                 parent = model.get_iter(i)
             self.spoof_treestore.set_value(parent, 0, self.offline)
             cur = self.spoof_treestore.get_string_from_iter(parent)
-            (run, data) = self.spoofs[cur]
-            self.spoofs[cur] = (False, data)
+            (run, data, org_data) = self.spoofs[cur]
+            if run:
+                self.spoofs[cur] = (False, data, org_data)
+                for j in org_data:
+                    self.dnet.eth.send(j)
 
     def on_start_spoof_button_clicked(self, data):
         select = self.spoof_treeview.get_selection()
@@ -317,8 +331,8 @@ class mod_class(object):
                 parent = model.get_iter(i)
             self.spoof_treestore.set_value(parent, 0, self.online)
             cur = self.spoof_treestore.get_string_from_iter(parent)
-            (run, data) = self.spoofs[cur]
-            self.spoofs[cur] = (True, data)
+            (run, data, org_data) = self.spoofs[cur]
+            self.spoofs[cur] = (True, data, org_data)
 
     def on_scan_start_button_clicked(self, data):
         ips = IPy.IP(self.scan_network_entry.get_text())
