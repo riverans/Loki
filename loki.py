@@ -33,6 +33,7 @@ import sys
 import os
 import platform
 import threading
+import time
 
 import gobject
 import gtk
@@ -40,7 +41,7 @@ gtk.gdk.threads_init()
 
 import dpkt
 import pcap
-#import dnet
+import dnet
 
 VERSION = "v0.1"
 PLATFORM = platform.system()
@@ -74,7 +75,11 @@ class pcap_thread(threading.Thread):
         p.setnonblock(1)
         #try:
         while self.running:
-            p.dispatch(1, self.dispatch_packet)
+            try:
+                p.dispatch(1, self.dispatch_packet)
+            except Exception, e:
+                print e
+            time.sleep(0.001)
         #except Exception, e:
         #    print e
         self.parent.log("Listen thread terminated")
@@ -97,30 +102,44 @@ class pcap_thread(threading.Thread):
             for (check, call) in self.parent.ip_checks:
                 (ret, stop) = check(ip)
                 if ret:
-                    call(ip, timestamp)
+                    call(eth, ip, timestamp)
                     if stop:
                         return
-        if ip.p == dpkt.ip.IP_PROTO_TCP:
-            tcp = dpkt.tcp.TCP(str(ip.data))
-            for (check, call) in self.parent.tcp_checks:
-                (ret, stop) = check(tcp)
-                if ret:
-                    call(tcp, timestamp)
-                    if stop:
-                        return
-            
+            if ip.p == dpkt.ip.IP_PROTO_TCP:
+                tcp = dpkt.tcp.TCP(str(ip.data))
+                for (check, call) in self.parent.tcp_checks:
+                    (ret, stop) = check(tcp)
+                    if ret:
+                        call(eth, ip, tcp, timestamp)
+                        if stop:
+                            return
+                
 
 class dnet_thread(threading.Thread):
     def __init__(self, interface):
         threading.Thread.__init__(self)
         self.interface = interface
+        self.sem = threading.Semaphore()
         self.running = True
+        self.eth = dnet.eth(interface)
+        self.out = None
 
     def run(self):
-        pass       
+        while self.running:
+            self.sem.acquire()
+            if self.out:
+                self.eth.send(self.out)
+                self.out = None
+            self.sem.release()
+            time.sleep(0.001)
 
     def quit(self):
         self.running = False
+
+    def send(self, out):
+        self.sem.acquire()
+        self.out = out
+        self.sem.release()
 
 class codename_loki(object):
     def __init__(self):
@@ -128,6 +147,7 @@ class codename_loki(object):
         self.msg_id = 0
         self.configured = False
         self.pcap_thread = None
+        self.dnet_thread = None
 
         self.eth_checks = []
         self.ip_checks = []
@@ -208,9 +228,9 @@ class codename_loki(object):
             if "get_eth_checks" in dir(self.modules[i]):
                 self.eth_checks.append(self.modules[i].get_eth_checks())
             if "get_ip_checks" in dir(self.modules[i]):
-                self.eth_checks.append(self.modules[i].get_ip_checks())
+                self.ip_checks.append(self.modules[i].get_ip_checks())
             if "get_tcp_checks" in dir(self.modules[i]):
-                self.eth_checks.append(self.modules[i].get_tcp_checks())
+                self.tcp_checks.append(self.modules[i].get_tcp_checks())
             #self.modules[i].thread.start()
 
     def log(self, msg):
@@ -235,9 +255,19 @@ class codename_loki(object):
         if btn.get_property("active"):
             self.pcap_thread = pcap_thread(self, self.interface)
             self.pcap_thread.start()
+            self.dnet_thread = dnet_thread(self.interface)
+            self.dnet_thread.start()
             self.log("Listening on %s" % (self.interface))
+            for i in self.modules:
+                if "set_ip" in dir(self.modules[i]):
+                    self.modules[i].set_ip(self.ip)
+                if "set_dnet" in dir(self.modules[i]):
+                    self.modules[i].set_dnet(self.dnet_thread)
         else:
             self.pcap_thread.quit()
+            self.pcap_thread = None
+            self.dnet_thread.quit()
+            self.dnet_thread = None
 
     def on_pref_button_clicked(self, data):
         pass
@@ -266,6 +296,7 @@ class codename_loki(object):
             model = box.get_model()
             active = box.get_active()
             self.interface = model[active][0].split(" ")[0]
+            self.ip = model[active][0].split("(")[1].split(" ")[0]
             self.configured = True
 
     def on_about_button_clicked(self, data):
@@ -281,6 +312,8 @@ class codename_loki(object):
             self.modules[i].shutdown()
         if self.pcap_thread:
             self.pcap_thread.quit()
+        if self.dnet_thread:
+            self.dnet_thread.quit()
         return False
 
     def destroy_event(self, widget, data=None):
