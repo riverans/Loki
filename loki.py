@@ -73,15 +73,14 @@ class pcap_thread(threading.Thread):
         #check to_ms = 100 for non linux
         p.open_live(self.interface, 1600, 0, 100)
         p.setnonblock(1)
-        #try:
         while self.running:
-            try:
-                p.dispatch(1, self.dispatch_packet)
-            except Exception, e:
-                print e
+            
+            p.dispatch(1, self.dispatch_packet)
+            #try:
+                #p.dispatch(1, self.dispatch_packet)
+            #except Exception, e:
+                #print e
             time.sleep(0.001)
-        #except Exception, e:
-        #    print e
         self.parent.log("Listen thread terminated")
 
     def quit(self):
@@ -140,6 +139,7 @@ class dnet_thread(threading.Thread):
         self.sem.acquire()
         self.out = out
         self.sem.release()
+        time.sleep(0.001)
 
 class codename_loki(object):
     def __init__(self):
@@ -267,6 +267,11 @@ class codename_loki(object):
                 try:
                     if "set_dnet" in dir(self.modules[i]):
                         self.modules[i].set_dnet(self.dnet_thread)
+                except Exception, e:
+                    print e
+                try:
+                    if "set_int" in dir(self.modules[i]):
+                        self.modules[i].set_int(self.interface)
                 except Exception, e:
                     print e
         else:
