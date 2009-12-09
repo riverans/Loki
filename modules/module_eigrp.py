@@ -415,7 +415,7 @@ class eigrp_peer(threading.Thread):
                     self.parent.log("EIGRP: Error while sending msg to %s. Check arguments." % (self.peer))
                 else:
                     if not self.spoof:
-                        self.sock.sendto(data, (socket.inet_ntoa(self.peer),0))
+                        self.sock.sendto(data, None, (socket.inet_ntoa(self.peer),0))
                     else:
                         ip = struct.pack("!BBHHHBBH", 0x45, 0xc0, len(data) + 20, 0x0000, 0x0000, 0x02, EIGRP_PROTOCOL_NUMBER, 0x0000) + self.spoof + self.peer
                         ip = ip[:10] + struct.pack("!H", ichecksum_func(ip)) + ip[12:]
@@ -546,7 +546,12 @@ class mod_class(object):
             if self.goodbye_thread.running:
                 self.goodbye_thread.quit()
         for i in self.peers:
-          self.peers[i].quit()  
+            self.peers[i].quit()
+        if self.filter:
+                self.log("EIGRP: Removing lokal packet filter for EIGRP")
+                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                self.filter = False
+
         
     # PEER HANDLING #
 
