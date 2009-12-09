@@ -29,15 +29,21 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import threading
+import socket
 import struct
+import os
+import threading
+import time
 
 import dnet
+import dpkt
 
 import gobject
 import gtk
 
 OSPF_VERSION = 2
+
+SO_BINDTODEVICE	= 25
 
 ### HELPER_FUNKTIONS ###
 
@@ -95,7 +101,7 @@ class ospf_header(object):
     AUTH_NONE = 0
     AUTH_SIMPLE = 1
     
-    def __init__(self, type = None, id = None, area = None, auth_type=0, auth_data=0):
+    def __init__(self, type=None, id=None, area=None, auth_type=None, auth_data=None):
         self.version = OSPF_VERSION
         self.type = type
         self.id = id
@@ -104,15 +110,19 @@ class ospf_header(object):
         self.auth_data = auth_data
 
     def render(self, data):
-        ret = struct.pack("!BBHLLHHQ", self.version, self.type, len(data) + 24, self.id, self.area, 0, self.auth_type, self.auth_data) + data
-        ret[12:13] = ichcksum_func(ret)
+        ret = "%s%s%s%s" % (struct.pack("!BBH", self.version, self.type, len(data) + 24),
+                            self.id,
+                            struct.pack("!LHHQ", self.area, 0, self.auth_type, self.auth_data),
+                            data
+                            )
+        ret = ret[:12] + struct.pack("!H", ichecksum_func(ret)) + ret[14:]
         return ret
 
     def parse(self, data):
         (self.version, self.type, len, self.id, self.area, csum, self.auth_type, self.auth_data) = struct.unpack("!BBHLLHHQ", data[:24])
         return data[24:]
 
-class osfp_hello(ospf_header):
+class ospf_hello(ospf_header):
 
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -133,8 +143,9 @@ class osfp_hello(ospf_header):
 
     OPTION_TOS_CAPABILITY = 0x1
     OPTION_EXTERNAL_ROUTING_CAPABILITY = 0x2
+    OPTION_ZERO_BIT = 0x40
 
-    def __init__(self, area = None, auth_type=0, auth_data=0, id = None, net_mask = None, hello_interval = None, options = None, router_prio = None, router_dead_interval = None, designated_router = None, backup_designated_router = None, neighbors = None):
+    def __init__(self, area=None, auth_type=None, auth_data=None, id=None, net_mask=None, hello_interval=None, options=None, router_prio=None, router_dead_interval=None, designated_router=None, backup_designated_router=None, neighbors=None):
         self.net_mask = net_mask
         self.hello_interval = hello_interval
         self.options = options
@@ -146,15 +157,16 @@ class osfp_hello(ospf_header):
         ospf_header.__init__(self, ospf_header.TYPE_HELLO, id, area, auth_type, auth_data)
 
     def render(self):
+        neighbors = ""
         if self.neighbors:
-            neighbors = ""
             for i in self.neighbors:
-                neighbors += strcut.pack("!L", i)
-        return self.ospf_header.render(struct.pack("!LHBBLLL", self.net_mask, self.hello_interval, self.options, self.router_prio, self.router_dead_interval, self.designated_router, self.backup_designated_router) + neighbors)
+                neighbors += i
+        data = self.net_mask + struct.pack("!HBBLLL", self.hello_interval, self.options, self.router_prio, self.router_dead_interval, self.designated_router, self.backup_designated_router) + neighbors
+        return ospf_header.render(self, data)
 
     def parse(self, data):
-        hello = self.ospf_header.parse(data)
-        (self.net_mask, self.hello_interval, self.options, self.router_prio, self.router_dead_interval, self.designated_router, self.backup_designated_router) = struct.unpack("!LHBBLLL", hello[:24])
+        hello = ospf_header.parse(self, data)
+        (self.net_mask, self.hello_interval, self.options, self.router_prio, self.router_dead_interval, self.designated_router, self.backup_designated_router) = struct.unpack("!LHBBLLL", hello[:20])
         if len(hello) > 24:
             self.neighbors = []
             for i in xrange(24, len(hello)-4, 4):
@@ -184,18 +196,19 @@ class ospf_database_description(ospf_header):
     FLAGS_MORE = 0x2
     FLAGS_MASTER_SLAVE = 0x1
 
-    def __init__(self, area = None, auth_type=0, auth_data=0, id = None, options=None, flags=None, sequence_num=None):
+    def __init__(self, area = None, auth_type=None, auth_data=None, id = None, options=None, flags=None, sequence_number=None):
         self.options = options
         self.flags = flags
         self.sequence_number = sequence_number
-        ospf_header.__init__(self, ospf_header.TYPE_HELLO, id, area, auth_type, auth_data)
+        ospf_header.__init__(self, ospf_header.TYPE_DATABESE_DESCRIPTION, id, area, auth_type, auth_data)
         
     def render(self, data):
-        return self.ospf_header.render(struct.pack("!xxBBL", self.options, self.flags, self.sequence_number) + data)
+        return ospf_header.render(self, "%s%s" % (struct.pack("!xxBBL", self.options, self.flags, self.sequence_number), data))
 
     def parse(self, data):
-        descr = self.ospf_header.parse(data)
-        (self.options, self.flags, self.sequence_number) = struct.unpack("!xxBBL", descr)
+        descr = ospf_header.parse(self, data)
+        (self.options, self.flags, self.sequence_number) = struct.unpack("!xxBBL", descr[:8])
+        return descr[8:]
 
 class ospf_link_state_request(ospf_header):
 
@@ -325,11 +338,10 @@ class ospf_link_state_advertisement_header(object):
         self.ls_type = ls_type
         self.ls_id = ls_id
         self.advert_router = advert_router
-        self.ls_seq = ls_seq
-        self.len= len(data)
+        self.ls_seq = ls_seq 
 
     def render(sel, data):
-        ret = struct.pack("!HBBLLLHH", self.ls_age, self.options, self.ls_type, self.ls_id, self.advert_router, 0, 20 + self.len) + data
+        ret = struct.pack("!HBBLLLHH", self.ls_age, self.options, self.ls_type, self.ls_id, self.advert_router, 0, 20 + len(data)) + data
         ret[14:16] = ichecksum_func(ret)
         return ret
 
@@ -546,21 +558,77 @@ class ospf_as_external_link_advertisement(ospf_link_state_advertisement_header):
         
 ### OSPF_THREAD_CLASS ###
 
-class ospf_hello_thread(threading.Thread):
-    def __init__(self):
-        pass
+class ospf_thread(threading.Thread):
+    STATE_HELLO = 1
+    STATE_EXCHANGE = 2
+    STATE_FULL = 3
+    
+    def __init__(self, parent, delay):
+        self.parent = parent
+        self.running = True
+        self.hello = False
+        self.delay = delay
+        threading.Thread.__init__(self)
+
+    def run(self):
+        while(self.running):
+            if self.parent.dnet:
+                if self.hello and len(self.parent.neighbors) > 0:
+                    neighbors = []
+                    for id in self.parent.neighbors:
+                        (mac, ip, hello, dbd, seq, state) = self.parent.neighbors[id]
+                        neighbors.append(ip)
+                    packet = ospf_hello(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, self.parent.mask, self.delay, ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY), 1, self.delay * 4, hello.designated_router, hello.backup_designated_router, neighbors)
+                    ip_hdr = dpkt.ip.IP(ttl=1, p=dpkt.ip.IP_PROTO_OSPF, src=self.parent.ip, dst=dnet.ip_aton("224.0.0.5"), data=packet.render())
+                    ip_hdr.len += len(ip_hdr.data)
+                    eth_hdr = dpkt.ethernet.Ethernet(dst=dnet.eth_aton("01:00:5e:00:00:05"), src=self.parent.mac, type=dpkt.ethernet.ETH_TYPE_IP, data=str(ip_hdr))
+                    self.parent.dnet.send(str(eth_hdr))
+                    for id in self.parent.neighbors:
+                        (mac, ip, hello, dbd, seq, state) = self.parent.neighbors[id]
+                        if state == self.STATE_EXCHANGE:
+                            if dbd:
+                                packet = ospf_database_description(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, dbd.options, dbd.flags, seq)
+                            else:
+                                packet = ospf_database_description(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY), ospf_database_description.FLAGS_INIT | ospf_database_description.FLAGS_MASTER_SLAVE | ospf_database_description.FLAGS_MORE, seq)
+                            self.parent.neighbors[id] = (mac, ip, hello, dbd, seq+1, state)
+                            ip_hdr = dpkt.ip.IP(ttl=1, p=dpkt.ip.IP_PROTO_OSPF, src=self.parent.ip, dst=ip, data=packet.render(""))
+                            ip_hdr.len += len(ip_hdr.data)
+                            eth_hdr = dpkt.ethernet.Ethernet(dst=mac, src=self.parent.mac, type=dpkt.ethernet.ETH_TYPE_IP, data=str(ip_hdr))
+                            self.parent.dnet.send(str(eth_hdr))
+                        packet = ospf_hello(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, self.parent.mask, self.delay, ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY), 1, self.delay * 4, hello.designated_router, hello.backup_designated_router, neighbors)
+                        ip_hdr = dpkt.ip.IP(ttl=1, p=dpkt.ip.IP_PROTO_OSPF, src=self.parent.ip, dst=ip, data=packet.render())
+                        ip_hdr.len += len(ip_hdr.data)
+                        eth_hdr = dpkt.ethernet.Ethernet(dst=mac, src=self.parent.mac, type=dpkt.ethernet.ETH_TYPE_IP, data=str(ip_hdr))
+                        self.parent.dnet.send(str(eth_hdr))
+            for x in xrange(self.delay):
+                if not self.running:
+                    return
+                time.sleep(1)
+
+    def quit(self):
+        self.running = False
 
 ### MODULE_CLASS ###
 
-class mod_class(object):
+class mod_class(object):    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
         self.name = "ospf"
         self.gladefile = "modules/module_ospf.glade"
         self.neighbor_liststore = gtk.ListStore(str, str)
-
+        self.auth_type_liststore = gtk.ListStore(str, int)
+        for i in dir(ospf_header):
+            if i.startswith("AUTH_"):
+                exec("val = ospf_header." + i)
+                self.auth_type_liststore.append([i, val])
+        self.dnet = None
+        self.area = 0
+        self.auth_type = ospf_header.AUTH_NONE
+        self.auth_data = 0
         self.neighbors = {}
+        self.thread = ospf_thread(self, 10)
+        self.filter = False
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
@@ -585,6 +653,11 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', 1)
         self.neighbor_treeview.append_column(column)
 
+        self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
+        self.auth_type_combobox = self.glade_xml.get_widget("auth_type_combobox")
+        self.auth_type_combobox.set_model(self.auth_type_liststore)
+        self.auth_type_combobox.set_active(0)
+        self.auth_data_entry = self.glade_xml.get_widget("auth_data_entry")
 
         return self.glade_xml.get_widget("root")
 
@@ -592,30 +665,80 @@ class mod_class(object):
         self.log = log
 
     def shutdown(self):
-        pass
+        self.thread.quit()
+        if self.filter:
+            self.log("OSPF: Removing lokal packet filter for OSPF")
+            os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            self.filter = False
 
     def set_ip(self, ip, mask):
         self.ip = dnet.ip_aton(ip)
+        self.mask = dnet.ip_aton(mask)
+
+    def set_dnet(self, dnet):
+        self.dnet = dnet
+        self.mac = dnet.eth.get()
+
+    def set_int(self, interface):
+        self.interface = interface
+
+        self.thread.start()
 
     def get_ip_checks(self):
         return (self.check_ip, self.input_ip)
 
     def check_ip(self, ip):
-        if ip.dst == dnet.ip_aton("224.0.0.5"):
+        if ip.p == dpkt.ip.IP_PROTO_OSPF:
             return (True, False)
         return (False, False)
 
     def input_ip(self, eth, ip, timestamp):
-        header = ospf_header()
-        data = str(ip.data)
-        header.parse(data[:24])
-        if header.type == ospf_header.TYPE_HELLO:
-            id = dnet.ip_ntoa(header.id)
-            if id not in self.neighbors:
-                self.neighbors[id] = None
-                self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id])
+        if ip.src != self.ip:
+            if ip.dst == dnet.ip_aton("224.0.0.5"):
+                header = ospf_header()
+                data = str(ip.data)
+                header.parse(data[:24])
+                if header.type == ospf_header.TYPE_HELLO:
+                    hello = ospf_hello()
+                    hello.parse(data)
+                    id = dnet.ip_ntoa(header.id)
+                    if id not in self.neighbors:
+                        self.neighbors[id] = (eth.src, ip.src, hello, None, 0, ospf_thread.STATE_HELLO)
+                        self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id])
+            elif ip.dst == self.ip:
+                header = ospf_header()
+                data = str(ip.data)
+                header.parse(data[:24])
+                if header.type == ospf_header.TYPE_HELLO:
+                    hello = ospf_hello()
+                    hello.parse(data)
+                    id = dnet.ip_ntoa(header.id)
+                    if id in self.neighbors:
+                        print self.neighbors[id]
+                        (mac, src, org_hello, org_dbd, seq, state) = self.neighbors[id]
+                        if state == ospf_thread.STATE_HELLO:
+                            self.neighbors[id] = (eth.src, ip.src, hello, org_dbd, seq, ospf_thread.STATE_EXCHANGE)
+                if header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
+                    dbd = ospf_database_description()
+                    dbd.parse(data)
+                    id = dnet.ip_ntoa(header.id)
+                    if id in self.neighbors:
+                        (mac, src, org_hello, org_dbd, seq, state) = self.neighbors[id]
+                        self.neighbors[id] = (mac, src, org_hello, dbd, seq, state)
+                    if 
+                            
 
     # SIGNALS #
 
     def on_hello_togglebutton_toggled(self, btn):
-        pass
+        self.thread.hello = btn.get_active()
+        if self.thread.hello:
+            if not self.filter:
+                self.log("OSPF: Setting lokal packet filter for OSPF")
+                os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                self.filter = True
+        else:
+            if self.filter:
+                self.log("OSPF: Removing lokal packet filter for OSPF")
+                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                self.filter = False
