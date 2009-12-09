@@ -225,6 +225,7 @@ class codename_loki(object):
                 self.notebook.set_tab_label(root, tab_label=gtk.Label(self.modules[i].name))
             else:
                 self.notebook.append_page(root, tab_label=gtk.Label(self.modules[i].name))
+            root.set_property("sensitive", False)
             if "get_eth_checks" in dir(self.modules[i]):
                 self.eth_checks.append(self.modules[i].get_eth_checks())
             if "get_ip_checks" in dir(self.modules[i]):
@@ -274,7 +275,11 @@ class codename_loki(object):
                         self.modules[i].set_int(self.interface)
                 except Exception, e:
                     print e
+            for i in self.notebook:
+                i.set_property("sensitive", True)
         else:
+            for i in self.notebook:
+                i.set_property("sensitive", False)
             self.pcap_thread.quit()
             self.pcap_thread = None
             self.dnet_thread.quit()
