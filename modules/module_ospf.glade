@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
+<!--Generated with glade3 3.4.5 on Tue Dec  8 19:16:25 2009 -->
+<glade-interface>
+  <widget class="GtkWindow" id="window1">
+    <child>
+      <widget class="GtkVBox" id="root">
+        <property name="visible">True</property>
+        <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+        <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+        <child>
+          <widget class="GtkHBox" id="hbox1">
+            <property name="visible">True</property>
+            <child>
+              <widget class="GtkTreeView" id="neighbor_treeview">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+              </widget>
+            </child>
+            <child>
+              <widget class="GtkVSeparator" id="vseparator1">
+                <property name="visible">True</property>
+                <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkVBox" id="vbox1">
+                <property name="visible">True</property>
+                <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+                <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+                <child>
+                  <widget class="GtkEventBox" id="eventbox1">
+                    <property name="visible">True</property>
+                    <child>
+                      <placeholder/>
+                    </child>
+                  </widget>
+                </child>
+                <child>
+                  <widget class="GtkToggleButton" id="hello_togglebutton">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">True</property>
+                    <property name="label" translatable="yes">Hello</property>
+                    <property name="response_id">0</property>
+                    <signal name="toggled" handler="on_hello_togglebutton_toggled"/>
+                  </widget>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <widget class="GtkEventBox" id="eventbox2">
+                    <property name="visible">True</property>
+                    <child>
+                      <placeholder/>
+                    </child>
+                  </widget>
+                  <packing>
+                    <property name="position">2</property>
+                  </packing>
+                </child>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">2</property>
+              </packing>
+            </child>
+          </widget>
+        </child>
+        <child>
+          <widget class="GtkHSeparator" id="hseparator1">
+            <property name="visible">True</property>
+          </widget>
+          <packing>
+            <property name="expand">False</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <widget class="GtkHBox" id="hbox2">
+            <property name="visible">True</property>
+            <child>
+              <widget class="GtkVBox" id="vbox2">
+                <property name="visible">True</property>
+                <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+                <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+                <child>
+                  <widget class="GtkFrame" id="frame1">
+                    <property name="visible">True</property>
+                    <property name="label_xalign">0</property>
+                    <property name="shadow_type">GTK_SHADOW_NONE</property>
+                    <child>
+                      <widget class="GtkAlignment" id="alignment1">
+                        <property name="visible">True</property>
+                        <property name="left_padding">12</property>
+                        <child>
+                          <widget class="GtkHBox" id="hbox3">
+                            <property name="visible">True</property>
+                            <child>
+                              <widget class="GtkComboBox" id="auth_type_combobox">
+                                <property name="visible">True</property>
+                                <property name="items" translatable="yes"></property>
+                              </widget>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">False</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <widget class="GtkEntry" id="auth_data_entry">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="invisible_char">●</property>
+                              </widget>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="fill">False</property>
+                                <property name="position">1</property>
+                              </packing>
+                            </child>
+                          </widget>
+                        </child>
+                      </widget>
+                    </child>
+                    <child>
+                      <widget class="GtkLabel" id="label1">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">&lt;b&gt;Authentication&lt;/b&gt;</property>
+                        <property name="use_markup">True</property>
+                      </widget>
+                      <packing>
+                        <property name="type">label_item</property>
+                      </packing>
+                    </child>
+                  </widget>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">False</property>
+                  </packing>
+                </child>
+                <child>
+                  <widget class="GtkHSeparator" id="hseparator2">
+                    <property name="visible">True</property>
+                  </widget>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <widget class="GtkEventBox" id="eventbox4">
+                    <property name="visible">True</property>
+                    <child>
+                      <placeholder/>
+                    </child>
+                  </widget>
+                  <packing>
+                    <property name="position">2</property>
+                  </packing>
+                </child>
+              </widget>
+            </child>
+            <child>
+              <widget class="GtkVSeparator" id="vseparator2">
+                <property name="visible">True</property>
+                <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkEventBox" id="eventbox3">
+                <property name="visible">True</property>
+                <child>
+                  <placeholder/>
+                </child>
+              </widget>
+              <packing>
+                <property name="position">2</property>
+              </packing>
+            </child>
+          </widget>
+          <packing>
+            <property name="position">2</property>
+          </packing>
+        </child>
+      </widget>
+    </child>
+  </widget>
+</glade-interface>
