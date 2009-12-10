@@ -574,32 +574,107 @@ class ospf_thread(threading.Thread):
         while(self.running):
             if self.parent.dnet:
                 if self.hello and len(self.parent.neighbors) > 0:
+                    #Build neighbor list
                     neighbors = []
                     for id in self.parent.neighbors:
                         (mac, ip, hello, dbd, seq, state) = self.parent.neighbors[id]
                         neighbors.append(ip)
-                    packet = ospf_hello(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, self.parent.mask, self.delay, ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY), 1, self.delay * 4, hello.designated_router, hello.backup_designated_router, neighbors)
-                    ip_hdr = dpkt.ip.IP(ttl=1, p=dpkt.ip.IP_PROTO_OSPF, src=self.parent.ip, dst=dnet.ip_aton("224.0.0.5"), data=packet.render())
+
+                    #Multicast hello
+                    packet = ospf_hello(    self.parent.area,
+                                            self.parent.auth_type,
+                                            self.parent.auth_data,
+                                            self.parent.ip,
+                                            self.parent.mask,
+                                            self.delay,
+                                            ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
+                                            1,
+                                            self.delay * 4,
+                                            hello.designated_router,
+                                            hello.backup_designated_router,
+                                            neighbors
+                                            )
+                                            
+                    ip_hdr = dpkt.ip.IP(    ttl=1,
+                                            p=dpkt.ip.IP_PROTO_OSPF,
+                                            src=self.parent.ip,
+                                            dst=dnet.ip_aton("224.0.0.5"),
+                                            data=packet.render()
+                                            )
+                                            
                     ip_hdr.len += len(ip_hdr.data)
-                    eth_hdr = dpkt.ethernet.Ethernet(dst=dnet.eth_aton("01:00:5e:00:00:05"), src=self.parent.mac, type=dpkt.ethernet.ETH_TYPE_IP, data=str(ip_hdr))
+                    eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("01:00:5e:00:00:05"),
+                                                        src=self.parent.mac,
+                                                        type=dpkt.ethernet.ETH_TYPE_IP,
+                                                        data=str(ip_hdr)
+                                                        )
                     self.parent.dnet.send(str(eth_hdr))
+                    
                     for id in self.parent.neighbors:
                         (mac, ip, hello, dbd, seq, state) = self.parent.neighbors[id]
+                        #Exchange State
                         if state == self.STATE_EXCHANGE:
+                            #Sendout DBD
                             if dbd:
-                                packet = ospf_database_description(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, dbd.options, dbd.flags, seq)
+                                #Learned DBD
+                                packet = ospf_database_description( self.parent.area,
+                                                                    self.parent.auth_type,
+                                                                    self.parent.auth_data,
+                                                                    self.parent.ip,
+                                                                    dbd.options,
+                                                                    dbd.flags,
+                                                                    seq
+                                                                    )
                             else:
-                                packet = ospf_database_description(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY), ospf_database_description.FLAGS_INIT | ospf_database_description.FLAGS_MASTER_SLAVE | ospf_database_description.FLAGS_MORE, seq)
+                                #Empty DBD
+                                packet = ospf_database_description( self.parent.area,
+                                                                    self.parent.auth_type,
+                                                                    self.parent.auth_data,
+                                                                    self.parent.ip,
+                                                                    ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
+                                                                    ospf_database_description.FLAGS_INIT | ospf_database_description.FLAGS_MASTER_SLAVE | ospf_database_description.FLAGS_MORE,
+                                                                    seq
+                                                                    )
                             self.parent.neighbors[id] = (mac, ip, hello, dbd, seq+1, state)
-                            ip_hdr = dpkt.ip.IP(ttl=1, p=dpkt.ip.IP_PROTO_OSPF, src=self.parent.ip, dst=ip, data=packet.render(""))
+                            ip_hdr = dpkt.ip.IP(    ttl=1,
+                                                    p=dpkt.ip.IP_PROTO_OSPF,
+                                                    src=self.parent.ip,
+                                                    dst=ip,
+                                                    data=packet.render("")
+                                                    )
                             ip_hdr.len += len(ip_hdr.data)
-                            eth_hdr = dpkt.ethernet.Ethernet(dst=mac, src=self.parent.mac, type=dpkt.ethernet.ETH_TYPE_IP, data=str(ip_hdr))
+                            eth_hdr = dpkt.ethernet.Ethernet(   dst=mac,
+                                                                src=self.parent.mac,
+                                                                type=dpkt.ethernet.ETH_TYPE_IP,
+                                                                data=str(ip_hdr)
+                                                                )
                             self.parent.dnet.send(str(eth_hdr))
-                        packet = ospf_hello(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, self.parent.mask, self.delay, ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY), 1, self.delay * 4, hello.designated_router, hello.backup_designated_router, neighbors)
-                        ip_hdr = dpkt.ip.IP(ttl=1, p=dpkt.ip.IP_PROTO_OSPF, src=self.parent.ip, dst=ip, data=packet.render())
+
+                        #Unicast hello
+                        packet = ospf_hello(    self.parent.area,
+                                                self.parent.auth_type,
+                                                self.parent.auth_data,
+                                                self.parent.ip,
+                                                self.parent.mask,
+                                                self.delay,
+                                                ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
+                                                1,
+                                                self.delay * 4,
+                                                hello.designated_router,
+                                                hello.backup_designated_router,
+                                                neighbors
+                                                )
+                                                
+                        ip_hdr = dpkt.ip.IP(    ttl=1,
+                                                p=dpkt.ip.IP_PROTO_OSPF,
+                                                src=self.parent.ip,
+                                                dst=ip,
+                                                data=packet.render()
+                                                )
                         ip_hdr.len += len(ip_hdr.data)
                         eth_hdr = dpkt.ethernet.Ethernet(dst=mac, src=self.parent.mac, type=dpkt.ethernet.ETH_TYPE_IP, data=str(ip_hdr))
                         self.parent.dnet.send(str(eth_hdr))
+                        
             for x in xrange(self.delay):
                 if not self.running:
                     return
@@ -654,6 +729,7 @@ class mod_class(object):
         self.neighbor_treeview.append_column(column)
 
         self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
+        self.area_entry = self.glade_xml.get_widget("area_entry")
         self.auth_type_combobox = self.glade_xml.get_widget("auth_type_combobox")
         self.auth_type_combobox.set_model(self.auth_type_liststore)
         self.auth_type_combobox.set_active(0)
@@ -725,7 +801,8 @@ class mod_class(object):
                     if id in self.neighbors:
                         (mac, src, org_hello, org_dbd, seq, state) = self.neighbors[id]
                         self.neighbors[id] = (mac, src, org_hello, dbd, seq, state)
-                    if 
+                    if True:
+                        pass
                             
 
     # SIGNALS #
@@ -733,11 +810,17 @@ class mod_class(object):
     def on_hello_togglebutton_toggled(self, btn):
         self.thread.hello = btn.get_active()
         if self.thread.hello:
+            self.area_entry.set_property("sensitive", False)
+            self.auth_type_combobox.set_property("sensitive", False)
+            self.auth_data_entry.set_property("sensitive", False)
             if not self.filter:
                 self.log("OSPF: Setting lokal packet filter for OSPF")
                 os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 self.filter = True
         else:
+            self.area_entry.set_property("sensitive", True)
+            self.auth_type_combobox.set_property("sensitive", True)
+            self.auth_data_entry.set_property("sensitive", True)
             if self.filter:
                 self.log("OSPF: Removing lokal packet filter for OSPF")
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
