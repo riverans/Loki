@@ -143,6 +143,7 @@ class ospf_hello(ospf_header):
 
     OPTION_TOS_CAPABILITY = 0x1
     OPTION_EXTERNAL_ROUTING_CAPABILITY = 0x2
+    OPTION_CONTAINS_LSS = 0x10
     OPTION_ZERO_BIT = 0x40
 
     def __init__(self, area=None, auth_type=None, auth_data=None, id=None, net_mask=None, hello_interval=None, options=None, router_prio=None, router_dead_interval=None, designated_router=None, backup_designated_router=None, neighbors=None):
@@ -177,7 +178,7 @@ class ospf_database_description(ospf_header):
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    #|       0       |       0       |    Options    |0|0|0|0|0|I|M|MS
+    #|               MTU             |    Options    |0|0|0|0|0|I|M|MS
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     #|                     DD sequence number                        |
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -196,18 +197,19 @@ class ospf_database_description(ospf_header):
     FLAGS_MORE = 0x2
     FLAGS_MASTER_SLAVE = 0x1
 
-    def __init__(self, area = None, auth_type=None, auth_data=None, id = None, options=None, flags=None, sequence_number=None):
+    def __init__(self, area=None, auth_type=None, auth_data=None, id=None, mtu=None, options=None, flags=None, sequence_number=None):
+        self.mtu = mtu
         self.options = options
         self.flags = flags
         self.sequence_number = sequence_number
         ospf_header.__init__(self, ospf_header.TYPE_DATABESE_DESCRIPTION, id, area, auth_type, auth_data)
         
     def render(self, data):
-        return ospf_header.render(self, "%s%s" % (struct.pack("!xxBBL", self.options, self.flags, self.sequence_number), data))
+        return ospf_header.render(self, struct.pack("!HBBL", self.mtu, self.options, self.flags, self.sequence_number) + data)
 
     def parse(self, data):
         descr = ospf_header.parse(self, data)
-        (self.options, self.flags, self.sequence_number) = struct.unpack("!xxBBL", descr[:8])
+        (self.mtu, self.options, self.flags, self.sequence_number) = struct.unpack("!HBBL", descr[:8])
         return descr[8:]
 
 class ospf_link_state_request(ospf_header):
@@ -340,10 +342,9 @@ class ospf_link_state_advertisement_header(object):
         self.advert_router = advert_router
         self.ls_seq = ls_seq 
 
-    def render(sel, data):
-        ret = struct.pack("!HBBLLLHH", self.ls_age, self.options, self.ls_type, self.ls_id, self.advert_router, 0, 20 + len(data)) + data
-        ret[14:16] = ichecksum_func(ret)
-        return ret
+    def render(self, data):
+        ret = struct.pack("!HBB", self.ls_age, self.options, self.ls_type) + self.ls_id + self.advert_router + struct.pack("!LHH", self.ls_seq, 0, 16 + 20 + len(data)) + data
+        return ret[:16] + struct.pack("!H", ichecksum_func(ret)) + ret[18:]
 
     def parse(self, data):
         (self.ls_age, self.options, self.ls_type, self.ls_id, self.advert_router, self.csum, self.len) = struct.unpack("!HBBLLLHH", data[:20])
@@ -366,16 +367,16 @@ class ospf_router_link_advertisement(ospf_link_state_advertisement_header):
     FLAG_EXTERNAL = 0x0200
     FLAG_BORDER = 0x0100
 
-    def __init__(self, ls_age=None, options=None, ls_type=None, ls_id=None, advert_router=None, ls_seq=None, flags=None,links=[]):
+    def __init__(self, ls_age=None, options=None, ls_type=None, ls_id=None, advert_router=None, ls_seq=None, flags=0x0, links=[]):
         self.flags = flags
         self.links = links
-        ospf_link_state_advertisement_header(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
+        ospf_link_state_advertisement_header.__init__(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
 
     def render(self):
-        ret = struct.pack("!LL", self.flags, len(self.links))
+        ret = ""
         for i in self.links:
             ret += i.render()
-        return ospf_link_state_advertisement_header.render(self, ret)
+        return ospf_link_state_advertisement_header.render(self, struct.pack("!HH", self.flags, len(self.links)) + ret)
 
     def parse(self, data):
         adv = ospf_link_state_advertisement_header.parse(self, data)
@@ -421,7 +422,7 @@ class ospf_router_link_advertisement_link(object):
         self.tos_n = tos_n
 
     def render(self):
-        ret = struct.pack("!LLBBH", self.id, self.data, self.type, len(self.tos_n), self.tos_0)
+        ret =  self.id + struct.pack("!LBBH", self.data, self.type, len(self.tos_n), self.tos_0)
         for i in self.tos_n:
             ret += i.render()
         return ret
@@ -464,7 +465,7 @@ class ospf_network_link_advertisement(ospf_link_state_advertisement_header):
     def __init__(self, ls_age=None, options=None, ls_type=None, ls_id=None, advert_router=None, ls_seq=None, net_mask=None, router=[]):
         self.net_mask = net_mask
         self.router = router
-        ospf_link_state_advertisement_header(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
+        ospf_link_state_advertisement_header.__init__(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
 
     def render(self):
         ret = struct.pack("!L", self.net_mask)
@@ -492,7 +493,7 @@ class ospf_summary_link_advertisement(ospf_link_state_advertisement_header):
     def __init__(self, ls_age=None, options=None, ls_type=None, ls_id=None, advert_router=None, ls_seq=None, net_mask=None, tos=[]):
         self.tos = tos
         self.metric = metric
-        ospf_link_state_advertisement_header(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
+        ospf_link_state_advertisement_header.__init__(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
 
     def render(self):
         ret = struct.pack("!L", self.net_mask)
@@ -545,7 +546,7 @@ class ospf_as_external_link_advertisement(ospf_link_state_advertisement_header):
         self.metric = metric
         self.forward_addr = forward_addr
         self.external_route = external_route
-        ospf_link_state_advertisement_header(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
+        ospf_link_state_advertisement_header.__init__(self, ls_age, options, ls_type, ls_id, advert_router, ls_seq)
 
     def render(self):
         ret = struct.pack("!LB3sL", self.net_mask, self.tos, self.metric, self.forward_addr)
@@ -560,15 +561,52 @@ class ospf_as_external_link_advertisement(ospf_link_state_advertisement_header):
 
 class ospf_thread(threading.Thread):
     STATE_HELLO = 1
-    STATE_EXCHANGE = 2
-    STATE_FULL = 3
+    STATE_EXCHANGE_DBD = 2
+    STATE_EXCHANGE_LSA = 3
+    STATE_EXCHANGE_ACK = 4
+    STATE_FULL = 5
+
+    GLOBAL_STATE_INIT = 1
+    GLOBAL_STATE_DONE = 2
     
     def __init__(self, parent, delay):
         self.parent = parent
         self.running = True
         self.hello = False
         self.delay = delay
+        self.state = self.GLOBAL_STATE_INIT
         threading.Thread.__init__(self)
+
+    def send_multicast(self, data):
+        ip_hdr = dpkt.ip.IP(    ttl=1,
+                                p=dpkt.ip.IP_PROTO_OSPF,
+                                src=self.parent.ip,
+                                dst=dnet.ip_aton("224.0.0.5"),
+                                data=data
+                                )
+        ip_hdr.len += len(ip_hdr.data)
+        eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("01:00:5e:00:00:05"),
+                                            src=self.parent.mac,
+                                            type=dpkt.ethernet.ETH_TYPE_IP,
+                                            data=str(ip_hdr)
+                                            )
+        self.parent.dnet.send(str(eth_hdr))
+
+    def send_unicast(self, mac, ip, data):
+        ip_hdr = dpkt.ip.IP(    ttl=1,
+                                p=dpkt.ip.IP_PROTO_OSPF,
+                                src=self.parent.ip,
+                                dst=ip,
+                                data=data
+                                )
+        ip_hdr.len += len(ip_hdr.data)
+        eth_hdr = dpkt.ethernet.Ethernet(   dst=mac,
+                                            src=self.parent.mac,
+                                            type=dpkt.ethernet.ETH_TYPE_IP,
+                                            data=str(ip_hdr)
+                                            )
+        self.parent.dnet.send(str(eth_hdr))
+        
 
     def run(self):
         while(self.running):
@@ -577,43 +615,82 @@ class ospf_thread(threading.Thread):
                     #Build neighbor list
                     neighbors = []
                     for id in self.parent.neighbors:
-                        (mac, ip, hello, dbd, seq, state) = self.parent.neighbors[id]
-                        neighbors.append(ip)
+                        neighbors.append(dnet.ip_aton(id))
 
                     #Multicast hello
-                    packet = ospf_hello(    self.parent.area,
-                                            self.parent.auth_type,
-                                            self.parent.auth_data,
-                                            self.parent.ip,
-                                            self.parent.mask,
-                                            self.delay,
-                                            ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
-                                            1,
-                                            self.delay * 4,
-                                            hello.designated_router,
-                                            hello.backup_designated_router,
-                                            neighbors
-                                            )
-                                            
-                    ip_hdr = dpkt.ip.IP(    ttl=1,
-                                            p=dpkt.ip.IP_PROTO_OSPF,
-                                            src=self.parent.ip,
-                                            dst=dnet.ip_aton("224.0.0.5"),
-                                            data=packet.render()
-                                            )
-                                            
-                    ip_hdr.len += len(ip_hdr.data)
-                    eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("01:00:5e:00:00:05"),
-                                                        src=self.parent.mac,
-                                                        type=dpkt.ethernet.ETH_TYPE_IP,
-                                                        data=str(ip_hdr)
-                                                        )
-                    self.parent.dnet.send(str(eth_hdr))
+                    if self.state == self.GLOBAL_STATE_INIT:
+                        packet = ospf_hello(    self.parent.area,
+                                                self.parent.auth_type,
+                                                self.parent.auth_data,
+                                                self.parent.ip,
+                                                self.parent.mask,
+                                                self.delay,
+                                                ospf_hello.OPTION_TOS_CAPABILITY | (self.parent.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
+                                                1,
+                                                self.delay * 4,
+                                                0,
+                                                0,
+                                                []
+                                                )
+                        self.state = self.GLOBAL_STATE_DONE
+                    else:
+                        packet = ospf_hello(    self.parent.area,
+                                                self.parent.auth_type,
+                                                self.parent.auth_data,
+                                                self.parent.ip,
+                                                self.parent.mask,
+                                                self.delay,
+                                                ospf_hello.OPTION_TOS_CAPABILITY | (self.parent.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
+                                                1,
+                                                self.delay * 4,
+                                                self.parent.dr,
+                                                self.parent.bdr,
+                                                neighbors
+                                                )
+                    self.send_multicast(packet.render())
+
+            #~ +---+                                         +---+
+            #~ |RT1|                                         |RT2|
+            #~ +---+                                         +---+
+            #~ 
+            #~ Down                                          Down
+                            #~ Hello(DR=0,seen=0)
+                       #~ ------------------------------>
+                         #~ Hello (DR=RT2,seen=RT1,...)      Init
+                       #~ <------------------------------
+            #~ ExStart        D-D (Seq=x,I,M,Master)
+                       #~ ------------------------------>
+                           #~ D-D (Seq=y,I,M,Master)         ExStart
+                       #~ <------------------------------
+            #~ Exchange       D-D (Seq=y,M,Slave)
+                       #~ ------------------------------>
+                           #~ D-D (Seq=y+1,M,Master)         Exchange
+                       #~ <------------------------------
+                           #~ D-D (Seq=y+1,M,Slave)
+                       #~ ------------------------------>
+                                     #~ ...
+                                     #~ ...
+                                     #~ ...
+                           #~ D-D (Seq=y+n, Master)
+                       #~ <------------------------------
+                           #~ D-D (Seq=y+n, Slave)
+             #~ Loading   ------------------------------>
+                                 #~ LS Request                Full
+                       #~ ------------------------------>
+                                 #~ LS Update
+                       #~ <------------------------------
+                                 #~ LS Request
+                       #~ ------------------------------>
+                                 #~ LS Update
+                       #~ <------------------------------
+             #~ Full
+
                     
                     for id in self.parent.neighbors:
-                        (mac, ip, hello, dbd, seq, state) = self.parent.neighbors[id]
-                        #Exchange State
-                        if state == self.STATE_EXCHANGE:
+                        (iter, mac, ip, dbd, seq, state) = self.parent.neighbors[id]
+                        #Exchange DBD State
+                        
+                        if state == self.STATE_EXCHANGE_DBD:
                             #Sendout DBD
                             if dbd:
                                 #Learned DBD
@@ -621,35 +698,59 @@ class ospf_thread(threading.Thread):
                                                                     self.parent.auth_type,
                                                                     self.parent.auth_data,
                                                                     self.parent.ip,
-                                                                    dbd.options,
-                                                                    dbd.flags,
-                                                                    seq
+                                                                    dbd.mtu,
+                                                                    dbd.options & ~ospf_hello.OPTION_CONTAINS_LSS,
+                                                                    dbd.flags & ~ospf_database_description.FLAGS_MASTER_SLAVE & ~ospf_database_description.FLAGS_INIT,
+                                                                    dbd.sequence_number
                                                                     )
-                            else:
-                                #Empty DBD
-                                packet = ospf_database_description( self.parent.area,
-                                                                    self.parent.auth_type,
-                                                                    self.parent.auth_data,
-                                                                    self.parent.ip,
-                                                                    ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
-                                                                    ospf_database_description.FLAGS_INIT | ospf_database_description.FLAGS_MASTER_SLAVE | ospf_database_description.FLAGS_MORE,
-                                                                    seq
-                                                                    )
-                            self.parent.neighbors[id] = (mac, ip, hello, dbd, seq+1, state)
-                            ip_hdr = dpkt.ip.IP(    ttl=1,
-                                                    p=dpkt.ip.IP_PROTO_OSPF,
-                                                    src=self.parent.ip,
-                                                    dst=ip,
-                                                    data=packet.render("")
-                                                    )
-                            ip_hdr.len += len(ip_hdr.data)
-                            eth_hdr = dpkt.ethernet.Ethernet(   dst=mac,
-                                                                src=self.parent.mac,
-                                                                type=dpkt.ethernet.ETH_TYPE_IP,
-                                                                data=str(ip_hdr)
+                            #~ else:
+                                #~ #Empty DBD
+                                #~ packet = ospf_database_description( self.parent.area,
+                                                                    #~ self.parent.auth_type,
+                                                                    #~ self.parent.auth_data,
+                                                                    #~ self.parent.ip,
+                                                                    #~ 0,
+                                                                    #~ ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
+                                                                    #~ ospf_database_description.FLAGS_INIT | ospf_database_description.FLAGS_MASTER_SLAVE | ospf_database_description.FLAGS_MORE,
+                                                                    #~ seq
+                                                                    #~ )
+                            self.send_unicast(mac, ip, packet.render(""))
+                        #Exchange LSA State
+                        elif state == self.STATE_EXCHANGE_LSA:
+                            packet = ospf_database_description( self.parent.area,
+                                                                self.parent.auth_type,
+                                                                self.parent.auth_data,
+                                                                self.parent.ip,
+                                                                self.parent.mtu,
+                                                                ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY | ospf_hello.OPTION_ZERO_BIT,
+                                                                ospf_database_description.FLAGS_MORE,
+                                                                dbd.sequence_number
                                                                 )
-                            self.parent.dnet.send(str(eth_hdr))
-
+                            lsa = ospf_link_state_advertisement_header( 92,
+                                                                        ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY,
+                                                                        ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS,
+                                                                        self.parent.ip,
+                                                                        self.parent.ip,
+                                                                        1
+                                                                    #0x0,
+                                                                    #[ospf_router_link_advertisement_link(self.parent.ip, 0, ospf_router_link_advertisement_link.TYPE_POINT_TO_POINT, 0)]
+                                                                    )
+                            l_data = lsa.render("")
+                            data = packet.render(l_data)
+                            self.send_unicast(mac, ip, data)
+                        elif state == self.STATE_EXCHANGE_ACK:
+                            #Ack DBD
+                            #Empty DBD
+                            packet = ospf_database_description( self.parent.area,
+                                                                self.parent.auth_type,
+                                                                self.parent.auth_data,
+                                                                self.parent.ip,
+                                                                self.parent.mtu,
+                                                                ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY | ospf_hello.OPTION_ZERO_BIT,
+                                                                0,
+                                                                dbd.sequence_number
+                                                                )
+                            self.send_unicast(mac, ip, packet.render(""))
                         #Unicast hello
                         packet = ospf_hello(    self.parent.area,
                                                 self.parent.auth_type,
@@ -657,23 +758,14 @@ class ospf_thread(threading.Thread):
                                                 self.parent.ip,
                                                 self.parent.mask,
                                                 self.delay,
-                                                ospf_hello.OPTION_TOS_CAPABILITY | (hello.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
+                                                ospf_hello.OPTION_TOS_CAPABILITY | (self.parent.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
                                                 1,
                                                 self.delay * 4,
-                                                hello.designated_router,
-                                                hello.backup_designated_router,
+                                                self.parent.dr,
+                                                self.parent.bdr,
                                                 neighbors
                                                 )
-                                                
-                        ip_hdr = dpkt.ip.IP(    ttl=1,
-                                                p=dpkt.ip.IP_PROTO_OSPF,
-                                                src=self.parent.ip,
-                                                dst=ip,
-                                                data=packet.render()
-                                                )
-                        ip_hdr.len += len(ip_hdr.data)
-                        eth_hdr = dpkt.ethernet.Ethernet(dst=mac, src=self.parent.mac, type=dpkt.ethernet.ETH_TYPE_IP, data=str(ip_hdr))
-                        self.parent.dnet.send(str(eth_hdr))
+                        self.send_unicast(mac, ip, packet.render())
                         
             for x in xrange(self.delay):
                 if not self.running:
@@ -691,7 +783,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "ospf"
         self.gladefile = "modules/module_ospf.glade"
-        self.neighbor_liststore = gtk.ListStore(str, str)
+        self.neighbor_liststore = gtk.ListStore(str, str, str)
         self.auth_type_liststore = gtk.ListStore(str, int)
         for i in dir(ospf_header):
             if i.startswith("AUTH_"):
@@ -702,6 +794,10 @@ class mod_class(object):
         self.auth_type = ospf_header.AUTH_NONE
         self.auth_data = 0
         self.neighbors = {}
+        self.dr = ""
+        self.bdr = ""
+        self.options = ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY
+        self.mtu = 1500
         self.thread = ospf_thread(self, 10)
         self.filter = False
 
@@ -726,6 +822,12 @@ class mod_class(object):
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 1)
+        self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("STATE")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 2)
         self.neighbor_treeview.append_column(column)
 
         self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
@@ -770,6 +872,7 @@ class mod_class(object):
 
     def input_ip(self, eth, ip, timestamp):
         if ip.src != self.ip:
+            #Multicast packet
             if ip.dst == dnet.ip_aton("224.0.0.5"):
                 header = ospf_header()
                 data = str(ip.data)
@@ -779,8 +882,12 @@ class mod_class(object):
                     hello.parse(data)
                     id = dnet.ip_ntoa(header.id)
                     if id not in self.neighbors:
-                        self.neighbors[id] = (eth.src, ip.src, hello, None, 0, ospf_thread.STATE_HELLO)
-                        self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id])
+                        iter = self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id, "Hello recieved"])
+                        self.neighbors[id] = (iter, eth.src, ip.src, None, 1337, ospf_thread.STATE_HELLO)
+                    self.dr = hello.designated_router
+                    self.bdr = hello.backup_designated_router
+                    self.options = hello.options
+            #Unicast packet
             elif ip.dst == self.ip:
                 header = ospf_header()
                 data = str(ip.data)
@@ -790,20 +897,27 @@ class mod_class(object):
                     hello.parse(data)
                     id = dnet.ip_ntoa(header.id)
                     if id in self.neighbors:
-                        print self.neighbors[id]
-                        (mac, src, org_hello, org_dbd, seq, state) = self.neighbors[id]
+                        (iter, mac, src, org_dbd, seq, state) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
-                            self.neighbors[id] = (eth.src, ip.src, hello, org_dbd, seq, ospf_thread.STATE_EXCHANGE)
+                            self.neighbors[id] = (iter, eth.src, ip.src, org_dbd, seq, ospf_thread.STATE_EXCHANGE_DBD)
+                            self.neighbor_liststore.set_value(iter, 2, "exchanging DBD")
                 if header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
                     dbd = ospf_database_description()
                     dbd.parse(data)
                     id = dnet.ip_ntoa(header.id)
                     if id in self.neighbors:
-                        (mac, src, org_hello, org_dbd, seq, state) = self.neighbors[id]
-                        self.neighbors[id] = (mac, src, org_hello, dbd, seq, state)
-                    if True:
-                        pass
-                            
+                        (iter, mac, src, org_dbd, seq, state) = self.neighbors[id]
+                        if state == ospf_thread.STATE_EXCHANGE_DBD:
+                            if not dbd.flags & ospf_database_description.FLAGS_INIT:
+                                self.neighbors[id] = (iter, mac, src, dbd, seq, ospf_thread.STATE_EXCHANGE_LSA)
+                                self.neighbor_liststore.set_value(iter, 2, "exchanging LSA")
+                            else:
+                                self.neighbors[id] = (iter, mac, src, dbd, seq, state)
+                        elif state == ospf_thread.STATE_EXCHANGE_LSA:
+                            if not dbd.flags & ospf_database_description.FLAGS_MORE:
+                                self.neighbors[id] = (iter, mac, src, dbd, seq, ospf_thread.STATE_EXCHANGE_ACK)
+                                self.neighbor_liststore.set_value(iter, 2, "ack LSA")
+                     
 
     # SIGNALS #
 
