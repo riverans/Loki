@@ -321,6 +321,7 @@ class mod_class(object):
                 self.spoofs[cur] = (False, data, org_data)
                 for j in org_data:
                     self.dnet.eth.send(j)
+        ### RESET OLD STATES ??? ###
 
     def on_start_spoof_button_clicked(self, data):
         select = self.spoof_treeview.get_selection()
