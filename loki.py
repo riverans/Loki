@@ -32,8 +32,10 @@
 import sys
 import os
 import platform
+import signal
 import threading
 import time
+import traceback
 
 import gobject
 import gtk
@@ -74,12 +76,14 @@ class pcap_thread(threading.Thread):
         p.open_live(self.interface, 1600, 0, 100)
         p.setnonblock(1)
         while self.running:
-            
-            p.dispatch(1, self.dispatch_packet)
-            #try:
-                #p.dispatch(1, self.dispatch_packet)
-            #except Exception, e:
-                #print e
+            try:
+                p.dispatch(1, self.dispatch_packet)
+            except Exception, e:
+                print e
+                print '-'*60
+                traceback.print_exc(file=sys.stdout)
+                print '-'*60
+
             time.sleep(0.001)
         self.parent.log("Listen thread terminated")
 
@@ -342,4 +346,8 @@ class codename_loki(object):
 
 if __name__ == '__main__':
     app = codename_loki()
-    app.main()
+    signal.signal(signal.SIGINT, app.on_quit_button_clicked)
+    try:
+        app.main()
+    except:
+        app.delete_event(None, None)
