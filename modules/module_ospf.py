@@ -978,21 +978,18 @@ class mod_class(object):
                 header = ospf_header()
                 data = str(ip.data)
                 header.parse(data[:24])
-                if header.type == ospf_header.TYPE_HELLO:
-                    id = dnet.ip_ntoa(header.id)
-                    if id in self.neighbors:
+                id = dnet.ip_ntoa(header.id)
+                if id in self.neighbors:
+                    (iter, mac, src, dbd, lsa, state) = self.neighbors[id]
+                    if header.type == ospf_header.TYPE_HELLO:
                         hello = ospf_hello()
                         hello.parse(data)
-                        (iter, mac, src, dbd, lsa, state) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
                             self.neighbors[id] = (iter, eth.src, ip.src, dbd, lsa, ospf_thread.STATE_2WAY)
                             self.neighbor_liststore.set_value(iter, 2, "2WAY")
-                elif header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
-                    id = dnet.ip_ntoa(header.id)
-                    if id in self.neighbors:
+                    elif header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
                         dbd = ospf_database_description()
                         dbd.parse(data)
-                        (iter, mac, src, org_dbd, lsa, state) = self.neighbors[id]
                         if state == ospf_thread.STATE_2WAY:
                             if not dbd.flags & ospf_database_description.FLAGS_INIT:
                                 self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART)
@@ -1003,24 +1000,15 @@ class mod_class(object):
                             if not dbd.flags & ospf_database_description.FLAGS_MORE:
                                 self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE)
                                 self.neighbor_liststore.set_value(iter, 2, "EXCHANGE")
-                elif header.type == ospf_header.TYPE_LINK_STATE_REQUEST:
-                    id = dnet.ip_ntoa(header.id)
-                    if id in self.neighbors:
-                        (iter, mac, src, dbd, lsa, state) = self.neighbors[id]
+                    elif header.type == ospf_header.TYPE_LINK_STATE_REQUEST:
                         if state == ospf_thread.STATE_EXCHANGE:
                             self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_LOADING)
                             self.neighbor_liststore.set_value(iter, 2, "LOADING")
-                elif header.type == ospf_header.TYPE_LINK_STATE_ACK:
-                    id = dnet.ip_ntoa(header.id)
-                    if id in self.neighbors:
-                        (iter, mac, src, dbd, lsa, state) = self.neighbors[id]
+                    elif header.type == ospf_header.TYPE_LINK_STATE_ACK:
                         if state == ospf_thread.STATE_LOADING:
                             self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_FULL)
                             self.neighbor_liststore.set_value(iter, 2, "FULL")
-                elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
-                    id = dnet.ip_ntoa(header.id)
-                    if id in self.neighbors:
-                        (iter, mac, src, dbd, lsa, state) = self.neighbors[id]
+                    elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
                         if state > ospf_thread.STATE_EXSTART:
                             if state < ospf_thread.STATE_LOADING:
                                 state = ospf_thread.STATE_FULL
