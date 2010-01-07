@@ -29,6 +29,7 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import random
 import socket
 import struct
 import os
@@ -915,6 +916,39 @@ class ospf_thread(threading.Thread):
                                 ack = ospf_link_state_acknowledgment(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, lsa)
                                 self.send_unicast(mac, ip, ack.render())
                                 self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, master, seq)
+                            for i in self.parent.nets:
+                                (net, mask, type, active, removed) = self.parent.nets[i]
+                                if active:
+                                    def router_links(self, net, mask, mac, ip):
+                                        links = [ ospf_router_link_advertisement_link(  dnet.ip_aton(net),
+                                                                                        dnet.ip_aton(mask),
+                                                                                        ospf_router_link_advertisement_link.TYPE_STUB_NET,
+                                                                                        10
+                                                                                        ) ]
+                                        adverts = [ ospf_router_link_advertisement( 92,
+                                                                                    ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY,
+                                                                                    ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS,
+                                                                                    self.parent.ip,
+                                                                                    self.parent.ip,
+                                                                                    random.randint(11, 2^32),
+                                                                                    0,
+                                                                                    links
+                                                                                    ) ]
+                                        packet = ospf_link_state_update(    self.parent.area,
+                                                                            self.parent.auth_type,
+                                                                            self.parent.auth_data,
+                                                                            self.parent.ip,
+                                                                            adverts,
+                                                                            )
+                                        self.send_unicast(mac, ip, packet.render())
+                                        
+                                    {   ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS : router_links
+                                        }[type](self, net, mask, mac, ip)
+                                    self.parent.nets[i] = (net, mask, type, False, removed)
+                                else:
+                                    if removed:
+                                        del self.parent.nets[i]
+                                        del self.parent.network_liststore[i]
                         
             if not self.running:
                 return
@@ -932,13 +966,15 @@ class mod_class(object):
         self.name = "ospf"
         self.gladefile = "modules/module_ospf.glade"
         self.neighbor_liststore = gtk.ListStore(str, str, str)
+        self.network_liststore = gtk.ListStore(str, str, str)
         self.auth_type_liststore = gtk.ListStore(str, int)
         for i in dir(ospf_header):
             if i.startswith("AUTH_"):
                 exec("val = ospf_header." + i)
                 self.auth_type_liststore.append([i, val])
         self.net_type_liststore = gtk.ListStore(str, int)
-        for i in dir(ospf_link_state_advertisement_header):
+        #~ for i in dir(ospf_link_state_advertisement_header):
+        for i in [ "TYPE_ROUTER_LINKS" ]:
             if i.startswith("TYPE_"):
                 exec("val = ospf_link_state_advertisement_header." + i)
                 self.net_type_liststore.append([i, val])
@@ -947,6 +983,7 @@ class mod_class(object):
         self.auth_type = ospf_header.AUTH_NONE
         self.auth_data = 0
         self.neighbors = {}
+        self.nets = {}
         self.dr = ""
         self.bdr = ""
         self.options = ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY
@@ -958,7 +995,7 @@ class mod_class(object):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
                 "on_add_button_clicked" : self.on_add_button_clicked,
-                "on_delete_button_clicked" : self.on_delete_button_clicked
+                "on_remove_button_clicked" : self.on_remove_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -984,6 +1021,29 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 2)
         self.neighbor_treeview.append_column(column)
+
+        self.network_treeview = self.glade_xml.get_widget("network_treeview")
+        self.network_treeview.set_model(self.network_liststore)
+        self.network_treeview.set_headers_visible(True)
+
+        column = gtk.TreeViewColumn()
+        column.set_title("Network")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 0)
+        self.network_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Netmask")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 1)
+        self.network_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Type")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 2)
+        self.network_treeview.append_column(column)
 
         self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
         self.area_entry = self.glade_xml.get_widget("area_entry")
@@ -1052,7 +1112,7 @@ class mod_class(object):
                         iter = self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id, "HELLO"])
                         #                    (iter, mac,     src,    dbd, lsa, state,                 master, seq)
                         self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337)
-                    else:
+                    elif self.thread.hello:
                         (iter, mac, src, dbd, lsa, state, master, seq) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
                             self.neighbors[id] = (iter, src, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq)
@@ -1136,7 +1196,18 @@ class mod_class(object):
                 self.filter = False
 
     def on_add_button_clicked(self, btn):
-        pass
+        net = self.network_entry.get_text()
+        mask = self.netmask_entry.get_text()
+        type_name = self.net_type_liststore[self.net_type_combobox.get_active()][0]
+        type = self.net_type_liststore[self.net_type_combobox.get_active()][1]
+        iter = self.network_liststore.append([net, mask, type_name])
+        self.nets[self.network_liststore.get_string_from_iter(iter)] = (net, mask, type, True, False)
         
-    def on_delete_button_clicked(self, btn):
-        pass
+    def on_remove_button_clicked(self, btn):
+        select = self.network_treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            iter = model.get_iter(i)
+            (net, mask, type, active, removed) = self.nets[model.get_string_from_iter(iter)]
+            self.nets[model.get_string_from_iter(iter)] = (net, mask, type, False, True)
+            self.network_liststore.set_value(iter, 2, "REMOVED")
