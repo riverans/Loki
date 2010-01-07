@@ -185,7 +185,7 @@ class ospf_hello(ospf_header):
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     #|                              ...                              |
 
-    OPTION_TOS_CAPABILITY = 0x0 #0x1
+    OPTION_TOS_CAPABILITY = 0x1
     OPTION_EXTERNAL_ROUTING_CAPABILITY = 0x2
     OPTION_CONTAINS_LSS = 0x10
     OPTION_ZERO_BIT = 0x40
@@ -1042,11 +1042,13 @@ class mod_class(object):
                     hello = ospf_hello()
                     hello.parse(data)
                     id = dnet.ip_ntoa(header.id)
+                    (ip_int,) = struct.unpack("I", self.ip)
                     if id not in self.neighbors:
-                        if header.id < self.ip:
+                        if socket.ntohl(header.id) < socket.ntohl(ip_int):
                             master = True
                         else:
                             master = False
+                        #print "Local %s (%i) - Peer %s (%i) => Master " % (dnet.ip_ntoa(self.ip), socket.ntohl(ip_int), id, socket.ntohl(header.id)) + str(master)
                         iter = self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id, "HELLO"])
                         #                    (iter, mac,     src,    dbd, lsa, state,                 master, seq)
                         self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337)
