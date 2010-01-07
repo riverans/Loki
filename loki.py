@@ -297,16 +297,22 @@ class codename_loki(object):
         box = gtk.combo_box_new_text()
         devs = pcap.findalldevs()
         for (name, descr, addr, flags) in devs:
-            if len(addr) > 1:
-                (ip, mask, net, gw) = addr[1]
+            try:
+                test = dnet.eth(name)
+                test.get()
+            except:
+                pass
             else:
-                ip = "no"
-                mask = "address"
-            if descr:
-                line = " (%s %s) - %s" % (ip, mask, descr)
-            else:
-                line = " (%s %s)" % (ip, mask)
-            box.append_text(name + line)
+                if len(addr) > 1:
+                    (ip, mask, net, gw) = addr[1]
+                else:
+                    ip = "no"
+                    mask = "address"
+                if descr:
+                    line = " (%s %s) - %s" % (ip, mask, descr)
+                else:
+                    line = " (%s %s)" % (ip, mask)
+                box.append_text(name + line)
         box.set_active(0)
         dialog.vbox.pack_start(box)
         box.show()
