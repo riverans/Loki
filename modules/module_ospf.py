@@ -189,6 +189,7 @@ class ospf_hello(ospf_header):
     OPTION_TOS_CAPABILITY = 0x1
     OPTION_EXTERNAL_ROUTING_CAPABILITY = 0x2
     OPTION_CONTAINS_LSS = 0x10
+    OPTION_DEMAND_CIRCUITS = 0x20
     OPTION_ZERO_BIT = 0x40
 
     def __init__(self, area=None, auth_type=None, auth_data=None, id=None, net_mask=None, hello_interval=None, options=None, router_prio=None, router_dead_interval=None, designated_router=None, backup_designated_router=None, neighbors=None):
@@ -892,7 +893,7 @@ class ospf_thread(threading.Thread):
                                 ipy = IPy.IP("%s/%s" % (dnet.ip_ntoa(self.parent.ip), dnet.ip_ntoa(self.parent.mask)), make_net=True)
                                 links = [ ospf_router_link_advertisement_link(  dnet.ip_aton(str(ipy.net())),
                                                                                 dnet.ip_aton(str(ipy.netmask())),
-                                                                                ospf_router_link_advertisement_link.TYPE_STUB_NET,
+                                                                                ospf_router_link_advertisement_link.TYPE_POINT_TO_POINT,
                                                                                 10
                                                                                 ) ]
                                 adverts = [ ospf_router_link_advertisement( 92,
@@ -920,13 +921,18 @@ class ospf_thread(threading.Thread):
                                 (net, mask, type, active, removed) = self.parent.nets[i]
                                 if active:
                                     def router_links(self, net, mask, mac, ip):
-                                        links = [ ospf_router_link_advertisement_link(  dnet.ip_aton(net),
-                                                                                        dnet.ip_aton(mask),
-                                                                                        ospf_router_link_advertisement_link.TYPE_STUB_NET,
-                                                                                        10
-                                                                                        ) ]
+                                        links = [   ospf_router_link_advertisement_link(    dnet.ip_aton(net),
+                                                                                            dnet.ip_aton(mask),
+                                                                                            ospf_router_link_advertisement_link.TYPE_STUB_NET,
+                                                                                            1
+                                                                                            ),
+                                                    ospf_router_link_advertisement_link(    struct.pack("!I", self.parent.dr),
+                                                                                            self.parent.ip,
+                                                                                            ospf_router_link_advertisement_link.TYPE_TRANSIT_NET,
+                                                                                            1
+                                                                                            ) ]
                                         adverts = [ ospf_router_link_advertisement( 92,
-                                                                                    ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY,
+                                                                                    ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY | ospf_hello.OPTION_DEMAND_CIRCUITS,
                                                                                     ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS,
                                                                                     self.parent.ip,
                                                                                     self.parent.ip,
@@ -941,8 +947,12 @@ class ospf_thread(threading.Thread):
                                                                             adverts,
                                                                             )
                                         self.send_unicast(mac, ip, packet.render())
+
+                                    def network_links(self, net, mask, mac, ip):
+                                        pass
                                         
-                                    {   ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS : router_links
+                                    {   ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS : router_links,
+                                        ospf_link_state_advertisement_header.TYPE_NETWORK_LINKS : network_links
                                         }[type](self, net, mask, mac, ip)
                                     self.parent.nets[i] = (net, mask, type, False, removed)
                                 else:
@@ -974,7 +984,7 @@ class mod_class(object):
                 self.auth_type_liststore.append([i, val])
         self.net_type_liststore = gtk.ListStore(str, int)
         #~ for i in dir(ospf_link_state_advertisement_header):
-        for i in [ "TYPE_ROUTER_LINKS" ]:
+        for i in [ "TYPE_ROUTER_LINKS" ]:       #, "TYPE_NETWORK_LINKS"
             if i.startswith("TYPE_"):
                 exec("val = ospf_link_state_advertisement_header." + i)
                 self.net_type_liststore.append([i, val])
@@ -1102,7 +1112,7 @@ class mod_class(object):
                     hello = ospf_hello()
                     hello.parse(data)
                     id = dnet.ip_ntoa(header.id)
-                    (ip_int,) = struct.unpack("I", self.ip)
+                    (ip_int,) = struct.unpack("!I", self.ip)
                     if id not in self.neighbors:
                         if socket.ntohl(header.id) < socket.ntohl(ip_int):
                             master = True
