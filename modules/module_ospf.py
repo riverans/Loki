@@ -1089,7 +1089,7 @@ class mod_class(object):
                                     self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq)
                                     self.neighbor_liststore.set_value(iter, 2, "EXSTART")
                             else:
-                                self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, state)
+                                self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, seq)
                         elif state == ospf_thread.STATE_EXSTART:
                             if not dbd.flags & ospf_database_description.FLAGS_MORE and not master:
                                 self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE, master, seq)
