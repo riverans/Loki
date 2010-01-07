@@ -351,6 +351,13 @@ class codename_loki(object):
         gtk.main_quit()
 
 if __name__ == '__main__':
+    if PLATFORM == "Linux":
+        if os.geteuid() != 0:
+            print "You must be root to run this script."
+            sys.exit(1)
+    else:
+        print "%s is not supported yet." % (PLATFORM)
+        sys.exit(1)
     app = codename_loki()
     signal.signal(signal.SIGINT, app.on_quit_button_clicked)
     try:
