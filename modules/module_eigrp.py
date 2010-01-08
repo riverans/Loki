@@ -40,8 +40,9 @@ import cmd
 import fcntl
 #import md5
 
-import pcap
+import dnet
 import dpkt
+import pcap
 
 import gobject
 import gtk
@@ -49,20 +50,13 @@ import gtk.glade
 
 EIGRP_PROTOCOL_NUMBER = 0x58
 EIGRP_MULTICAST_ADDRESS = "224.0.0.10"
+EIGRP_MULTICAST_MAC = "01:00:5e:00:00:0a"
 
 DEFAULT_HOLD_TIME = 5
 
 SO_BINDTODEVICE	= 25
 
 ### HELPER_FUNKTIONS ###
-
-def get_ip_address(ifname):
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    return fcntl.ioctl(
-        s.fileno(),
-        0x8915,  # SIOCGIFADDR
-        struct.pack('256s', ifname[:15])
-    )[20:24]
 
 def ichecksum_func(data, sum=0):
     ''' Compute the Internet Checksum of the supplied data.  The checksum is
@@ -93,7 +87,7 @@ def ichecksum_func(data, sum=0):
 
 class eigrp_address:
     def __init__(self, addr, len=4):
-        self.addr = socket.inet_aton(addr)
+        self.addr = dnet.ip_aton(addr)
         self.len = len
 
     def render(self):
@@ -228,7 +222,7 @@ class eigrp_version(eigrp_tlv):
 class eigrp_internal_route(eigrp_tlv):
     def __init__(self, next_hop, delay, bandwidth, mtu, hop_count, reliability, load, prefix, dest):
         eigrp_tlv.__init__(self, eigrp_tlv.EIGRP_TYPE_INTERNAL_ROUTE)
-        self.next_hop = socket.inet_aton(next_hop)
+        self.next_hop = dnet.ip_aton(next_hop)
         self.delay = delay
         self.bandwidth = bandwidth
         self.mtu = mtu
@@ -236,7 +230,7 @@ class eigrp_internal_route(eigrp_tlv):
         self.reliability = reliability
         self.load = load
         self.prefix = prefix
-        self.dest = socket.inet_aton(dest)
+        self.dest = dnet.ip_aton(dest)
 
     def render(self):
         mtu_and_hop = (self.mtu << 8) + self.hop_count
@@ -276,21 +270,30 @@ class eigrp_external_route(eigrp_tlv):
 ### THREAD_CLASSES ###
 
 class eigrp_hello_thread(threading.Thread):
-    def __init__(self, parent, interface, as_num, auth=None, spoof=None):
+    def __init__(self, parent, interface, as_num, auth=None):
         threading.Thread.__init__(self)
         self.parent = parent
         self.interface = interface
         self.running = True
-        self.sock = None
         self.as_num = as_num
         self.auth = auth
-        self.spoof = spoof
+
+    def send_multicast(self, data):
+        ip_hdr = dpkt.ip.IP(    ttl=2,
+                                p=dpkt.ip.IP_PROTO_EIGRP,
+                                src=self.parent.address,
+                                dst=dnet.ip_aton(EIGRP_MULTICAST_ADDRESS),
+                                data=data
+                                )
+        ip_hdr.len += len(ip_hdr.data)
+        eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(EIGRP_MULTICAST_MAC),
+                                            src=self.parent.mac,
+                                            type=dpkt.ethernet.ETH_TYPE_IP,
+                                            data=str(ip_hdr)
+                                            )
+        self.parent.dnet.send(str(eth_hdr))
 
     def hello(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, EIGRP_PROTOCOL_NUMBER)
-        self.sock.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, self.interface)
-        if self.spoof:
-            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
         while self.running:
             params = eigrp_param(1, 0, 1, 0, 0, 15)
             version = eigrp_version() #(0xc02, 0x300)
@@ -299,108 +302,61 @@ class eigrp_hello_thread(threading.Thread):
                 args.insert(0, self.auth)
             msg = eigrp_packet(eigrp_packet.EIGRP_OPTCODE_HELLO, 0, 0, 0, self.as_num, args)
             data = msg.render()
-            if not self.spoof:
-                self.sock.sendto(data, (EIGRP_MULTICAST_ADDRESS,0))
+            if not self.parent.spoof:
+                self.send_multicast(data)
             else:
-                ip = struct.pack("!BBHHHBBH", 0x45, 0xc0, len(data) + 20, 0x0000, 0x0000, 0x02, EIGRP_PROTOCOL_NUMBER, 0x0000) + self.spoof + socket.inet_aton(EIGRP_MULTICAST_ADDRESS)
-                ip = ip[:10] + struct.pack("!H", ichecksum_func(ip)) + ip[12:]
-                self.sock.sendto(ip + data, (EIGRP_MULTICAST_ADDRESS,0))
+                ip_hdr = dpkt.ip.IP(    ttl=2,
+                                        p=dpkt.ip.IP_PROTO_EIGRP,
+                                        src=self.parent.spoof,
+                                        dst=dnet.ip_aton(EIGRP_MULTICAST_ADDRESS),
+                                        data=data
+                                        )
+                ip_hdr.len += len(ip_hdr.data)
+                eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(EIGRP_MULTICAST_MAC),
+                                                    src=self.parent.mac,
+                                                    type=dpkt.ethernet.ETH_TYPE_IP,
+                                                    data=str(ip_hdr)
+                                                    )
+                self.parent.dnet.send(str(eth_hdr))
             time.sleep(DEFAULT_HOLD_TIME)
-        self.sock.close()
 
     def run(self):
         self.hello()
         self.parent.log("EIGRP: Hello thread on %s terminated" % (self.interface))
-        #interface.hello_thread = None
 
     def quit(self):
         self.running = False
-        #self.join()
-
-class eigrp_listener(threading.Thread):
-    def __init__(self, parent, interface, address, listen_for_auth=False):
-        threading.Thread.__init__(self)
-        self.parent = parent
-        self.running = True
-        self.interface = interface
-        self.pcap = pcap.pcap(name=interface)
-        self.pcap.setnonblock()
-        self.pcap.setfilter("ip proto eigrp")
-        self.address = address
-        self.interface = interface
-        #self.as_num = as_num
-        self.listen_for_auth = listen_for_auth
-        
-    def listen(self):
-        for ts, pkt in self.pcap:
-            if self.running:
-                eth = dpkt.ethernet.Ethernet(pkt)
-                data = str(eth.data)
-                ip = dpkt.ip.IP(data)
-                if ip.dst == socket.inet_aton("224.0.0.10"):
-                    if not ip.src == self.address:
-                        self.disp_multicast(ip.data, ip.src)
-                    if self.listen_for_auth and ip.src == self.address:
-                        self.disp_auth(ip.data)
-                elif ip.dst == self.address:
-                    self.disp_unicast(ip.data, ip.src)
-
-    def disp_auth(self, data):
-        packet = eigrp_packet()
-        payload = packet.parse(data)
-        if packet.optcode == eigrp_packet.EIGRP_OPTCODE_HELLO:
-            tlv = eigrp_tlv()
-            while True:
-                payload = tlv.parse(payload)
-                if tlv.type == eigrp_tlv.EIGRP_TYPE_AUTH:
-                    parent.auth = tlv
-                    parent.log("EIGRP: Got authentication data from " + socket.inet_ntoa(self.address))
-                    self.running = False
-                    break
-                if not payload:
-                    break
-
-    def disp_multicast(self, data, src):
-        #print "disp_multicast from " + socket.inet_ntoa(src)
-        pass
-        
-    def disp_unicast(self, data, src):
-        #print "disp_unicast from " + socket.inet_ntoa(src)
-        if src not in self.parent.peers:
-            self.parent.add_peer(src, data)
-        else:
-            self.parent.peers[src].input(data)
-
-    def run(self):
-        self.listen()
-        self.parent.log("EIGRP: Listen thread on %s terminated" % (self.interface))
-
-    def quit(self):
-        self.running = False
-        #if self.isAlive():
-        #    self.join()
 
 class eigrp_peer(threading.Thread):
-    def __init__(self, parent, interface, peer, as_num, auth=None, spoof=None):
+    def __init__(self, parent, mac, peer, as_num, auth=None):
         threading.Thread.__init__(self)
         self.parent = parent
         self.sem = threading.Semaphore()
-        self.interface = interface
+        self.mac = mac
         self.peer = peer
         self.as_num = as_num
         self.sock = None
         self.msg = None
-        #self.msg = eigrp_packet(eigrp_packet.EIGRP_OPTCODE_UPDATE, eigrp_packet.EIGRP_FLAGS_INIT, 0, 0, 1, [])
         self.running = True
         self.seq_num = 0
         self.auth = auth
-        self.spoof = spoof
+
+    def send_unicast(self, mac, ip, data):
+        ip_hdr = dpkt.ip.IP(    ttl=2,
+                                p=dpkt.ip.IP_PROTO_EIGRP,
+                                src=self.parent.address,
+                                dst=ip,
+                                data=data
+                                )
+        ip_hdr.len += len(ip_hdr.data)
+        eth_hdr = dpkt.ethernet.Ethernet(   dst=mac,
+                                            src=self.parent.mac,
+                                            type=dpkt.ethernet.ETH_TYPE_IP,
+                                            data=str(ip_hdr)
+                                            )
+        self.parent.dnet.send(str(eth_hdr))
 
     def send(self):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, EIGRP_PROTOCOL_NUMBER)
-        self.sock.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, self.interface)
-        if self.spoof:
-            self.sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
         while self.running:
             self.sem.acquire()
             if self.msg:
@@ -409,21 +365,26 @@ class eigrp_peer(threading.Thread):
                 if not self.msg.optcode == eigrp_packet.EIGRP_OPTCODE_HELLO:
                     self.msg.seq_num = self.seq_num
                     self.seq_num += 1
-                try:
-                    data = self.msg.render()
-                except:
-                    self.parent.log("EIGRP: Error while sending msg to %s. Check arguments." % (self.peer))
+                data = self.msg.render()
+                if not self.parent.spoof:
+                    self.send_unicast(self.mac, self.peer, data)
                 else:
-                    if not self.spoof:
-                        self.sock.sendto(data, None, (socket.inet_ntoa(self.peer),0))
-                    else:
-                        ip = struct.pack("!BBHHHBBH", 0x45, 0xc0, len(data) + 20, 0x0000, 0x0000, 0x02, EIGRP_PROTOCOL_NUMBER, 0x0000) + self.spoof + self.peer
-                        ip = ip[:10] + struct.pack("!H", ichecksum_func(ip)) + ip[12:]
-                        self.sock.sendto(ip + data, (socket.inet_ntoa(self.peer),0))
+                    ip_hdr = dpkt.ip.IP(    ttl=2,
+                                            p=dpkt.ip.IP_PROTO_EIGRP,
+                                            src=self.parent.spoof,
+                                            dst=self.peer,
+                                            data=data
+                                            )
+                    ip_hdr.len += len(ip_hdr.data)
+                    eth_hdr = dpkt.ethernet.Ethernet(   dst=self.mac,
+                                                        src=self.parent.mac,
+                                                        type=dpkt.ethernet.ETH_TYPE_IP,
+                                                        data=str(ip_hdr)
+                                                        )
+                    self.parent.dnet.send(str(eth_hdr))
                 self.msg = None
             self.sem.release()
             time.sleep(1)
-        self.sock.close()
 
     def input(self, data):
         packet = eigrp_packet()
@@ -440,7 +401,7 @@ class eigrp_peer(threading.Thread):
         self.sem.release()
         
     def run(self):
-        iter = self.parent.liststore.append([socket.inet_ntoa(self.peer), socket.inet_ntoa(self.peer)])
+        iter = self.parent.liststore.append([dnet.ip_ntoa(self.peer), self.as_num])
         self.send()
         self.parent.log("EIGRP: Peer " + socket.inet_ntoa(self.peer) + " terminated")
         self.parent.liststore.remove(iter)
@@ -479,8 +440,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "eigrp"
         self.gladefile = "modules/module_eigrp.glade"
-        self.liststore = gtk.ListStore(str, str) #gtk.ListStore(gtk.gdk.Pixbuf, str)
-        self.listen_thread = None
+        self.liststore = gtk.ListStore(str, int)
         self.hello_thread = None
         self.goodbye_thread = None
         self.filter = False
@@ -489,11 +449,12 @@ class mod_class(object):
         self.auth = None
         self.as_num = None
         self.peers = {}
+        self.address = None
+        self.listen_for_auth = False
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
-        dic = { "on_listen_togglebutton_toggled" : self.on_listen_togglebutton_toggled,
-                "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
+        dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
                 "on_spoof_togglebutton_toggled" : self.on_spoof_togglebutton_toggled,
                 "on_goodbye_button_clicked" : self.on_goodbye_button_clicked,
                 "on_add_button_clicked" : self.on_add_button_clicked,
@@ -504,7 +465,7 @@ class mod_class(object):
                 }
         self.glade_xml.signal_autoconnect(dic)
 
-        self.listen_tooglebutton = self.glade_xml.get_widget("listen_tooglebutton")
+        #~ self.listen_tooglebutton = self.glade_xml.get_widget("listen_tooglebutton")
         self.hello_togglebutton = self.glade_xml.get_widget("hello_togglebutton")
         self.spoof_togglebutton = self.glade_xml.get_widget("spoof_togglebutton")
 
@@ -522,6 +483,12 @@ class mod_class(object):
         column.set_title("Hosts")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 0)
+        self.treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("AS")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 1)
         self.treeview.append_column(column)
 
@@ -536,9 +503,6 @@ class mod_class(object):
         self.log = log
 
     def shutdown(self):
-        if self.listen_thread:
-            if self.listen_thread.running:
-                self.listen_thread.quit()
         if self.hello_thread:
             if self.hello_thread.running:
                 self.hello_thread.quit()
@@ -552,28 +516,80 @@ class mod_class(object):
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
                 self.filter = False
 
+    def get_ip_checks(self):
+        return (self.check_ip, self.input_ip)
+
+    def check_ip(self, ip):
+        if ip.p == dpkt.ip.IP_PROTO_EIGRP:
+            return (True, False)
+        return (False, False)
+
+    def set_ip(self, ip, mask):
+        self.address = dnet.ip_aton(ip)
+        self.mask = dnet.ip_aton(mask)
+
+    def set_int(self, interface):
+        self.interface = interface
+
+    def set_dnet(self, dnet):
+        self.dnet = dnet
+        self.mac = dnet.eth.get()
+
+    # LISTENING #
+
+    def input_ip(self, eth, ip, timestamp):
+        if ip.dst == dnet.ip_aton("224.0.0.10"):
+            if ip.src != self.address and ip.src != self.spoof:
+                self.disp_multicast(str(ip.data), eth.src, ip.src)
+            if self.listen_for_auth and ip.src == self.address:
+                self.disp_auth(str(ip.data))
+        elif ip.dst == self.address or ip.dst == self.spoof:
+            self.disp_unicast(str(ip.data), eth.src, ip.src)
+
+    def disp_auth(self, data):
+        packet = eigrp_packet()
+        payload = packet.parse(data)
+        if packet.optcode == eigrp_packet.EIGRP_OPTCODE_HELLO:
+            tlv = eigrp_tlv()
+            while True:
+                payload = tlv.parse(payload)
+                if tlv.type == eigrp_tlv.EIGRP_TYPE_AUTH:
+                    self.auth = tlv
+                    self.log("EIGRP: Got authentication data from " + socket.inet_ntoa(self.address))
+                    self.running = False
+                    break
+                if not payload:
+                    break
+
+    def disp_multicast(self, data, mac, src):
+        #print "disp_multicast from " + socket.inet_ntoa(src)
+        if src not in self.peers:
+            packet = eigrp_packet()
+            packet.parse(data)
+            self.add_peer(mac, src, packet.as_num)
+        
+    def disp_unicast(self, data, mac, src):
+        #print "disp_unicast from " + socket.inet_ntoa(src)
+        if src not in self.peers:
+            packet = eigrp_packet()
+            packet.parse(data)
+            self.add_peer(mac, src, packet.as_num)
+        else:
+            self.peers[src].input(data)
         
     # PEER HANDLING #
 
-    def add_peer(self, src, data=None):
+    def add_peer(self, mac, src, as_num, data=None):
         self.log("EIGRP: Got new peer " + socket.inet_ntoa(src))
-        self.peers[src] = eigrp_peer(self, self.interface, src, self.as_num, self.auth, self.spoof)
+        self.peers[src] = eigrp_peer(self, mac, src, as_num, self.auth)
         self.peers[src].start()
         if data:
             self.peers[src].input(data)
             
     # SIGNALS #
 
-    def on_listen_togglebutton_toggled(self, btn):
+    def on_hello_togglebutton_toggled(self, btn):
         if btn.get_property("active"):
-            #check for interface
-            self.interface = self.interface_entry.get_text()
-            try:
-                self.address = get_ip_address(self.interface)
-            except:
-                self.log("EIGRP: Can't get address from interface %s" % (self.interface))
-                return
-            self.interface_entry.set_property("sensitive", False)
             self.as_num = int(self.as_entry.get_text())
             self.as_entry.set_property("sensitive", False)
             if not self.filter:
@@ -583,82 +599,38 @@ class mod_class(object):
             try:
                 self.spoof_togglebutton.set_property("sensitive", False)
                 if self.spoof_togglebutton.get_property("active"):
-                    self.listen_thread = eigrp_listener(self, self.interface, self.spoof)
+                    self.hello_thread = eigrp_hello_thread(self, self.interface, self.as_num, self.auth)
                 else:
-                    self.listen_thread = eigrp_listener(self, self.interface, self.address)
-            except Exception, e:
-                    self.log("EIGRP: Cant start listening on %s: %s" % (self.interface, e))
-                    if not self.hello_togglebutton.get_property("active"):
-                        self.spoof_togglebutton.set_property("sensitive", True)
-                        self.as_entry.set_property("sensitive", True)
-                        self.interface_entry.set_property("sensitive", True)
-                    return
-
-            self.listen_thread.start()
-            self.log("EIGRP: Listen thread on %s started" % (self.interface))
-        
-        else:
-            self.listen_thread.quit()
-            if self.filter:
-                self.log("EIGRP: Removing lokal packet filter for EIGRP")
-                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
-                self.filter = False
-
-            if not self.hello_togglebutton.get_property("active"):
-                self.spoof_togglebutton.set_property("sensitive", True)
-                self.as_entry.set_property("sensitive", True)
-                self.interface_entry.set_property("sensitive", True)
-
-
-    def on_hello_togglebutton_toggled(self, btn):
-        if btn.get_property("active"):
-            #check for interface
-            self.interface = self.interface_entry.get_text()
-            try:
-                self.address = get_ip_address(self.interface)
-            except:
-                self.log("EIGRP: Can't get address from interface %s" % (self.interface))
-                return
-            self.interface_entry.set_property("sensitive", False)
-            self.as_num = int(self.as_entry.get_text())
-            self.as_entry.set_property("sensitive", False)
-            try:
-                self.spoof_togglebutton.set_property("sensitive", False)
-                if self.spoof_togglebutton.get_property("active"):
-                    self.hello_thread = eigrp_hello_thread(self, self.interface, self.as_num, self.auth, self.spoof)
-                else:
-                    self.hello_thread = eigrp_hello_thread(self, self.interface, self.as_num, self.auth, self.address)
+                    self.hello_thread = eigrp_hello_thread(self, self.interface, self.as_num, self.auth)
             except Exception, e:
                     self.log("EIGRP: Cant start hello thread on %s: %s" % (self.interface, e))
                     if not self.listen_togglebutton.get_property("active"):
                         self.spoof_togglebutton.set_property("sensitive", True)
                         self.as_entry.set_property("sensitive", True)
-                        self.interface_entry.set_property("sensitive", True)
                     return
         
             self.hello_thread.start()
             self.log("EIGRP: Hello thread on %s started" % (self.interface))
         else:
             self.hello_thread.quit()
-            if not self.listen_togglebutton.get_property("active"):
-                self.spoof_togglebutton.set_property("sensitive", True)
-                self.as_entry.set_property("sensitive", True)
-                self.interface_entry.set_property("sensitive", True)
+            self.spoof_togglebutton.set_property("sensitive", True)
+            self.as_entry.set_property("sensitive", True)
 
     def on_spoof_togglebutton_toggled(self, btn):
         if btn.get_property("active"):
-            self.spoof = socket.inet_aton(self.spoof_entry.get_text())
+            self.spoof = dnet.ip_aton(self.spoof_entry.get_text())
             self.spoof_entry.set_property("sensitive", False)
         else:
             self.spoof_entry.set_property("sensitive", True)
-            self.spoof = None
+            self.spoof = False
 
     def on_goodbye_button_clicked(self, data):
         select = self.treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         if len(paths) == 1:
-            host = model.get_value(model.get_iter(paths[0]), 1)
-            self.goodbye_thread = eigrp_goodbye(self, socket.inet_aton(host), self.as_num)
+            host = model.get_value(model.get_iter(paths[0]), 0)
+            peer = dnet.ip_aton(host)
+            self.goodbye_thread = eigrp_goodbye(self, peer, self.peers[peer].as_num)
             self.goodbye_label.set_label("Sending Goodbye Messages to %s..." % (host))
             self.goodbye_window.show_all()
             self.goodbye_thread.start()
@@ -674,7 +646,7 @@ class mod_class(object):
         if ret == gtk.RESPONSE_OK:
             try:
                 peer = entry.get_text()
-                self.add_peer(socket.inet_aton(peer))
+                self.add_peer(dnet.arp.get(dnet.ip_aton(peer)), dnet.ip_aton(peer), int(self.as_entry.get_text()))
             except Exception, e:
                 self.log("EIGRP: Cant add peer %s: %s" % (peer, e))
 
@@ -682,8 +654,8 @@ class mod_class(object):
         select = self.treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
-            host = model.get_value(model.get_iter(i), 1)
-            peer = socket.inet_aton(host)
+            host = model.get_value(model.get_iter(i), 0)
+            peer = dnet.ip_aton(host)
             self.peers[peer].quit()
 
     def on_clear_button_clicked(self, data):
@@ -699,9 +671,9 @@ class mod_class(object):
             select = self.treeview.get_selection()
             (model, paths) = select.get_selected_rows()
             for i in paths:
-                host = model.get_value(model.get_iter(i), 1)
+                host = model.get_value(model.get_iter(i), 0)
                 self.log("EIGRP: Sending update to %s" % (host))
-                peer = socket.inet_aton(host)
+                peer = dnet.ip_aton(host)
                 self.peers[peer].update(msg)
         
     def on_stop_button_clicked(self, data):

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
-<!--Generated with glade3 3.4.5 on Fri Nov 20 16:09:29 2009 -->
+<!--Generated with glade3 3.4.5 on Sat Jan  9 00:33:56 2010 -->
 <glade-interface>
   <widget class="GtkWindow" id="window1">
     <child>
@@ -22,41 +22,6 @@
                     <property name="visible">True</property>
                     <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
                     <property name="orientation">GTK_ORIENTATION_VERTICAL</property>
-                    <child>
-                      <widget class="GtkFrame" id="frame1">
-                        <property name="visible">True</property>
-                        <property name="label_xalign">0</property>
-                        <property name="shadow_type">GTK_SHADOW_NONE</property>
-                        <child>
-                          <widget class="GtkAlignment" id="alignment1">
-                            <property name="visible">True</property>
-                            <property name="left_padding">12</property>
-                            <child>
-                              <widget class="GtkEntry" id="interface_entry">
-                                <property name="visible">True</property>
-                                <property name="can_focus">True</property>
-                                <property name="invisible_char">●</property>
-                                <property name="text" translatable="yes">wlan0</property>
-                              </widget>
-                            </child>
-                          </widget>
-                        </child>
-                        <child>
-                          <widget class="GtkLabel" id="label1">
-                            <property name="visible">True</property>
-                            <property name="label" translatable="yes">&lt;b&gt;Interface&lt;/b&gt;</property>
-                            <property name="use_markup">True</property>
-                          </widget>
-                          <packing>
-                            <property name="type">label_item</property>
-                          </packing>
-                        </child>
-                      </widget>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                      </packing>
-                    </child>
                     <child>
                       <widget class="GtkFrame" id="frame4">
                         <property name="visible">True</property>
@@ -89,22 +54,6 @@
                       </widget>
                       <packing>
                         <property name="expand">False</property>
-                        <property name="position">1</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <widget class="GtkToggleButton" id="listen_togglebutton">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="receives_default">True</property>
-                        <property name="label" translatable="yes">Listen</property>
-                        <property name="response_id">0</property>
-                        <signal name="toggled" handler="on_listen_togglebutton_toggled"/>
-                      </widget>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">False</property>
-                        <property name="position">2</property>
                       </packing>
                     </child>
                     <child>
@@ -115,7 +64,7 @@
                         </child>
                       </widget>
                       <packing>
-                        <property name="position">3</property>
+                        <property name="position">1</property>
                       </packing>
                     </child>
                     <child>
@@ -130,7 +79,7 @@
                       <packing>
                         <property name="expand">False</property>
                         <property name="fill">False</property>
-                        <property name="position">4</property>
+                        <property name="position">2</property>
                       </packing>
                     </child>
                     <child>
@@ -141,7 +90,7 @@
                         </child>
                       </widget>
                       <packing>
-                        <property name="position">5</property>
+                        <property name="position">3</property>
                       </packing>
                     </child>
                     <child>
@@ -177,7 +126,7 @@
                       <packing>
                         <property name="expand">False</property>
                         <property name="fill">False</property>
-                        <property name="position">6</property>
+                        <property name="position">4</property>
                       </packing>
                     </child>
                     <child>
@@ -219,7 +168,7 @@
                       <packing>
                         <property name="expand">False</property>
                         <property name="fill">False</property>
-                        <property name="position">7</property>
+                        <property name="position">5</property>
                       </packing>
                     </child>
                   </widget>
@@ -322,7 +271,7 @@
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
-                            <property name="label" translatable="yes">Goodby</property>
+                            <property name="label" translatable="yes">Goodbye</property>
                             <property name="response_id">0</property>
                             <signal name="clicked" handler="on_goodbye_button_clicked"/>
                           </widget>
