@@ -947,6 +947,7 @@ class ospf_thread(threading.Thread):
                                                                             adverts,
                                                                             )
                                         self.send_unicast(mac, ip, packet.render())
+                                        self.parent.log("OSPF: Sending ROUTER_LINKS LSU to %s" % (dnet.ip_ntoa(ip)))
 
                                     def network_links(self, net, mask, mac, ip):
                                         pass
@@ -1122,6 +1123,7 @@ class mod_class(object):
                         iter = self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id, "HELLO"])
                         #                    (iter, mac,     src,    dbd, lsa, state,                 master, seq)
                         self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337)
+                        self.log("OSPF: Got new peer %s" % (dnet.ip_ntoa(ip.src)))
                     elif self.thread.hello:
                         (iter, mac, src, dbd, lsa, state, master, seq) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
@@ -1175,11 +1177,13 @@ class mod_class(object):
                         if state == ospf_thread.STATE_LOADING:
                             self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_FULL, master, seq)
                             self.neighbor_liststore.set_value(iter, 2, "FULL")
+                            self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                     elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
                         if state > ospf_thread.STATE_EXSTART:
                             if state < ospf_thread.STATE_LOADING:
                                 state = ospf_thread.STATE_FULL
                                 self.neighbor_liststore.set_value(iter, 2, "FULL")
+                                self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                             update = ospf_link_state_update()
                             update.parse(data)
                             self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq)
@@ -1196,6 +1200,7 @@ class mod_class(object):
                 self.log("OSPF: Setting lokal packet filter for OSPF")
                 os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 self.filter = True
+            self.log("OSPF: Hello thread activated")
         else:
             self.area_entry.set_property("sensitive", True)
             self.auth_type_combobox.set_property("sensitive", True)
@@ -1204,6 +1209,7 @@ class mod_class(object):
                 self.log("OSPF: Removing lokal packet filter for OSPF")
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 self.filter = False
+            self.log("OSPF: Hello thread deactivated")
 
     def on_add_button_clicked(self, btn):
         net = self.network_entry.get_text()
