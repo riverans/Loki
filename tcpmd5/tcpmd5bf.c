@@ -34,7 +34,7 @@
 
 #include <Python.h>
 
-#include <unistd.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -58,8 +58,7 @@
 
 #define VERSION "0.1.4"
 #define MAX_BRUTE_PW_LEN 16
-
-int running = 1;
+#define CHECK_FOR_LOCKFILE 100000
 
 struct tcp4_pseudohdr {
 	__uint32_t		saddr;
@@ -176,8 +175,11 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
     char *pw = NULL;
     char *md5sum;
     char *digest;
+    int count = 0;
+    char *lockfile;
+    struct stat fcheck;
 
-    if(!PyArg_ParseTuple(args, "iisss#", &bf, &full, &wl, &md5sum, &data, &len))
+    if(!PyArg_ParseTuple(args, "iisss#s", &bf, &full, &wl, &md5sum, &data, &len, &lockfile))
         return NULL;
 
     if(!bf) {
@@ -186,8 +188,14 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
             return NULL;
         }
 
-        while (fgets(line, 512, wlist) && running) {
-            Py_BEGIN_ALLOW_THREADS
+        Py_BEGIN_ALLOW_THREADS
+            
+        while(fgets(line, 512, wlist)) {
+            if(count % CHECK_FOR_LOCKFILE == 0) {
+                if(stat(lockfile, &fcheck))
+                    break;
+                count = 0;
+            }
             char *tmp = strchr(line, '\n');
             if(tmp)
                 *tmp = '\0';
@@ -200,37 +208,39 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
                 break;
             }
             free(digest);
-            Py_END_ALLOW_THREADS
+            count++;
         }
+
+        Py_END_ALLOW_THREADS
     }
     else {
         bzero(brute_pw, MAX_BRUTE_PW_LEN);
 
-        while (inc_brute_pw(brute_pw, 0, full) && running) {
-            Py_BEGIN_ALLOW_THREADS
+        Py_BEGIN_ALLOW_THREADS
+
+        while(inc_brute_pw(brute_pw, 0, full)) {
+            if(count % CHECK_FOR_LOCKFILE == 0) {
+                if(stat(lockfile, &fcheck))
+                    break;
+                count = 0;
+            }
             digest = calc_md5(data, len, brute_pw);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = brute_pw;
                 break;
             }
             free(digest);
-            Py_END_ALLOW_THREADS
+            count++;
         }
-
+        
+        Py_END_ALLOW_THREADS
     }
 
     return Py_BuildValue("s", pw);
 }
 
-static PyObject *
-tcpmd5bf_kill(PyObject *self, PyObject *args)
-{
-    running = 0;
-}
-
 static PyMethodDef Tcpmd5bfMethods[] = {
     {"bf", tcpmd5bf_bf, METH_VARARGS, "Bruteforce cacking of tcpmd5 auth"},
-    {"kill", tcpmd5bf_kill, METH_NOARGS, "Kills all Bruteforcing"},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

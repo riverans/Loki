@@ -29,6 +29,8 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
+import tempfile
 import threading
 
 import dpkt
@@ -56,7 +58,9 @@ class bgp_md5bf(threading.Thread):
         if self.bf and not self.wl:
             self.wl = ""
         #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest, self.data)
-        pw = tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data)
+        (handle, self.tmpfile) = tempfile.mkstemp(prefix="tcp-md5-", suffix="-lock")
+        os.close(handle)
+        pw = tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         src = self.model.get_value(self.iter, 0)
         dst = self.model.get_value(self.iter, 1)
         #print pw
@@ -66,6 +70,9 @@ class bgp_md5bf(threading.Thread):
         else:
             self.model.set_value(self.iter, 2, "NOT FOUND")
             self.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
+
+    def quit(self):
+        os.remove(self.tmpfile)
 
 class mod_class(object):
     def __init__(self, parent, platform):
@@ -115,7 +122,9 @@ class mod_class(object):
         self.log = log
 
     def shutdown(self):
-        tcpmd5.tcpmd5bf.kill()
+        for i in self.opts:
+            (iter, data, digest, thread) = self.opts[i]
+            thread.quit()
 
     def get_tcp_checks(self):
         return (self.check_tcp, self.input_tcp)
