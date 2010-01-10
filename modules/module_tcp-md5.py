@@ -70,9 +70,12 @@ class bgp_md5bf(threading.Thread):
         else:
             self.model.set_value(self.iter, 2, "NOT FOUND")
             self.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
+        if os.path.exists(self.tmpfile):
+            os.remove(self.tmpfile)
 
     def quit(self):
-        os.remove(self.tmpfile)
+        if os.path.exists(self.tmpfile):
+            os.remove(self.tmpfile)
 
 class mod_class(object):
     def __init__(self, parent, platform):
