@@ -116,6 +116,14 @@ class pcap_thread(threading.Thread):
                         call(eth, ip, tcp, timestamp)
                         if stop:
                             return
+            elif ip.p == dpkt.ip.IP_PROTO_UDP:
+                udp = dpkt.udp.UDP(str(ip.data))
+                for (check, call) in self.parent.udp_checks:
+                    (ret, stop) = check(udp)
+                    if ret:
+                        call(eth, ip, udp, timestamp)
+                        if stop:
+                            return
                 
 
 class dnet_thread(threading.Thread):
@@ -156,6 +164,7 @@ class codename_loki(object):
         self.eth_checks = []
         self.ip_checks = []
         self.tcp_checks = []
+        self.udp_checks = []
         
         #gtk stuff
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
@@ -236,6 +245,8 @@ class codename_loki(object):
                 self.ip_checks.append(self.modules[i].get_ip_checks())
             if "get_tcp_checks" in dir(self.modules[i]):
                 self.tcp_checks.append(self.modules[i].get_tcp_checks())
+            if "get_udp_checks" in dir(self.modules[i]):
+                self.udp_checks.append(self.modules[i].get_udp_checks())
             #self.modules[i].thread.start()
 
     def log(self, msg):
@@ -362,5 +373,11 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, app.on_quit_button_clicked)
     try:
         app.main()
+    except Exception, e:
+        print e
+        print '-'*60
+        traceback.print_exc(file=sys.stdout)
+        print '-'*60
+        app.delete_event(None, None)
     except:
         app.delete_event(None, None)
