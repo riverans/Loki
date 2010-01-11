@@ -465,7 +465,6 @@ class mod_class(object):
                 }
         self.glade_xml.signal_autoconnect(dic)
 
-        #~ self.listen_tooglebutton = self.glade_xml.get_widget("listen_tooglebutton")
         self.hello_togglebutton = self.glade_xml.get_widget("hello_togglebutton")
         self.spoof_togglebutton = self.glade_xml.get_widget("spoof_togglebutton")
 
@@ -480,7 +479,7 @@ class mod_class(object):
         self.treeview.set_headers_visible(True)
 
         column = gtk.TreeViewColumn()
-        column.set_title("Hosts")
+        column.set_title("Host")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 0)
