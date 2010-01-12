@@ -266,9 +266,12 @@ class codename_loki(object):
     ### EVENTS ###
 
     def on_run_togglebutton_toogled(self, btn):
-        while not self.configured:
-            self.on_network_button_clicked(None)
-        if btn.get_property("active"):
+        if btn.get_active():
+            if not self.configured:
+                self.on_network_button_clicked(None)
+            if not self.configured:
+                btn.set_active(False)
+                return
             self.pcap_thread = pcap_thread(self, self.interface)
             self.pcap_thread.start()
             self.dnet_thread = dnet_thread(self.interface)
@@ -295,10 +298,12 @@ class codename_loki(object):
         else:
             for i in self.notebook:
                 i.set_property("sensitive", False)
-            self.pcap_thread.quit()
-            self.pcap_thread = None
-            self.dnet_thread.quit()
-            self.dnet_thread = None
+            if self.pcap_thread:
+                self.pcap_thread.quit()
+                self.pcap_thread = None
+            if self.dnet_thread:
+                self.dnet_thread.quit()
+                self.dnet_thread = None
 
     def on_pref_button_clicked(self, data):
         pass
