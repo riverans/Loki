@@ -83,8 +83,8 @@ class ldp_hello_msg(object):
         return struct.pack("!HHI", ldp_msg.MSG_TYPE_HELLO, len(data) + 4, self.id) + data
 
     def parse(self, data):
-        (self.id, ) = struct.unpack("!xxI", data[:4])
-        return data[4:]
+        (self.id, ) = struct.unpack("!2x2xI", data[:8])
+        return data[8:]
 
 class ldp_init_msg(object):
     def __init__(self, id, tlvs):
@@ -389,7 +389,8 @@ class mod_class(object):
             self.hello_thread.quit()
         for x in self.peers:
             (iter, peer) = self.peers[x]
-            peer.quit()
+            if peer:
+                peer.quit()
 
     def get_udp_checks(self):
         return (self.check_udp, self.input_udp)
@@ -405,7 +406,7 @@ class mod_class(object):
             if src not in self.peers:
                 hello = ldp_hello_msg()
                 hello.parse(udp.data)
-                id = socket.inet_ntoa(hello.id)
+                id = socket.inet_ntoa(struct.pack("!I", hello.id))
                 iter = self.liststore.append([src, id])
                 self.peers[src] = (iter, None)
                 self.log("LDP: Got new peer %s" % (src))
