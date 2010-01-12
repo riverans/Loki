@@ -144,9 +144,9 @@ class mod_class(object):
             if opt == dpkt.tcp.TCP_OPT_MD5:
                 src = dnet.ip_ntoa(ip.src)
                 dst = dnet.ip_ntoa(ip.dst)
-                ident = "%s->%s" % (src, dst)
+                ident = "%s:%i->%s:%i" % (src, tcp.sport, dst, tcp.dport)
                 if ident not in self.opts:
-                    iter = self.liststore.append([src, dst, "CAPTURED"])
+                    iter = self.liststore.append(["%s:%i" % (src, tcp.sport), "%s:%i" % (dst, tcp.dport), "CAPTURED"])
                     self.opts[ident] = (iter, str(eth.data), data, None)
                     self.log("TCP-MD5: Got MD5 data for connection %s" % (ident))
 
