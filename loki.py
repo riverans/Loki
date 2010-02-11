@@ -93,13 +93,13 @@ class preference_window(gtk.Window):
         
         notebook.append_page(module_treeview, tab_label=gtk.Label("Modules"))
         vbox = gtk.VBox(False, 0)
-        vbox.pack_start(notebook, False, False, 0)
+        vbox.pack_start(notebook, True, True, 0)
         buttonbox = gtk.HButtonBox()
         close = gtk.Button(gtk.STOCK_CLOSE)
         close.set_use_stock(True)
         close.connect_object("clicked", self.close_button_clicked, None)
         buttonbox.pack_start(close)
-        vbox.pack_start(buttonbox)
+        vbox.pack_start(buttonbox, False, False, 0)
         self.add(vbox)
 
         for i in self.par.modules.keys():
