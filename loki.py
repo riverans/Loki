@@ -70,7 +70,7 @@ class preference_window(gtk.Window):
         self.set_title("Preferences")
         self.set_default_size(150, 70)
         #self.set_property("modal", True)
-        self.module_liststore = gtk.ListStore(str, bool)
+        self.module_liststore = gtk.ListStore(str, bool, bool)
         notebook = gtk.Notebook()
         module_treeview = gtk.TreeView()
         module_treeview.set_model(self.module_liststore)
@@ -90,6 +90,16 @@ class preference_window(gtk.Window):
         column.pack_start(render_toggle, expand=False)
         column.add_attribute(render_toggle, "active", 1)
         module_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Reset")
+        render_toggle = gtk.CellRendererToggle()
+        render_toggle.set_property('activatable', True)
+        render_toggle.set_property('radio', True)
+        render_toggle.connect('toggled', self.reset_callback, self.module_liststore)
+        column.pack_start(render_toggle, expand=False)
+        column.add_attribute(render_toggle, 'active', 2)
+        module_treeview.append_column(column)
+        
         
         notebook.append_page(module_treeview, tab_label=gtk.Label("Modules"))
         vbox = gtk.VBox(False, 0)
@@ -104,7 +114,7 @@ class preference_window(gtk.Window):
 
         for i in self.par.modules.keys():
             (module, enabled) = self.par.modules[i]
-            self.module_liststore.append([i, enabled])
+            self.module_liststore.append([i, enabled, False])
 
     def toggle_callback(self, cell, path, model):
         model[path][1] = not model[path][1]
@@ -116,6 +126,23 @@ class preference_window(gtk.Window):
             self.par.shut_module(module)
             self.par.modules[model[path][0]] = (module, False)
 
+    def reset_callback(self, cell, path, model):
+        model[path][2] = not model[path][2]
+        if cell:
+            gobject.timeout_add(500, self.reset_callback, None, path, model)
+            (module, enabled) = self.par.modules[model[path][0]]
+            self.par.shut_module(module)
+            try:
+                module = __import__(model[path][0])
+                print module
+                self.par.modules[model[path][0]] = (module.mod_class(self, PLATFORM), enabled)
+            except Exception, e:
+                print e
+            if enabled:
+                (module, enabled) = self.par.modules[model[path][0]]
+                self.par.init_module(module)
+            return False
+        
     def close_button_clicked(self, arg):
         gtk.Widget.destroy(self)
 
