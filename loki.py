@@ -63,6 +63,62 @@ class about_window(gtk.Window):
         vbox.pack_start(button, False, False)
         self.add(vbox)
 
+class preference_window(gtk.Window):
+    def __init__(self, parent):
+        self.par = parent
+        gtk.Window.__init__(self)
+        self.set_title("Preferences")
+        self.set_default_size(150, 70)
+        #self.set_property("modal", True)
+        self.module_liststore = gtk.ListStore(str, bool)
+        notebook = gtk.Notebook()
+        module_treeview = gtk.TreeView()
+        module_treeview.set_model(self.module_liststore)
+        module_treeview.set_headers_visible(True)
+
+        column = gtk.TreeViewColumn()
+        column.set_title("Module")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 0)
+        module_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Enabled")
+        render_toggle = gtk.CellRendererToggle()
+        render_toggle.set_property('activatable', True)
+        render_toggle.connect('toggled', self.toggle_callback, self.module_liststore)
+        column.pack_start(render_toggle, expand=False)
+        column.add_attribute(render_toggle, "active", 1)
+        module_treeview.append_column(column)
+        
+        notebook.append_page(module_treeview, tab_label=gtk.Label("Modules"))
+        vbox = gtk.VBox(False, 0)
+        vbox.pack_start(notebook, False, False, 0)
+        buttonbox = gtk.HButtonBox()
+        close = gtk.Button(gtk.STOCK_CLOSE)
+        close.set_use_stock(True)
+        close.connect_object("clicked", self.close_button_clicked, None)
+        buttonbox.pack_start(close)
+        vbox.pack_start(buttonbox)
+        self.add(vbox)
+
+        for i in self.par.modules.keys():
+            (module, enabled) = self.par.modules[i]
+            self.module_liststore.append([i, enabled])
+
+    def toggle_callback(self, cell, path, model):
+        model[path][1] = not model[path][1]
+        (module, enabled) = self.par.modules[model[path][0]]
+        if model[path][1]:
+            self.par.init_module(module)
+            self.par.modules[model[path][0]] = (module, True)
+        else:
+            self.par.shut_module(module)
+            self.par.modules[model[path][0]] = (module, False)
+
+    def close_button_clicked(self, arg):
+        gtk.Widget.destroy(self)
+
 class pcap_thread(threading.Thread):
     def __init__(self, parent, interface):
         threading.Thread.__init__(self)
@@ -94,7 +150,7 @@ class pcap_thread(threading.Thread):
         if not data:
             return
         eth = dpkt.ethernet.Ethernet(data)
-        for (check, call) in self.parent.eth_checks:
+        for (check, call, name) in self.parent.eth_checks:
             (ret, stop) = check(eth)
             if ret:
                 call(eth, timestamp)
@@ -102,7 +158,7 @@ class pcap_thread(threading.Thread):
                     return
         if eth.type == dpkt.ethernet.ETH_TYPE_IP:
             ip = dpkt.ip.IP(str(eth.data))
-            for (check, call) in self.parent.ip_checks:
+            for (check, call, name) in self.parent.ip_checks:
                 (ret, stop) = check(ip)
                 if ret:
                     call(eth, ip, timestamp)
@@ -110,7 +166,7 @@ class pcap_thread(threading.Thread):
                         return
             if ip.p == dpkt.ip.IP_PROTO_TCP:
                 tcp = dpkt.tcp.TCP(str(ip.data))
-                for (check, call) in self.parent.tcp_checks:
+                for (check, call, name) in self.parent.tcp_checks:
                     (ret, stop) = check(tcp)
                     if ret:
                         call(eth, ip, tcp, timestamp)
@@ -118,13 +174,12 @@ class pcap_thread(threading.Thread):
                             return
             elif ip.p == dpkt.ip.IP_PROTO_UDP:
                 udp = dpkt.udp.UDP(str(ip.data))
-                for (check, call) in self.parent.udp_checks:
+                for (check, call, name) in self.parent.udp_checks:
                     (ret, stop) = check(udp)
                     if ret:
                         call(eth, ip, udp, timestamp)
                         if stop:
                             return
-                
 
 class dnet_thread(threading.Thread):
     def __init__(self, interface):
@@ -186,7 +241,7 @@ class codename_loki(object):
         self.toolbar.insert(gtk.SeparatorToolItem(), 0)
         self.pref_button = gtk.ToolButton(gtk.STOCK_PREFERENCES)
         self.pref_button.connect("clicked", self.on_pref_button_clicked)
-        #self.toolbar.insert(self.pref_button, 0)
+        self.toolbar.insert(self.pref_button, 0)
         self.network_button = gtk.ToolButton(gtk.STOCK_NETWORK)
         self.network_button.connect("clicked", self.on_network_button_clicked)
         self.toolbar.insert(self.network_button, 0)
@@ -208,7 +263,7 @@ class codename_loki(object):
         print "Running on %s" %(PLATFORM)
 
         self.load_modules()
-        self.init_modules()
+        #self.init_modules()
 
         self.window.show_all()
         
@@ -225,29 +280,80 @@ class codename_loki(object):
                     try:
                         module = __import__(name)
                         print module
-                        self.modules[name] = module.mod_class(self, PLATFORM)
+                        self.modules[name] = (module.mod_class(self, PLATFORM), False)
                     except Exception, e:
                         print e
 
-    def init_modules(self):
-        for i in self.modules.keys():
-            self.modules[i].set_log(self.log)
-            root = self.modules[i].get_root()
-            if root.get_parent():
-                root.reparent(self.notebook)
-                self.notebook.set_tab_label(root, tab_label=gtk.Label(self.modules[i].name))
-            else:
-                self.notebook.append_page(root, tab_label=gtk.Label(self.modules[i].name))
+    def init_module(self, module):
+        module.set_log(self.log)
+        root = module.get_root()
+        if root.get_parent():
+            root.reparent(self.notebook)
+            self.notebook.set_tab_label(root, tab_label=gtk.Label(module.name))
+        else:
+            self.notebook.append_page(root, tab_label=gtk.Label(module.name))
+        root.set_property("sensitive", False)
+        if "get_eth_checks" in dir(module):
+            (check, call) = module.get_eth_checks()
+            self.eth_checks.append((check, call, module.name))
+            print self.eth_checks
+        if "get_ip_checks" in dir(module):
+            (check, call) = module.get_ip_checks()
+            self.ip_checks.append((check, call, module.name))
+            print self.ip_checks
+        if "get_tcp_checks" in dir(module):
+            (check, call) = module.get_tcp_checks()
+            self.tcp_checks.append((check, call, module.name))
+            print self.tcp_checks
+        if "get_udp_checks" in dir(module):
+            (check, call) = module.get_udp_checks()
+            self.udp_checks.append((check, call, module.name))
+            print self.udp_checks
+        if self.run_togglebutton.get_active():
+            try:
+                if "set_ip" in dir(module):
+                    module.set_ip(self.ip, self.mask)
+            except Exception, e:
+                print e
+            try:
+                if "set_dnet" in dir(module):
+                    module.set_dnet(self.dnet_thread)
+            except Exception, e:
+                print e
+            try:
+                if "set_int" in dir(module):
+                    module.set_int(self.interface)
+            except Exception, e:
+                print e
+            root.set_property("sensitive", True)
+        else:
             root.set_property("sensitive", False)
-            if "get_eth_checks" in dir(self.modules[i]):
-                self.eth_checks.append(self.modules[i].get_eth_checks())
-            if "get_ip_checks" in dir(self.modules[i]):
-                self.ip_checks.append(self.modules[i].get_ip_checks())
-            if "get_tcp_checks" in dir(self.modules[i]):
-                self.tcp_checks.append(self.modules[i].get_tcp_checks())
-            if "get_udp_checks" in dir(self.modules[i]):
-                self.udp_checks.append(self.modules[i].get_udp_checks())
-            #self.modules[i].thread.start()
+
+    def shut_module(self, module):
+        module.shutdown()
+        for i in self.notebook:
+            if self.notebook.get_tab_label(i).get_text() == module.name:
+                self.notebook.remove_page(self.notebook.page_num(i))
+        if "get_eth_checks" in dir(module):
+            for i in self.eth_checks:
+                (check, call, name) = i
+                if name == module.name:
+                    self.eth_checks.remove(i)
+        if "get_ip_checks" in dir(module):
+            for i in self.ip_checks:
+                (check, call, name) = i
+                if name == module.name:
+                    self.ip_checks.remove(i)
+        if "get_tcp_checks" in dir(module):
+            for i in self.tcp_checks:
+                (check, call, name) = i
+                if name == module.name:
+                    self.tcp_checks.remove(i)
+        if "get_udp_checks" in dir(module):
+            for i in self.udp_checks:
+                (check, call, name) = i
+                if name == module.name:
+                    self.udp_checks.remove(i)
 
     def log(self, msg):
         #gtk.gdk.threads_enter()
@@ -278,21 +384,23 @@ class codename_loki(object):
             self.dnet_thread.start()
             self.log("Listening on %s" % (self.interface))
             for i in self.modules:
-                try:
-                    if "set_ip" in dir(self.modules[i]):
-                        self.modules[i].set_ip(self.ip, self.mask)
-                except Exception, e:
-                    print e
-                try:
-                    if "set_dnet" in dir(self.modules[i]):
-                        self.modules[i].set_dnet(self.dnet_thread)
-                except Exception, e:
-                    print e
-                try:
-                    if "set_int" in dir(self.modules[i]):
-                        self.modules[i].set_int(self.interface)
-                except Exception, e:
-                    print e
+                (module, enabled) = self.modules[i]
+                if enabled:
+                    try:
+                        if "set_ip" in dir(module):
+                            module.set_ip(self.ip, self.mask)
+                    except Exception, e:
+                        print e
+                    try:
+                        if "set_dnet" in dir(module):
+                            module.set_dnet(self.dnet_thread)
+                    except Exception, e:
+                        print e
+                    try:
+                        if "set_int" in dir(module):
+                            module.set_int(self.interface)
+                    except Exception, e:
+                        print e
             for i in self.notebook:
                 i.set_property("sensitive", True)
         else:
@@ -306,7 +414,8 @@ class codename_loki(object):
                 self.dnet_thread = None
 
     def on_pref_button_clicked(self, data):
-        pass
+        pref_window = preference_window(self)
+        pref_window.show_all()
         
     def on_network_button_clicked(self, data):
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
@@ -356,7 +465,8 @@ class codename_loki(object):
     
     def delete_event(self, widget, event, data=None):
         for i in self.modules.keys():
-            self.modules[i].shutdown()
+            (module, enabled) = self.modules[i]
+            module.shutdown()
         if self.pcap_thread:
             self.pcap_thread.quit()
         if self.dnet_thread:
