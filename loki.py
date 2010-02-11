@@ -296,19 +296,15 @@ class codename_loki(object):
         if "get_eth_checks" in dir(module):
             (check, call) = module.get_eth_checks()
             self.eth_checks.append((check, call, module.name))
-            print self.eth_checks
         if "get_ip_checks" in dir(module):
             (check, call) = module.get_ip_checks()
             self.ip_checks.append((check, call, module.name))
-            print self.ip_checks
         if "get_tcp_checks" in dir(module):
             (check, call) = module.get_tcp_checks()
             self.tcp_checks.append((check, call, module.name))
-            print self.tcp_checks
         if "get_udp_checks" in dir(module):
             (check, call) = module.get_udp_checks()
             self.udp_checks.append((check, call, module.name))
-            print self.udp_checks
         if self.run_togglebutton.get_active():
             try:
                 if "set_ip" in dir(module):
