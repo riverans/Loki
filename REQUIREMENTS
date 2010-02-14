@@ -9,3 +9,5 @@ libglade    2.6.4
 dnet        1.11-r1
 pylibpcap   0.5.1
 ipy         0.70
+
+for firewalling on Linux 'iptables' is need in the path.
