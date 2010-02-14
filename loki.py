@@ -45,8 +45,12 @@ import dpkt
 import pcap
 import dnet
 
+DEBUG = False
+
 VERSION = "v0.1"
 PLATFORM = platform.system()
+
+MODULE_PATH="./modules/"
 
 class about_window(gtk.Window):
     def __init__(self, parent):
@@ -118,29 +122,20 @@ class preference_window(gtk.Window):
 
     def toggle_callback(self, cell, path, model):
         model[path][1] = not model[path][1]
-        (module, enabled) = self.par.modules[model[path][0]]
         if model[path][1]:
-            self.par.init_module(module)
-            self.par.modules[model[path][0]] = (module, True)
+            self.par.init_module(model[path][0])
         else:
-            self.par.shut_module(module)
-            self.par.modules[model[path][0]] = (module, False)
+            self.par.shut_module(model[path][0])
 
     def reset_callback(self, cell, path, model):
         model[path][2] = not model[path][2]
         if cell:
-            gobject.timeout_add(500, self.reset_callback, None, path, model)
+            gobject.timeout_add(1000, self.reset_callback, None, path, model)
+            self.par.shut_module(model[path][0])
+            self.par.load_module(model[path][0], model[path][1])
             (module, enabled) = self.par.modules[model[path][0]]
-            self.par.shut_module(module)
-            try:
-                module = __import__(model[path][0])
-                print module
-                self.par.modules[model[path][0]] = (module.mod_class(self, PLATFORM), enabled)
-            except Exception, e:
-                print e
             if enabled:
-                (module, enabled) = self.par.modules[model[path][0]]
-                self.par.init_module(module)
+                self.par.init_module(model[path][0])
             return False
         
     def close_button_clicked(self, arg):
@@ -289,94 +284,110 @@ class codename_loki(object):
         print "This is %s version %s by Daniel Mende - dmende@ernw.de" % (self.__class__.__name__, VERSION)
         print "Running on %s" %(PLATFORM)
 
-        self.load_modules()
-        #self.init_modules()
-
+        self.load_all_modules()
         self.window.show_all()
         
         gtk.main()
 
-    def load_modules(self, path="./modules/"):
+    def load_all_modules(self, path=MODULE_PATH):
         #import the modules
-        print "Loading modules..."
+        if DEBUG:
+            print "Loading modules..."
         sys.path.append(path)
         for i in os.listdir(path):
             if os.path.isfile(os.path.join(path, i)):
                 (name, ext) = os.path.splitext(i)
                 if ext == ".py":
-                    try:
-                        module = __import__(name)
-                        print module
-                        self.modules[name] = (module.mod_class(self, PLATFORM), False)
-                    except Exception, e:
-                        print e
+                    self.load_module(name, False)
+            elif os.path.isdir(os.path.join(path, i)):
+                pass
+                
+    def load_module(self, module, enabled=True):
+        if DEBUG:
+            print "load %s, enabled %i" % (module, enabled)
+        try:
+            mod = __import__(module)
+            print mod
+            self.modules[module] = (mod.mod_class(self, PLATFORM), enabled)
+        except Exception, e:
+            print e
 
     def init_module(self, module):
-        module.set_log(self.log)
-        root = module.get_root()
+        if DEBUG:
+            print "init %s" % module
+        (mod, enabled) = self.modules[module]
+        mod.set_log(self.log)
+        root = mod.get_root()
         if root.get_parent():
             root.reparent(self.notebook)
-            self.notebook.set_tab_label(root, tab_label=gtk.Label(module.name))
+            self.notebook.set_tab_label(root, tab_label=gtk.Label(mod.name))
         else:
-            self.notebook.append_page(root, tab_label=gtk.Label(module.name))
+            self.notebook.append_page(root, tab_label=gtk.Label(mod.name))
         root.set_property("sensitive", False)
-        if "get_eth_checks" in dir(module):
-            (check, call) = module.get_eth_checks()
-            self.eth_checks.append((check, call, module.name))
-        if "get_ip_checks" in dir(module):
-            (check, call) = module.get_ip_checks()
-            self.ip_checks.append((check, call, module.name))
-        if "get_tcp_checks" in dir(module):
-            (check, call) = module.get_tcp_checks()
-            self.tcp_checks.append((check, call, module.name))
-        if "get_udp_checks" in dir(module):
-            (check, call) = module.get_udp_checks()
-            self.udp_checks.append((check, call, module.name))
+        if "get_eth_checks" in dir(mod):
+            (check, call) = mod.get_eth_checks()
+            self.eth_checks.append((check, call, mod.name))
+        if "get_ip_checks" in dir(mod):
+            (check, call) = mod.get_ip_checks()
+            self.ip_checks.append((check, call, mod.name))
+        if "get_tcp_checks" in dir(mod):
+            (check, call) = mod.get_tcp_checks()
+            self.tcp_checks.append((check, call, mod.name))
+        if "get_udp_checks" in dir(mod):
+            (check, call) = mod.get_udp_checks()
+            self.udp_checks.append((check, call, mod.name))
         if self.run_togglebutton.get_active():
             try:
-                if "set_ip" in dir(module):
-                    module.set_ip(self.ip, self.mask)
+                if "set_ip" in dir(mod):
+                    mod.set_ip(self.ip, self.mask)
             except Exception, e:
                 print e
             try:
-                if "set_dnet" in dir(module):
-                    module.set_dnet(self.dnet_thread)
+                if "set_dnet" in dir(mod):
+                    mod.set_dnet(self.dnet_thread)
             except Exception, e:
                 print e
             try:
-                if "set_int" in dir(module):
-                    module.set_int(self.interface)
+                if "set_int" in dir(mod):
+                    mod.set_int(self.interface)
             except Exception, e:
                 print e
             root.set_property("sensitive", True)
         else:
             root.set_property("sensitive", False)
+        self.modules[module] = (mod, True)
 
-    def shut_module(self, module):
-        module.shutdown()
+    def shut_module(self, module, delete=False):
+        if DEBUG:
+            print "shut %s" % module
+        (mod, enabled) = self.modules[module]
+        mod.shutdown()
         for i in self.notebook:
-            if self.notebook.get_tab_label(i).get_text() == module.name:
+            if self.notebook.get_tab_label_text(i) == mod.name:
                 self.notebook.remove_page(self.notebook.page_num(i))
-        if "get_eth_checks" in dir(module):
+        if "get_eth_checks" in dir(mod):
             for i in self.eth_checks:
                 (check, call, name) = i
-                if name == module.name:
+                if name == mod.name:
                     self.eth_checks.remove(i)
-        if "get_ip_checks" in dir(module):
+        if "get_ip_checks" in dir(mod):
             for i in self.ip_checks:
                 (check, call, name) = i
-                if name == module.name:
+                if name == mod.name:
                     self.ip_checks.remove(i)
-        if "get_tcp_checks" in dir(module):
+        if "get_tcp_checks" in dir(mod):
             for i in self.tcp_checks:
                 (check, call, name) = i
-                if name == module.name:
+                if name == mod.name:
                     self.tcp_checks.remove(i)
-        if "get_udp_checks" in dir(module):
+        if "get_udp_checks" in dir(mod):
             for i in self.udp_checks:
                 (check, call, name) = i
-                if name == module.name:
+                if name == mod.name:
                     self.udp_checks.remove(i)
+        self.modules[module] = (mod, False)
+        if delete:
+            del self.modules[modules]
 
     def log(self, msg):
         #gtk.gdk.threads_enter()
