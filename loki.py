@@ -105,7 +105,6 @@ class preference_window(gtk.Window):
         column.add_attribute(render_toggle, 'active', 2)
         module_treeview.append_column(column)
         
-        
         notebook.append_page(module_treeview, tab_label=gtk.Label("Modules"))
         vbox = gtk.VBox(False, 0)
         vbox.pack_start(notebook, True, True, 0)
@@ -286,6 +285,7 @@ class codename_loki(object):
         print "Running on %s" %(PLATFORM)
 
         self.load_all_modules()
+        self.init_all_modules()
         self.window.show_all()
         
         gtk.main()
@@ -299,16 +299,23 @@ class codename_loki(object):
             if os.path.isfile(os.path.join(path, i)):
                 (name, ext) = os.path.splitext(i)
                 if ext == ".py":
-                    self.load_module(name, False)
+                    self.load_module(name, True)
             elif os.path.isdir(os.path.join(path, i)):
                 pass
-                
+
+    def init_all_modules(self):
+        if DEBUG:
+            print "Initialising moculed..."
+        for i in self.modules:
+            self.init_module(i)
+    
     def load_module(self, module, enabled=True):
         if DEBUG:
             print "load %s, enabled %i" % (module, enabled)
         try:
             mod = __import__(module)
-            print mod
+            if DEBUG:
+                print mod
             self.modules[module] = (mod.mod_class(self, PLATFORM), enabled)
         except Exception, e:
             print e
