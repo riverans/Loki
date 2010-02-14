@@ -42,7 +42,7 @@ import gtk.glade
 
 VRRP_VERSION = 2
 VRRP_MULTICAST_ADDRESS = "224.0.0.18"
-VRRP_MULTICAST_MAC = "01:00:5e:00:00:18"
+VRRP_MULTICAST_MAC = "01:00:5e:00:00:12"
 
 ### HELPER_FUNKTIONS ###
 
@@ -136,6 +136,7 @@ class vrrp_thread(threading.Thread):
             for i in self.parent.peers:
                 (iter, pkg, state, arp) = self.parent.peers[i]
                 if state:
+                    src_mac = dnet.eth_aton("00:00:5e:00:01:%02x" % (pkg.id))
                     vrrp = vrrp_packet(pkg.id, 255, pkg.auth_type, pkg.auth_data, 1, pkg.ips)
                     data = vrrp.render()
                     ip_hdr = dpkt.ip.IP(    ttl=255,
@@ -146,13 +147,12 @@ class vrrp_thread(threading.Thread):
                                             )
                     ip_hdr.len += len(ip_hdr.data)
                     eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(VRRP_MULTICAST_MAC),
-                                                        src=self.parent.mac,
+                                                        src=src_mac,
                                                         type=dpkt.ethernet.ETH_TYPE_IP,
                                                         data=str(ip_hdr)
                                                         )
                     self.parent.dnet.send(str(eth_hdr))
                     if arp:
-                        src_mac = dnet.eth_aton("00:00:5e:00:01:%02x" % (pkg.id))
                         brdc_mac = dnet.eth_aton("ff:ff:ff:ff:ff:ff")
                         stp_uplf_mac = dnet.eth_aton("01:00:0c:cd:cd:cd")
                         for j in pkg.ips:
@@ -200,11 +200,12 @@ class mod_class(object):
         self.thread = vrrp_thread(self)
         self.peers = {}
         self.gladefile = "modules/module_vrrp.glade"
-        self.liststore = gtk.ListStore(str, str, int)
+        self.liststore = gtk.ListStore(str, str, int, str)
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
-        dic = { "on_get_button_clicked" : self.on_get_button_clicked
+        dic = { "on_get_button_clicked" : self.on_get_button_clicked,
+                "on_release_button_clicked" : self.on_release_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -230,6 +231,13 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 2)
         self.treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Status")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 3)
+        self.treeview.append_column(column)
+
 
         self.arp_checkbutton = self.glade_xml.get_widget("arp_checkbutton")
 
@@ -266,7 +274,7 @@ class mod_class(object):
                 ips = []
                 for i in pkg.ips:
                     ips.append(dnet.ip_ntoa(i))
-                iter = self.liststore.append([src, " ".join(ips), pkg.prio])
+                iter = self.liststore.append([src, " ".join(ips), pkg.prio, "Seen"])
                 self.peers[ip.src] = (iter, pkg, False, False)
                 self.log("VRRP: Got new peer %s" % (src))
 
@@ -284,6 +292,18 @@ class mod_class(object):
             else:
                 arp = 0
             self.peers[peer] = (iter, pkg, True, arp)
+            model.set_value(iter, 3, "Taken")
         if not self.thread.is_alive():
             self.thread.start()
+
+    def on_release_button_clicked(self, btn):
+        select = self.treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            iter = model.get_iter(i)
+            peer = dnet.ip_aton(model.get_value(iter, 0))
+            (iter, pkg, run, arp) = self.peers[peer]
+            self.peers[peer] = (iter, pkg, False, arp)
+            model.set_value(iter, 3, "Released")
+
 
