@@ -411,7 +411,7 @@ class codename_loki(object):
                 for i in self.notebook:
                     if self.notebook.get_tab_label_text(i) == module:
                         self.module_active.append(module)
-                        self.flash_label(module, self.notebook.get_tab_label(i), 3)
+                        self.flash_label(module, self.notebook.get_tab_label(i), 5)
                         break
 
     def flash_label(self, module, label, times):
@@ -466,6 +466,7 @@ class codename_loki(object):
                         print e
             for i in self.notebook:
                 i.set_property("sensitive", True)
+            self.network_button.set_property("sensitive", False)
         else:
             for i in self.notebook:
                 i.set_property("sensitive", False)
@@ -475,6 +476,7 @@ class codename_loki(object):
             if self.dnet_thread:
                 self.dnet_thread.quit()
                 self.dnet_thread = None
+            self.network_button.set_property("sensitive", True)
 
     def on_pref_button_clicked(self, data):
         pref_window = preference_window(self)
