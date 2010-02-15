@@ -410,6 +410,8 @@ class codename_loki(object):
             if module not in self.module_active:
                 for i in self.notebook:
                     if self.notebook.get_tab_label_text(i) == module:
+                        if self.notebook.page_num(i) == self.notebook.get_current_page():
+                            break
                         self.module_active.append(module)
                         self.flash_label(module, self.notebook.get_tab_label(i), 5)
                         break
