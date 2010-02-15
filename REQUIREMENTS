@@ -11,3 +11,5 @@ pylibpcap   0.5.1
 ipy         0.70
 
 for firewalling on Linux 'iptables' is need in the path.
+
+md5 checksum in bgp needs kernel option CONFIG_TCP_MD5SIG=y on Linux
