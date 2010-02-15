@@ -1,8 +1,6 @@
-#! /usr/bin/env python
-
-#       ldp_cli.py
+#       module_ldp.py
 #       
-#       Copyright 2009 Daniel Mende <dmende@ernw.de>
+#       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
@@ -46,6 +44,7 @@ import gtk
 import gtk.glade
 
 LDP_PORT = 646
+LDP_MULTICAST_ADDRESS = "224.0.0.2"
 LDP_VERSION = 1
 
 DEFAULT_HOLD_TIME = 15  #like cisco
@@ -157,7 +156,7 @@ class ldp_common_hello_tlv(ldp_tlv):
     def render(self):
         data = 0
         if self.targeted:
-            data |= 0x6000
+            data |= 0x8000
         if self.request:
             data |= 0x4000
         return ldp_tlv.render(self, struct.pack("!HH", self.hold_time, data))
@@ -220,28 +219,29 @@ class ldp_vc_interface_param_vccv(object):
         return struct.pack("!BBBB", self.VC_INTERFACE_PARAM_VCCV, 4, self.cc_type, self.cv_type)
 
 class ldp_hello_thread(threading.Thread):
-    def __init__(self, parent, addr, interface, hold_time = DEFAULT_HOLD_TIME, targeted = False, request = False, dest = None):
+    def __init__(self, parent, addr, interface, hold_time = DEFAULT_HOLD_TIME):
         threading.Thread.__init__(self)
         self.parent = parent
         self.addr = addr
         self.hold_time = hold_time
-        self.targeted = targeted
-        self.request = request
-        self.dest = dest
         self.sock = None
         self.running = True
         self.interface = interface
 
     def hello(self):
-        msg = ldp_msg(socket.inet_aton(self.addr), 0, [ ldp_hello_msg(0, [ ldp_common_hello_tlv(self.hold_time, self.targeted, self.request), ldp_ipv4_transport_tlv(self.addr) ] ) ] )
+        msg = ldp_msg(socket.inet_aton(self.addr), 0, [ ldp_hello_msg(0, [ ldp_common_hello_tlv(self.hold_time), ldp_ipv4_transport_tlv(self.addr) ] ) ] )
+        t_msg = ldp_msg(socket.inet_aton(self.addr), 0, [ ldp_hello_msg(0, [ ldp_common_hello_tlv(self.hold_time, True, True), ldp_ipv4_transport_tlv(self.addr) ] ) ] )
         data = msg.render()
+        t_data = t_msg.render()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, self.interface)
+        self.sock.settimeout(1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(('', LDP_PORT))
         while self.running:
             self.sock.sendto(data, ("224.0.0.2", LDP_PORT))
             for x in self.parent.peers:
-                self.sock.sendto(data, (x, LDP_PORT))
+                self.sock.sendto(t_data, (x, LDP_PORT))
             time.sleep(self.hold_time / 3)
 
     def run(self):
@@ -406,13 +406,14 @@ class mod_class(object):
     def input_udp(self, eth, ip, udp, timestamp):
         src = socket.inet_ntoa(ip.src)
         if src != self.ip:
-            if src not in self.peers:
-                hello = ldp_hello_msg()
-                hello.parse(udp.data)
-                id = socket.inet_ntoa(struct.pack("!I", hello.id))
-                iter = self.liststore.append([src, id])
-                self.peers[src] = (iter, None)
-                self.log("LDP: Got new peer %s" % (src))
+            if ip.dst == socket.inet_aton(LDP_MULTICAST_ADDRESS):
+                if src not in self.peers:
+                    hello = ldp_hello_msg()
+                    hello.parse(udp.data)
+                    id = socket.inet_ntoa(struct.pack("!I", hello.id))
+                    iter = self.liststore.append([src, id])
+                    self.peers[src] = (iter, None)
+                    self.log("LDP: Got new peer %s" % (src))
     
     def add_peer(self, sock, (addr, port)):
         self.log("LDP: Got new connection from peer %s" % (addr))
