@@ -498,8 +498,11 @@ class mod_class(object):
 
         return self.glade_xml.get_widget("root")
 
+    def log(self, msg):
+        self.__log(msg, self.name)
+
     def set_log(self, log):
-        self.log = log
+        self.__log = log
 
     def shutdown(self):
         if self.hello_thread:

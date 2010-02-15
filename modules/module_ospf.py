@@ -1071,8 +1071,11 @@ class mod_class(object):
 
         return self.glade_xml.get_widget("root")
 
+    def log(self, msg):
+        self.__log(msg, self.name)
+
     def set_log(self, log):
-        self.log = log
+        self.__log = log
 
     def shutdown(self):
         self.thread.quit()
@@ -1210,6 +1213,10 @@ class mod_class(object):
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 self.filter = False
             self.log("OSPF: Hello thread deactivated")
+            for id in self.neighbors:
+                (iter, mac, src, org_dbd, lsa, state, master, seq) = self.neighbors[id]
+                self.neighbor_liststore.set_value(iter, 2, "HELLO")
+                self.neighbors[id] = (iter, mac, src, None, [], ospf_thread.STATE_HELLO, master, 1337)
 
     def on_add_button_clicked(self, btn):
         net = self.network_entry.get_text()

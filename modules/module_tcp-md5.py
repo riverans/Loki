@@ -120,9 +120,12 @@ class mod_class(object):
         self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
 
         return self.glade_xml.get_widget("root")
-        
+
+    def log(self, msg):
+        self.__log(msg, self.name)
+
     def set_log(self, log):
-        self.log = log
+        self.__log = log
 
     def shutdown(self):
         for i in self.opts:

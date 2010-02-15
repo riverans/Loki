@@ -242,6 +242,8 @@ class codename_loki(object):
         self.ip_checks = []
         self.tcp_checks = []
         self.udp_checks = []
+
+        self.module_active = []
         
         #gtk stuff
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
@@ -373,6 +375,7 @@ class codename_loki(object):
         for i in self.notebook:
             if self.notebook.get_tab_label_text(i) == mod.name:
                 self.notebook.remove_page(self.notebook.page_num(i))
+                break
         if "get_eth_checks" in dir(mod):
             for i in self.eth_checks:
                 (check, call, name) = i
@@ -397,12 +400,30 @@ class codename_loki(object):
         if delete:
             del self.modules[modules]
 
-    def log(self, msg):
+    def log(self, msg, module=None):
         #gtk.gdk.threads_enter()
         self.statusbar.push(self.msg_id, "[%i] %s" % (self.msg_id, msg))
         print "[%i] %s" % (self.msg_id, msg)
         #gtk.gdk.threads_leave()
         self.msg_id += 1
+        if module:
+            if module not in self.module_active:
+                for i in self.notebook:
+                    if self.notebook.get_tab_label_text(i) == module:
+                        self.module_active.append(module)
+                        self.flash_label(module, self.notebook.get_tab_label(i), 3)
+                        break
+
+    def flash_label(self, module, label, times):
+        if times > 0:
+            if label.get_property("sensitive"):
+                label.set_property("sensitive", False)
+                gobject.timeout_add(500, self.flash_label, module, label, times)
+            else:
+                label.set_property("sensitive", True)
+                gobject.timeout_add(500, self.flash_label, module, label, times - 1)
+        else:
+            self.module_active.remove(module)
 
     def send_msg(self, msg):
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_INFO, gtk.BUTTONS_CLOSE, msg)
