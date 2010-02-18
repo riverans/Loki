@@ -74,7 +74,7 @@ class log_window(gtk.Window):
     def __init__(self, textbuffer):
         gtk.Window.__init__(self)
         self.set_title("Log")
-        self.set_default_size(70, 150)
+        self.set_default_size(300, 400)
         textview = gtk.TextView(textbuffer)
         textview.set_editable(False)
         button = gtk.Button(gtk.STOCK_CLOSE)
@@ -82,8 +82,11 @@ class log_window(gtk.Window):
         button.connect_object("clicked", gtk.Widget.destroy, self)
         buttonbox = gtk.HButtonBox()
         buttonbox.pack_start(button)
+        scrolledwindow = gtk.ScrolledWindow()
+        scrolledwindow.add(textview)
+        scrolledwindow.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
         vbox = gtk.VBox()
-        vbox.pack_start(textview, True, True, 0)
+        vbox.pack_start(scrolledwindow, True, True, 0)
         vbox.pack_start(buttonbox, False, False, 0)
         self.add(vbox)
 
