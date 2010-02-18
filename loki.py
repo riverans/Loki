@@ -130,12 +130,15 @@ class preference_window(gtk.Window):
     def reset_callback(self, cell, path, model):
         model[path][2] = not model[path][2]
         if cell:
-            gobject.timeout_add(1000, self.reset_callback, None, path, model)
-            self.par.shut_module(model[path][0])
+            gobject.timeout_add(750, self.reset_callback, None, path, model)
+            cur = self.par.notebook.get_current_page()
+            old_pos = self.par.shut_module(model[path][0])
             self.par.load_module(model[path][0], model[path][1])
             (module, enabled) = self.par.modules[model[path][0]]
             if enabled:
-                self.par.init_module(model[path][0])
+                self.par.init_module(model[path][0], old_pos)
+                if old_pos == cur:
+                    self.par.notebook.set_current_page(cur)
             return False
         
     def close_button_clicked(self, arg):
@@ -327,7 +330,7 @@ class codename_loki(object):
                 traceback.print_exc(file=sys.stdout)
                 print '-'*60
 
-    def init_module(self, module):
+    def init_module(self, module, pos=-1):
         if DEBUG:
             print "init %s" % module
         (mod, enabled) = self.modules[module]
@@ -335,9 +338,10 @@ class codename_loki(object):
         root = mod.get_root()
         if root.get_parent():
             root.reparent(self.notebook)
-            self.notebook.set_tab_label(root, tab_label=gtk.Label(mod.name))
+            self.notebook.set_tab_label(root, gtk.Label(mod.name))
+            self.notebook.reorder_child(root, pos)
         else:
-            self.notebook.append_page(root, tab_label=gtk.Label(mod.name))
+            self.notebook.insert_page(root, gtk.Label(mod.name), pos)
         root.set_property("sensitive", False)
         if "get_eth_checks" in dir(mod):
             (check, call) = mod.get_eth_checks()
@@ -397,7 +401,8 @@ class codename_loki(object):
         mod.shut_mod()
         for i in self.notebook:
             if self.notebook.get_tab_label_text(i) == mod.name:
-                self.notebook.remove_page(self.notebook.page_num(i))
+                pos = self.notebook.page_num(i)
+                self.notebook.remove_page(pos)
                 break
         if "get_eth_checks" in dir(mod):
             for i in self.eth_checks:
@@ -422,6 +427,7 @@ class codename_loki(object):
         self.modules[module] = (mod, False)
         if delete:
             del self.modules[modules]
+        return pos
 
     def log(self, msg, module=None):
         #gtk.gdk.threads_enter()
