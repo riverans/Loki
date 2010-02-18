@@ -199,14 +199,16 @@ class mod_class(object):
         self.name = "vrrp"
         self.gladefile = "modules/module_vrrp.glade"
         self.liststore = gtk.ListStore(str, str, int, str)
+        self.thread = None
 
     def start_mod(self):
         self.peers = {}
         self.thread = vrrp_thread(self)
 
     def shut_mod(self):
-        if self.thread.is_alive():
-            self.thread.shutdown()
+        if self.thread:
+            if self.thread.is_alive():
+                self.thread.shutdown()
         self.liststore.clear()
         
     def get_root(self):

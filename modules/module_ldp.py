@@ -340,6 +340,9 @@ class mod_class(object):
         self.name = "ldp"
         self.gladefile = "modules/module_ldp.glade"
         self.liststore = gtk.ListStore(str, str)
+        self.hello_thread = None
+        self.listener = None
+        self.peers = None
 
     def start_mod(self):
         self.hello_thread = None
@@ -351,10 +354,11 @@ class mod_class(object):
             self.listener.quit()
         if self.hello_thread:
             self.hello_thread.quit()
-        for x in self.peers:
-            (iter, peer) = self.peers[x]
-            if peer:
-                peer.quit()
+        if self.peers:
+            for x in self.peers:
+                (iter, peer) = self.peers[x]
+                if peer:
+                    peer.quit()
         self.liststore.clear()
         
     def get_root(self):

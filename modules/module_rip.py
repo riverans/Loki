@@ -187,6 +187,7 @@ class mod_class(object):
         self.gladefile = "modules/module_rip.glade"
         self.host_liststore = gtk.ListStore(str)
         self.route_liststore = gtk.ListStore(str, str, str, str)
+        self.thread = None
 
     def start_mod(self):
         self.thread = rip_thread(self)
@@ -194,8 +195,9 @@ class mod_class(object):
         self.routes = {}
 
     def shut_mod(self):
-        if self.thread.is_alive():
-            self.thread.shutdown()
+        if self.thread:
+            if self.thread.is_alive():
+                self.thread.shutdown()
         self.host_liststore.clear()
         self.route_liststore.clear()
         

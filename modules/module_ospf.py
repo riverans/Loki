@@ -991,6 +991,7 @@ class mod_class(object):
                 self.net_type_liststore.append([i, val])
         self.dnet = None
         self.filter = False
+        self.thread = None
 
     def start_mod(self):
         self.thread = ospf_thread(self, 10)
@@ -1006,7 +1007,8 @@ class mod_class(object):
         self.thread.start()
 
     def shut_mod(self):
-        self.thread.quit()
+        if self.thread:
+            self.thread.quit()
         if self.filter:
             self.log("OSPF: Removing lokal packet filter for OSPF")
             os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))

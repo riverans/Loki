@@ -84,14 +84,16 @@ class mod_class(object):
         self.name = "tcp-md5"
         self.gladefile = "modules/module_tcp-md5.glade"
         self.liststore = gtk.ListStore(str, str, str)
+        self.opts = None
 
     def start_mod(self):
         self.opts = {}
 
     def shut_mod(self):
-        for i in self.opts:
-            (iter, data, digest, thread) = self.opts[i]
-            thread.quit()
+        if self.opts:
+            for i in self.opts:
+                (iter, data, digest, thread) = self.opts[i]
+                thread.quit()
         self.liststore.clear()
         
     def get_root(self):

@@ -77,6 +77,7 @@ class mod_class(object):
         self.lower_add_liststore = gtk.ListStore(str, str)
         self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str)
         self.dnet = None
+        self.spoof_thread = None
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self, 30)
@@ -87,7 +88,8 @@ class mod_class(object):
         self.spoof_thread.start()
 
     def shut_mod(self):
-        self.spoof_thread.quit()
+        if self.spoof_thread:
+            self.spoof_thread.quit()
         self.hosts_liststore.clear()
         self.upper_add_liststore.clear()
         self.lower_add_liststore.clear()

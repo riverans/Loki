@@ -442,6 +442,9 @@ class mod_class(object):
         self.gladefile = "modules/module_eigrp.glade"
         self.liststore = gtk.ListStore(str, int)
         self.filter = False
+        self.hello_thread = None
+        self.goodbye_thread = None
+        self.peers = None
 
     def start_mod(self):
         self.hello_thread = None
@@ -461,8 +464,9 @@ class mod_class(object):
         if self.goodbye_thread:
             if self.goodbye_thread.running:
                 self.goodbye_thread.quit()
-        for i in self.peers:
-            self.peers[i].quit()
+        if self.peers:
+            for i in self.peers:
+                self.peers[i].quit()
         if self.filter:
                 self.log("EIGRP: Removing lokal packet filter for EIGRP")
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))

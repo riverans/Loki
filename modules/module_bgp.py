@@ -440,6 +440,7 @@ class mod_class(object):
         self.name = "bgp"
         self.gladefile = "modules/module_bgp.glade"
         self.liststore = gtk.ListStore(str, str)
+        self.session = None
 
     def start_mod(self):
         self.sessions = {}
@@ -448,8 +449,9 @@ class mod_class(object):
         self.parameters = []
 
     def shut_mod(self):
-        for i in self.sessions.keys():
-            self.sessions[i].shutdown()
+        if self.session:
+            for i in self.sessions.keys():
+                self.sessions[i].shutdown()
         self.liststore.clear()
 
     def get_root(self):
