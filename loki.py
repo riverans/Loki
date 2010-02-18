@@ -63,9 +63,27 @@ class about_window(gtk.Window):
         button = gtk.Button(gtk.STOCK_CLOSE)
         button.set_use_stock(True)
         button.connect_object("clicked", gtk.Widget.destroy, self)
+        buttonbox = gtk.HButtonBox()
+        buttonbox.pack_start(button)
         vbox = gtk.VBox()
-        vbox.pack_start(label, True, True)
-        vbox.pack_start(button, False, False)
+        vbox.pack_start(label, True, True, 0)
+        vbox.pack_start(buttonbox, False, False, 0)
+        self.add(vbox)
+
+class log_window(gtk.Window):
+    def __init__(self, textbuffer):
+        gtk.Window.__init__(self)
+        self.set_title("Log")
+        self.set_default_size(70, 150)
+        textview = gtk.TextView(textbuffer)
+        button = gtk.Button(gtk.STOCK_CLOSE)
+        button.set_use_stock(True)
+        button.connect_object("clicked", gtk.Widget.destroy, self)
+        buttonbox = gtk.HButtonBox()
+        buttonbox.pack_start(button)
+        vbox = gtk.VBox()
+        vbox.pack_start(textview, True, True, 0)
+        vbox.pack_start(buttonbox, False, False, 0)
         self.add(vbox)
 
 class preference_window(gtk.Window):
@@ -266,6 +284,9 @@ class codename_loki(object):
         self.about_button = gtk.ToolButton(gtk.STOCK_ABOUT)
         self.about_button.connect("clicked", self.on_about_button_clicked)
         self.toolbar.insert(self.about_button, 0)
+        self.log_button = gtk.ToolButton(gtk.STOCK_JUSTIFY_FILL)
+        self.log_button.connect("clicked", self.on_log_button_clicked)
+        self.toolbar.insert(self.log_button, 0)
         self.toolbar.insert(gtk.SeparatorToolItem(), 0)
         self.pref_button = gtk.ToolButton(gtk.STOCK_PREFERENCES)
         self.pref_button.connect("clicked", self.on_pref_button_clicked)
@@ -285,6 +306,9 @@ class codename_loki(object):
         self.statusbar = gtk.Statusbar()
         self.vbox.pack_start(self.statusbar, False, False, 0)
         self.window.add(self.vbox)
+
+        self.log_textbuffer = gtk.TextBuffer()
+        self.log_window = log_window(self.log_textbuffer)
 
     def main(self):
         print "This is %s version %s by Daniel Mende - dmende@ernw.de" % (self.__class__.__name__, VERSION)
@@ -432,7 +456,9 @@ class codename_loki(object):
     def log(self, msg, module=None):
         #gtk.gdk.threads_enter()
         self.statusbar.push(self.msg_id, "[%i] %s" % (self.msg_id, msg))
-        print "[%i] %s" % (self.msg_id, msg)
+        if DEBUG:
+            print "[%i] %s" % (self.msg_id, msg)
+        self.log_textbuffer.insert(self.log_textbuffer.get_end_iter(), "[%i] %s\n" % (self.msg_id, msg))
         #gtk.gdk.threads_leave()
         self.msg_id += 1
         if module:
@@ -499,6 +525,10 @@ class codename_loki(object):
     def on_pref_button_clicked(self, data):
         pref_window = preference_window(self)
         pref_window.show_all()
+
+    def on_log_button_clicked(self, data):
+        l_window = log_window(self.log_textbuffer)
+        l_window.show_all()
         
     def on_network_button_clicked(self, data):
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
