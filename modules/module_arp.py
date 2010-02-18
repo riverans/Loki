@@ -76,15 +76,22 @@ class mod_class(object):
         self.upper_add_liststore = gtk.ListStore(str, str)
         self.lower_add_liststore = gtk.ListStore(str, str)
         self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str)
-        self.spoof_thread = spoof_thread(self, 30)
         self.dnet = None
-
+    
+    def start_mod(self):
+        self.spoof_thread = spoof_thread(self, 30)
         self.hosts = {}
         self.upper_add = {}
         self.lower_add = {}
         self.spoofs = {}
-
         self.spoof_thread.start()
+
+    def shut_mod(self):
+        self.spoof_thread.quit()
+        self.hosts_liststore.clear()
+        self.upper_add_liststore.clear()
+        self.lower_add_liststore.clear()
+        self.spoof_treestore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
@@ -181,9 +188,6 @@ class mod_class(object):
 
     def set_log(self, log):
         self.__log = log
-
-    def shutdown(self):
-        self.spoof_thread.quit()
 
     def set_ip(self, ip, mask):
         self.scan_network_entry.set_text(str(IPy.IP("%s/%s" % (ip, mask), make_net=True)))

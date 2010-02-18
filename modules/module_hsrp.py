@@ -167,11 +167,18 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "hsrp"
-        self.thread = hsrp_thread(self)
-        self.peers = {}
         self.gladefile = "modules/module_hsrp.glade"
         self.liststore = gtk.ListStore(str, str, int, str)
 
+    def start_mod(self):
+        self.peers = {}
+        self.thread = hsrp_thread(self)
+
+    def shut_mod(self):
+        if self.thread.is_alive():
+            self.thread.shutdown()
+        self.liststore.clear()
+        
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_get_button_clicked" : self.on_get_button_clicked,
@@ -224,10 +231,6 @@ class mod_class(object):
     def set_dnet(self, dnet):
         self.dnet = dnet
         self.mac = dnet.eth.get()
-
-    def shutdown(self):
-        if self.thread.is_alive():
-            self.thread.shutdown()
 
     def get_udp_checks(self):
         return (self.check_udp, self.input_udp)

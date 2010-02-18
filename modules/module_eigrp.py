@@ -441,9 +441,11 @@ class mod_class(object):
         self.name = "eigrp"
         self.gladefile = "modules/module_eigrp.glade"
         self.liststore = gtk.ListStore(str, int)
+        self.filter = False
+
+    def start_mod(self):
         self.hello_thread = None
         self.goodbye_thread = None
-        self.filter = False
         self.spoof = False
         self.interface = None
         self.auth = None
@@ -451,6 +453,21 @@ class mod_class(object):
         self.peers = {}
         self.address = None
         self.listen_for_auth = False
+
+    def shut_mod(self):
+        if self.hello_thread:
+            if self.hello_thread.running:
+                self.hello_thread.quit()
+        if self.goodbye_thread:
+            if self.goodbye_thread.running:
+                self.goodbye_thread.quit()
+        for i in self.peers:
+            self.peers[i].quit()
+        if self.filter:
+                self.log("EIGRP: Removing lokal packet filter for EIGRP")
+                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                self.filter = False
+        self.liststore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
@@ -503,20 +520,6 @@ class mod_class(object):
 
     def set_log(self, log):
         self.__log = log
-
-    def shutdown(self):
-        if self.hello_thread:
-            if self.hello_thread.running:
-                self.hello_thread.quit()
-        if self.goodbye_thread:
-            if self.goodbye_thread.running:
-                self.goodbye_thread.quit()
-        for i in self.peers:
-            self.peers[i].quit()
-        if self.filter:
-                self.log("EIGRP: Removing lokal packet filter for EIGRP")
-                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
-                self.filter = False
 
     def get_ip_checks(self):
         return (self.check_ip, self.input_ip)

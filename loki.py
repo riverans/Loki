@@ -158,9 +158,10 @@ class pcap_thread(threading.Thread):
                 p.dispatch(1, self.dispatch_packet)
             except Exception, e:
                 print e
-                print '-'*60
-                traceback.print_exc(file=sys.stdout)
-                print '-'*60
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
 
             time.sleep(0.001)
         self.parent.log("Listen thread terminated")
@@ -307,7 +308,7 @@ class codename_loki(object):
 
     def init_all_modules(self):
         if DEBUG:
-            print "Initialising moculed..."
+            print "Initialising modules..."
         for i in self.modules:
             self.init_module(i)
     
@@ -321,6 +322,10 @@ class codename_loki(object):
             self.modules[module] = (mod.mod_class(self, PLATFORM), enabled)
         except Exception, e:
             print e
+            if DEBUG:
+                print '-'*60
+                traceback.print_exc(file=sys.stdout)
+                print '-'*60
 
     def init_module(self, module):
         if DEBUG:
@@ -347,31 +352,49 @@ class codename_loki(object):
             (check, call) = mod.get_udp_checks()
             self.udp_checks.append((check, call, mod.name))
         if self.run_togglebutton.get_active():
-            try:
-                if "set_ip" in dir(mod):
-                    mod.set_ip(self.ip, self.mask)
-            except Exception, e:
-                print e
-            try:
-                if "set_dnet" in dir(mod):
-                    mod.set_dnet(self.dnet_thread)
-            except Exception, e:
-                print e
-            try:
-                if "set_int" in dir(mod):
-                    mod.set_int(self.interface)
-            except Exception, e:
-                print e
+            self.start_module(module)
             root.set_property("sensitive", True)
         else:
             root.set_property("sensitive", False)
         self.modules[module] = (mod, True)
 
+    def start_module(self, module):
+        (mod, en) = self.modules[module]
+        if en:
+            try:
+                if "set_ip" in dir(mod):
+                    mod.set_ip(self.ip, self.mask)
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
+            try:
+                if "set_dnet" in dir(mod):
+                    mod.set_dnet(self.dnet_thread)
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
+            try:
+                if "set_int" in dir(mod):
+                    mod.set_int(self.interface)
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
+            mod.start_mod()
+
     def shut_module(self, module, delete=False):
         if DEBUG:
             print "shut %s" % module
         (mod, enabled) = self.modules[module]
-        mod.shutdown()
+        mod.shut_mod()
         for i in self.notebook:
             if self.notebook.get_tab_label_text(i) == mod.name:
                 self.notebook.remove_page(self.notebook.page_num(i))
@@ -449,27 +472,14 @@ class codename_loki(object):
             self.dnet_thread.start()
             self.log("Listening on %s" % (self.interface))
             for i in self.modules:
-                (module, enabled) = self.modules[i]
-                if enabled:
-                    try:
-                        if "set_ip" in dir(module):
-                            module.set_ip(self.ip, self.mask)
-                    except Exception, e:
-                        print e
-                    try:
-                        if "set_dnet" in dir(module):
-                            module.set_dnet(self.dnet_thread)
-                    except Exception, e:
-                        print e
-                    try:
-                        if "set_int" in dir(module):
-                            module.set_int(self.interface)
-                    except Exception, e:
-                        print e
+                self.start_module(i)
             for i in self.notebook:
                 i.set_property("sensitive", True)
             self.network_button.set_property("sensitive", False)
         else:
+            for i in self.modules:
+                (mod, en) = self.modules[i]
+                mod.shut_mod()
             for i in self.notebook:
                 i.set_property("sensitive", False)
             if self.pcap_thread:
@@ -533,7 +543,7 @@ class codename_loki(object):
     def delete_event(self, widget, event, data=None):
         for i in self.modules.keys():
             (module, enabled) = self.modules[i]
-            module.shutdown()
+            module.shut_mod()
         if self.pcap_thread:
             self.pcap_thread.quit()
         if self.dnet_thread:
@@ -571,9 +581,10 @@ if __name__ == '__main__':
         app.main()
     except Exception, e:
         print e
-        print '-'*60
-        traceback.print_exc(file=sys.stdout)
-        print '-'*60
+        if DEBUG:
+            print '-'*60
+            traceback.print_exc(file=sys.stdout)
+            print '-'*60
         app.delete_event(None, None)
     except:
         app.delete_event(None, None)

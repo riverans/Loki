@@ -82,10 +82,18 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "tcp-md5"
-        self.opts = {}
         self.gladefile = "modules/module_tcp-md5.glade"
         self.liststore = gtk.ListStore(str, str, str)
 
+    def start_mod(self):
+        self.opts = {}
+
+    def shut_mod(self):
+        for i in self.opts:
+            (iter, data, digest, thread) = self.opts[i]
+            thread.quit()
+        self.liststore.clear()
+        
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_crack_button_clicked" : self.on_crack_button_clicked
@@ -126,11 +134,6 @@ class mod_class(object):
 
     def set_log(self, log):
         self.__log = log
-
-    def shutdown(self):
-        for i in self.opts:
-            (iter, data, digest, thread) = self.opts[i]
-            thread.quit()
 
     def get_tcp_checks(self):
         return (self.check_tcp, self.input_tcp)

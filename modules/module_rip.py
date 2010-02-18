@@ -184,13 +184,21 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "rip"
-        self.thread = rip_thread(self)
-        self.hosts = {}
-        self.routes = {}
         self.gladefile = "modules/module_rip.glade"
         self.host_liststore = gtk.ListStore(str)
         self.route_liststore = gtk.ListStore(str, str, str, str)
 
+    def start_mod(self):
+        self.thread = rip_thread(self)
+        self.hosts = {}
+        self.routes = {}
+
+    def shut_mod(self):
+        if self.thread.is_alive():
+            self.thread.shutdown()
+        self.host_liststore.clear()
+        self.route_liststore.clear()
+        
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_add_button_clicked" : self.on_add_button_clicked,
@@ -257,10 +265,6 @@ class mod_class(object):
     def set_dnet(self, dnet):
         self.dnet = dnet
         self.mac = dnet.eth.get()
-        
-    def shutdown(self):
-        if self.thread.is_alive():
-            self.thread.shutdown()
 
     def get_udp_checks(self):
         return (self.check_udp, self.input_udp)

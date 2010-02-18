@@ -407,21 +407,14 @@ class bgp_session(threading.Thread):
             self.join()
     
     def run(self):
-        #gtk.gdk.threads_enter()
-        #iter = self.liststore.append([self.get_icon_pixbuf(gtk.STOCK_DIALOG_ERROR), "test"])
         iter = self.liststore.append([self.host, self.host])
-        #gtk.gdk.threads_leave()
         
         self.keepalive()
         self.log("BGP: Keepalive thread terminated for %s" % (self.host))
-        #interface.session = None
 
-        #gtk.gdk.threads_enter()
         self.liststore.remove(iter)
-        #gtk.gdk.threads_leave()
         
         del self.parent.sessions[self.host]
-
 
     def keepalive(self):
         while self.active:
@@ -446,16 +439,18 @@ class mod_class(object):
         self.platform = platform
         self.name = "bgp"
         self.gladefile = "modules/module_bgp.glade"
-        self.liststore = gtk.ListStore(str, str) #gtk.ListStore(gtk.gdk.Pixbuf, str)
+        self.liststore = gtk.ListStore(str, str)
 
+    def start_mod(self):
         self.sessions = {}
         self.md5 = []
         self.msg = None
         self.parameters = []
 
-    def get_icon_pixbuf(self, stock):
-        return self.treeview.render_icon(stock_id=getattr(gtk, stock), size=gtk.ICON_SIZE_MENU, detail=None)
-
+    def shut_mod(self):
+        for i in self.sessions.keys():
+            self.sessions[i].shutdown()
+        self.liststore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
@@ -503,10 +498,6 @@ class mod_class(object):
 
     def set_log(self, log):
         self.__log = log
-
-    def shutdown(self):
-        for i in self.sessions.keys():
-            self.sessions[i].shutdown()
 
     # SIGNALS #
 

@@ -34,29 +34,23 @@ import threading
 import gobject
 import gtk
 
-class module_test(threading.Thread):
-    def __init__(self):
-        self.sem = threading.Semaphore()
-        threading.Thread.__init__(self)
-
-    def run(self):
-        pass
-
 class mod_class(object):
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
         self.name = "test"
-        self.thread = module_test()
+
+    def start_mod(self):
+        pass
+
+    def shut_mod(self):
+        pass
 
     def get_root(self):
         return gtk.Label("TEST")
 
     def set_log(self, log):
         self.log = log
-
-    def shutdown(self):
-        pass
 
     #def get_eth_checks(self):
         #pass

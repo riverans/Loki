@@ -990,6 +990,10 @@ class mod_class(object):
                 exec("val = ospf_link_state_advertisement_header." + i)
                 self.net_type_liststore.append([i, val])
         self.dnet = None
+        self.filter = False
+
+    def start_mod(self):
+        self.thread = ospf_thread(self, 10)
         self.area = 0
         self.auth_type = ospf_header.AUTH_NONE
         self.auth_data = 0
@@ -999,9 +1003,18 @@ class mod_class(object):
         self.bdr = ""
         self.options = ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY
         self.mtu = 1500
-        self.thread = ospf_thread(self, 10)
-        self.filter = False
+        self.thread.start()
 
+    def shut_mod(self):
+        self.thread.quit()
+        if self.filter:
+            self.log("OSPF: Removing lokal packet filter for OSPF")
+            os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            self.filter = False
+        self.neighbor_liststore.clear()
+        self.network_liststore.clear()
+        self.auth_type_liststore.clear()
+        
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
@@ -1077,13 +1090,6 @@ class mod_class(object):
     def set_log(self, log):
         self.__log = log
 
-    def shutdown(self):
-        self.thread.quit()
-        if self.filter:
-            self.log("OSPF: Removing lokal packet filter for OSPF")
-            os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
-            self.filter = False
-
     def set_ip(self, ip, mask):
         self.ip = dnet.ip_aton(ip)
         self.mask = dnet.ip_aton(mask)
@@ -1094,8 +1100,6 @@ class mod_class(object):
 
     def set_int(self, interface):
         self.interface = interface
-
-        self.thread.start()
 
     def get_ip_checks(self):
         return (self.check_ip, self.input_ip)

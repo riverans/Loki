@@ -340,10 +340,23 @@ class mod_class(object):
         self.name = "ldp"
         self.gladefile = "modules/module_ldp.glade"
         self.liststore = gtk.ListStore(str, str)
+
+    def start_mod(self):
         self.hello_thread = None
         self.peers = {}
         self.listener = None
 
+    def shut_mod(self):
+        if self.listener:
+            self.listener.quit()
+        if self.hello_thread:
+            self.hello_thread.quit()
+        for x in self.peers:
+            (iter, peer) = self.peers[x]
+            if peer:
+                peer.quit()
+        self.liststore.clear()
+        
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
@@ -384,16 +397,6 @@ class mod_class(object):
 
     def set_ip(self, ip, mask):
         self.ip = ip
-
-    def shutdown(self):
-        if self.listener:
-            self.listener.quit()
-        if self.hello_thread:
-            self.hello_thread.quit()
-        for x in self.peers:
-            (iter, peer) = self.peers[x]
-            if peer:
-                peer.quit()
 
     def get_udp_checks(self):
         return (self.check_udp, self.input_udp)
