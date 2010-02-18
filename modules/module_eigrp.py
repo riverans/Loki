@@ -450,11 +450,9 @@ class mod_class(object):
         self.hello_thread = None
         self.goodbye_thread = None
         self.spoof = False
-        self.interface = None
         self.auth = None
         self.as_num = None
         self.peers = {}
-        self.address = None
         self.listen_for_auth = False
 
     def shut_mod(self):
