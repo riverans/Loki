@@ -72,12 +72,14 @@ class mod_class(object):
         self.platform = platform
         self.name = "arp"
         self.gladefile = "modules/module_arp.glade"
-        self.hosts_liststore = gtk.ListStore(str, str)
+        self.macfile = "modules/mac.txt"
+        self.hosts_liststore = gtk.ListStore(str, str, str)
         self.upper_add_liststore = gtk.ListStore(str, str)
         self.lower_add_liststore = gtk.ListStore(str, str)
         self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str)
         self.dnet = None
         self.spoof_thread = None
+        self.macs = None
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self, 30)
@@ -86,6 +88,8 @@ class mod_class(object):
         self.lower_add = {}
         self.spoofs = {}
         self.spoof_thread.start()
+        if not self.macs:
+            self.macs = self.parse_macs(self.macfile)
 
     def shut_mod(self):
         if self.spoof_thread:
@@ -118,10 +122,16 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', 0)
         self.hosts_treeview.append_column(column)
         column = gtk.TreeViewColumn()
-        column.set_title("IP address")
+        column.set_title("Vendor")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 1)
+        self.hosts_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("IP address")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 2)
         self.hosts_treeview.append_column(column)
 
         self.upper_add_treeview = self.glade_xml.get_widget("upper_add_treeview")
@@ -219,7 +229,7 @@ class mod_class(object):
         ip = dnet.ip_ntoa(str(arp.spa))
         rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
         rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
-        iter = self.hosts_liststore.append([mac, ip])
+        iter = self.hosts_liststore.append([mac, self.mac_to_vendor(mac), ip])
         self.hosts[mac] = (ip, rand_mac, iter)
 
     def get_ip_checks(self):
@@ -248,6 +258,20 @@ class mod_class(object):
                     return
                 else:
                     good = True
+
+    def parse_macs(self, file):
+        macs = {}
+        f = open(file, "r")
+        for l in f:
+            s = l.split()
+            if len(s) < 2:
+                continue
+            macs[s[0]] = " ".join(s[1:])
+        return macs
+
+    def mac_to_vendor(self, mac):
+        mac = mac.replace(":", "-")
+        return self.macs[mac[0:8].upper()]
 
     # SIGNALS #
 
