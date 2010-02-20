@@ -412,7 +412,17 @@ class mod_class(object):
     def on_scan_start_button_clicked(self, data):
         ips = IPy.IP(self.scan_network_entry.get_text())
         for i in ips:
-            arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REQUEST, sha=self.mac, spa=self.ip, tpa=dnet.ip_aton(str(i)))
-            eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton("ff:ff:ff:ff:ff:ff"), src=self.mac, type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
+            arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                pro=dpkt.arp.ARP_PRO_IP,
+                                op=dpkt.arp.ARP_OP_REQUEST,
+                                sha=self.mac,
+                                spa=self.ip,
+                                tpa=dnet.ip_aton(str(i))
+                                )
+            eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("ff:ff:ff:ff:ff:ff"),
+                                            src=self.mac,
+                                            type=dpkt.ethernet.ETH_TYPE_ARP,
+                                            data=str(arp)
+                                            )
             self.dnet.eth.send(str(eth))
 
