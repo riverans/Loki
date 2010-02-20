@@ -122,13 +122,13 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', 0)
         self.hosts_treeview.append_column(column)
         column = gtk.TreeViewColumn()
-        column.set_title("Vendor")
+        column.set_title("IP address")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 1)
         self.hosts_treeview.append_column(column)
         column = gtk.TreeViewColumn()
-        column.set_title("IP address")
+        column.set_title("Vendor")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 2)
@@ -229,7 +229,7 @@ class mod_class(object):
         ip = dnet.ip_ntoa(str(arp.spa))
         rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
         rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
-        iter = self.hosts_liststore.append([mac, self.mac_to_vendor(mac), ip])
+        iter = self.hosts_liststore.append([mac, ip, self.mac_to_vendor(mac)])
         self.hosts[mac] = (ip, rand_mac, iter)
 
     def get_ip_checks(self):
@@ -311,24 +311,64 @@ class mod_class(object):
             for host_lower in self.lower_add:
                 (ip_lower, rand_mac_lower, iter_lower) = self.lower_add[host_lower]
                 self.spoof_treestore.append(parent, [None, ip_upper, ip_lower])
-                self.lower_add_liststore.remove(iter_lower)
-                arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(rand_mac_upper), spa=dnet.ip_aton(ip_upper), tpa=dnet.ip_aton(ip_lower))
-                eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_lower), src=dnet.eth_aton(rand_mac_upper), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
+                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                    pro=dpkt.arp.ARP_PRO_IP,
+                                    op=dpkt.arp.ARP_OP_REPLY,
+                                    sha=dnet.eth_aton(rand_mac_upper),
+                                    spa=dnet.ip_aton(ip_upper),
+                                    tpa=dnet.ip_aton(ip_lower)
+                                    )
+                eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_lower),
+                                                src=dnet.eth_aton(rand_mac_upper),
+                                                type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                data=str(arp)
+                                                )
                 data.append(str(eth))
-                arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(host_upper), spa=dnet.ip_aton(ip_upper), tpa=dnet.ip_aton(ip_lower))
-                eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_lower), src=dnet.eth_aton(host_upper), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
+                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                    pro=dpkt.arp.ARP_PRO_IP,
+                                    op=dpkt.arp.ARP_OP_REPLY,
+                                    sha=dnet.eth_aton(host_upper),
+                                    spa=dnet.ip_aton(ip_upper),
+                                    tpa=dnet.ip_aton(ip_lower)
+                                    )
+                eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_lower),
+                                                src=dnet.eth_aton(host_upper),
+                                                type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                data=str(arp)
+                                                )
                 org_data.append(str(eth))
 
-                arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(rand_mac_lower), spa=dnet.ip_aton(ip_lower), tpa=dnet.ip_aton(ip_upper))
-                eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_upper), src=dnet.eth_aton(rand_mac_lower), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
+                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                    pro=dpkt.arp.ARP_PRO_IP,
+                                    op=dpkt.arp.ARP_OP_REPLY,
+                                    sha=dnet.eth_aton(rand_mac_lower),
+                                    spa=dnet.ip_aton(ip_lower),
+                                    tpa=dnet.ip_aton(ip_upper)
+                                    )
+                eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_upper),
+                                                src=dnet.eth_aton(rand_mac_lower),
+                                                type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                data=str(arp)
+                                                )
                 data.append(str(eth))
-                arp = dpkt.arp.ARP(hrd=dpkt.arp.ARP_HRD_ETH, pro=dpkt.arp.ARP_PRO_IP, op=dpkt.arp.ARP_OP_REPLY, sha=dnet.eth_aton(host_lower), spa=dnet.ip_aton(ip_lower), tpa=dnet.ip_aton(ip_upper))
-                eth = dpkt.ethernet.Ethernet(dst=dnet.eth_aton(host_upper), src=dnet.eth_aton(host_lower), type=dpkt.ethernet.ETH_TYPE_ARP, data=str(arp))
+                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                    pro=dpkt.arp.ARP_PRO_IP,
+                                    op=dpkt.arp.ARP_OP_REPLY,
+                                    sha=dnet.eth_aton(host_lower),
+                                    spa=dnet.ip_aton(ip_lower),
+                                    tpa=dnet.ip_aton(ip_upper)
+                                    )
+                eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_upper),
+                                                src=dnet.eth_aton(host_lower),
+                                                type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                data=str(arp)
+                                                )
                 org_data.append(str(eth))
-            self.lower_add = {}
-            self.upper_add_liststore.remove(iter_upper)
         self.spoofs[cur] = (False, data, org_data)
         self.upper_add = {}
+        self.lower_add = {}
+        self.upper_add_liststore.clear()
+        self.lower_add_liststore.clear()
 
     def on_remove_spoof_button_clicked(self, data):
         self.on_stop_spoof_button_clicked(data)
