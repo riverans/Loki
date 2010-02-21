@@ -76,7 +76,7 @@ class mod_class(object):
         self.hosts_liststore = gtk.ListStore(str, str, str)
         self.upper_add_liststore = gtk.ListStore(str, str)
         self.lower_add_liststore = gtk.ListStore(str, str)
-        self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str)
+        self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str)
         self.dnet = None
         self.spoof_thread = None
         self.macs = None
@@ -187,6 +187,11 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 2)
         self.spoof_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 3)
+        self.spoof_treeview.append_column(column)
 
         self.scan_network_entry = self.glade_xml.get_widget("scan_network_entry")
 
@@ -246,18 +251,28 @@ class mod_class(object):
             (ip, rand_mac, iter) = self.hosts[h]
             if src == h:
                 eth.src = dnet.eth_aton(rand_mac)
+                ref_src = h
                 if good:
                     self.dnet.send(str(eth))
+                    self.inc_packet_counter(ref_src, ref_dst)
                     return
                 else:
                     good = True
             if dst == rand_mac:
                 eth.dst = dnet.eth_aton(h)
+                ref_dst = h
                 if good:
                     self.dnet.send(str(eth))
+                    self.inc_packet_counter(ref_src, ref_dst)
                     return
                 else:
                     good = True
+
+    def inc_packet_counter(self, ref_src, ref_dst):
+        for i in self.spoof_treestore:
+            (pic, src, dst, count) = self.spoof_treestore[i]
+            if src == ref_src and dst == ref_dst:
+                self.spoof_treestore[i] = (pic, src, dst, str(int(count) + 1))
 
     def parse_macs(self, file):
         macs = {}
@@ -302,7 +317,7 @@ class mod_class(object):
             return
         if not len(self.lower_add):
             return
-        parent = self.spoof_treestore.append(None, [self.offline, "%i spoofs" % (len(self.upper_add) * len(self.lower_add)), None])
+        parent = self.spoof_treestore.append(None, [self.offline, "%i spoofs" % (len(self.upper_add) * len(self.lower_add)), None, None])
         cur = self.spoof_treestore.get_string_from_iter(parent)
         data = []
         org_data = []
@@ -310,7 +325,7 @@ class mod_class(object):
             (ip_upper, rand_mac_upper, iter_upper) = self.upper_add[host_upper]
             for host_lower in self.lower_add:
                 (ip_lower, rand_mac_lower, iter_lower) = self.lower_add[host_lower]
-                self.spoof_treestore.append(parent, [None, ip_upper, ip_lower])
+                self.spoof_treestore.append(parent, [None, ip_upper, ip_lower, "0"])
                 arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
                                     pro=dpkt.arp.ARP_PRO_IP,
                                     op=dpkt.arp.ARP_OP_REPLY,
@@ -378,8 +393,8 @@ class mod_class(object):
             parent = model.iter_parent(model.get_iter(i))
             if not parent:
                 parent = model.get_iter(i)
-            del self.spoofs[self.spoof_treestore.get_string_from_iter(parent)]
-            self.spoof_treestore.remove(parent)
+            del self.spoofs[model.get_string_from_iter(parent)]
+            model.remove(parent)
 
     def on_stop_spoof_button_clicked(self, data):
         select = self.spoof_treeview.get_selection()
@@ -395,7 +410,6 @@ class mod_class(object):
                 self.spoofs[cur] = (False, data, org_data)
                 for j in org_data:
                     self.dnet.eth.send(j)
-        ### RESET OLD STATES ??? ###
 
     def on_start_spoof_button_clicked(self, data):
         select = self.spoof_treeview.get_selection()
