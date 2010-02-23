@@ -29,12 +29,16 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import hashlib
 import random
 import socket
 import struct
 import os
+import tempfile
 import threading
 import time
+
+import ospfmd5
 
 import dnet
 import dpkt
@@ -145,6 +149,7 @@ class ospf_header(object):
 
     AUTH_NONE = 0
     AUTH_SIMPLE = 1
+    AUTH_CRYPT = 2
     
     def __init__(self, type=None, id=None, area=None, auth_type=None, auth_data=None):
         self.version = OSPF_VERSION
@@ -154,18 +159,76 @@ class ospf_header(object):
         self.auth_type = auth_type
         self.auth_data = auth_data
 
+    def auth_to_string(self, type=None):
+        if not type:
+            type = self.auth_type
+        if type == self.AUTH_NONE:
+            return "NONE"
+        elif type == self.AUTH_SIMPLE:
+            return "PLAIN"
+        elif type == self.AUTH_CRYPT:
+            return "DIGEST"
+
     def render(self, data):
-        ret = "%s%s%s%s" % (struct.pack("!BBH", self.version, self.type, len(data) + 24),
-                            self.id,
-                            struct.pack("!LHHQ", self.area, 0, self.auth_type, self.auth_data),
-                            data
-                            )
-        ret = ret[:12] + struct.pack("!H", ichecksum_func(ret)) + ret[14:]
+        if self.auth_type == self.AUTH_CRYPT:
+            ret = "%s%s%s%s%s" % (  struct.pack("!BBH", self.version, self.type, len(data) + 24),
+                                    self.id,
+                                    struct.pack("!LHH", self.area, 0, self.auth_type),
+                                    self.auth_data.render(),
+                                    data
+                                    )
+            if self.auth_data.type == ospf_crypt_auth_data.TYPE_MD5:
+                hash = hashlib.md5()
+            hash.update(ret)
+            hash.update(self.auth_data.key)
+            ret = "%s%s" % (ret, hash.digest())
+        else:
+            ret = "%s%s%s%s" % (struct.pack("!BBH", self.version, self.type, len(data) + 24),
+                                self.id,
+                                struct.pack("!LHHQ", self.area, 0, self.auth_type, 0),
+                                data
+                                )
+            ret = ret[:12] + struct.pack("!H", ichecksum_func(ret)) + ret[14:]
+            if self.auth_type == self.AUTH_SIMPLE:
+                ret = ret[:16] + self.auth_data + ret[24:]
         return ret
 
     def parse(self, data):
         (self.version, self.type, len, self.id, self.area, csum, self.auth_type, self.auth_data) = struct.unpack("!BBHLLHHQ", data[:24])
         return data[24:]
+
+class ospf_crypt_auth_data(object):
+    
+    # 0                   1                   2                   3
+    # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #|              0                |    Key ID     | Auth Data Len |
+    #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #|                 Cryptographic sequence number                 |
+    #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+    TYPE_MD5 = 1
+
+    def __init__(self, key=None, id=None, type=None, sequence=None):
+        self.key = key
+        self.id = id
+        self.type = type
+        self.sequence = sequence
+
+    def type_to_len(self, type):
+        if type == self.TYPE_MD5:
+            return 16
+
+    def len_to_type(self, len):
+        if len == 16:
+            return self.TYPE_MD5
+
+    def render(self):
+        return struct.pack("!xxBBL", self.id, self.type_to_len(self.type), self.sequence)
+
+    def parse(self, data):
+        (self.id, len, self.sequence) = struct.unpack("!xxBBL", data)
+        self.type = self.len_to_type(len)
 
 class ospf_hello(ospf_header):
 
@@ -772,7 +835,7 @@ class ospf_thread(threading.Thread):
                         self.hello_count += 1
                    
                     for id in self.parent.neighbors:
-                        (iter, mac, ip, dbd, lsa, state, master, seq) = self.parent.neighbors[id]
+                        (iter, mac, ip, dbd, lsa, state, master, seq, last_packet) = self.parent.neighbors[id]
 
                         if state == self.STATE_HELLO:
                             #Unicast hello
@@ -803,7 +866,7 @@ class ospf_thread(threading.Thread):
                                                                         seq
                                                                         )
                                     self.send_unicast(mac, ip, packet.render(""))
-                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1)
+                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet)
                                 else:
                                     #Learned DBD
                                     packet = ospf_database_description( self.parent.area,
@@ -828,7 +891,7 @@ class ospf_thread(threading.Thread):
                                                                     ospf_database_description.FLAGS_MASTER_SLAVE,
                                                                     seq
                                                                     )
-                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1)
+                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet)
                             else:
                                 packet = ospf_database_description( self.parent.area,
                                                                     self.parent.auth_type,
@@ -861,7 +924,7 @@ class ospf_thread(threading.Thread):
                                                                     seq
                                                                     )
                                 self.send_unicast(mac, ip, packet.render(""))
-                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1)
+                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet)
                             else:
                                 #Ack DBD
                                 packet = ospf_database_description( self.parent.area,
@@ -887,7 +950,7 @@ class ospf_thread(threading.Thread):
                                                                         )
                                     data = packet.render()
                                     self.send_unicast(mac, ip, data)
-                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, False, seq)
+                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, False, seq, last_packet)
                             else:
                                 #LSUpdate
                                 ipy = IPy.IP("%s/%s" % (dnet.ip_ntoa(self.parent.ip), dnet.ip_ntoa(self.parent.mask)), make_net=True)
@@ -916,7 +979,7 @@ class ospf_thread(threading.Thread):
                             if len(lsa):
                                 ack = ospf_link_state_acknowledgment(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, lsa)
                                 self.send_unicast(mac, ip, ack.render())
-                                self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, master, seq)
+                                self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, master, seq, last_packet)
                             for i in self.parent.nets:
                                 (net, mask, type, active, removed) = self.parent.nets[i]
                                 if active:
@@ -968,6 +1031,41 @@ class ospf_thread(threading.Thread):
     def quit(self):
         self.running = False
 
+class ospf_md5bf(threading.Thread):
+    def __init__(self, log, model, iter, bf, full, wl, digest, data):
+        self.log = log
+        self.model = model
+        self.iter = iter
+        self.bf = bf
+        self.full = full
+        self.wl = wl
+        self.digest = digest
+        self.data = data
+        threading.Thread.__init__(self)
+
+    def run(self):
+        if self.bf and not self.wl:
+            self.wl = ""
+        #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest, self.data)
+        (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
+        os.close(handle)
+        pw = ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        src = self.model.get_value(self.iter, 0)
+        #print pw
+        auth = model.get_value(self.iter, 3)
+        if pw:
+            self.model.set_value(self.iter, 4, pw)
+            self.log("OSPF: Found password '%s' for host %s" % (pw, src))
+        else:
+            self.model.set_value(self.iter, 4, "NOT FOUND")
+            self.log("OSPF: No password found for hostn %s" % (src))
+        if os.path.exists(self.tmpfile):
+            os.remove(self.tmpfile)
+
+    def quit(self):
+        if os.path.exists(self.tmpfile):
+            os.remove(self.tmpfile)
+
 ### MODULE_CLASS ###
 
 class mod_class(object):    
@@ -976,7 +1074,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "ospf"
         self.gladefile = "modules/module_ospf.glade"
-        self.neighbor_liststore = gtk.ListStore(str, str, str)
+        self.neighbor_liststore = gtk.ListStore(str, str, str, str, str)
         self.network_liststore = gtk.ListStore(str, str, str)
         self.auth_type_liststore = gtk.ListStore(str, int)
         for i in dir(ospf_header):
@@ -992,6 +1090,7 @@ class mod_class(object):
         self.dnet = None
         self.filter = False
         self.thread = None
+        self.bf = None
 
     def start_mod(self):
         self.thread = ospf_thread(self, 10)
@@ -1004,6 +1103,7 @@ class mod_class(object):
         self.bdr = ""
         self.options = ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY
         self.mtu = 1500
+        self.bf = {}
         self.thread.start()
 
     def shut_mod(self):
@@ -1013,6 +1113,10 @@ class mod_class(object):
             self.log("OSPF: Removing lokal packet filter for OSPF")
             os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
             self.filter = False
+        if self.bf:
+            for i in self.bf:
+                (iter, data, digest, thread) = self.bf[i]
+                thread.quit()
         self.neighbor_liststore.clear()
         self.network_liststore.clear()
         self.auth_type_liststore.clear()
@@ -1020,6 +1124,7 @@ class mod_class(object):
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
+                "on_bf_button_clicked" : self.on_bf_button_clicked,
                 "on_add_button_clicked" : self.on_add_button_clicked,
                 "on_remove_button_clicked" : self.on_remove_button_clicked
                 }
@@ -1046,6 +1151,18 @@ class mod_class(object):
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 2)
+        self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("AUTH")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 3)
+        self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("CRACK")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 4)
         self.neighbor_treeview.append_column(column)
 
         self.network_treeview = self.glade_xml.get_widget("network_treeview")
@@ -1077,6 +1194,10 @@ class mod_class(object):
         self.auth_type_combobox.set_model(self.auth_type_liststore)
         self.auth_type_combobox.set_active(0)
         self.auth_data_entry = self.glade_xml.get_widget("auth_data_entry")
+
+        self.bf_checkbutton = self.glade_xml.get_widget("bf_checkbutton")
+        self.full_checkbutton = self.glade_xml.get_widget("full_checkbutton")
+        self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
 
         self.network_entry = self.glade_xml.get_widget("network_entry")
         self.netmask_entry = self.glade_xml.get_widget("netmask_entry")
@@ -1129,14 +1250,14 @@ class mod_class(object):
                         else:
                             master = False
                         #print "Local %s (%i) - Peer %s (%i) => Master " % (dnet.ip_ntoa(self.ip), socket.ntohl(ip_int), id, socket.ntohl(header.id)) + str(master)
-                        iter = self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id, "HELLO"])
+                        iter = self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id, "HELLO", header.auth_to_string(), ""])
                         #                    (iter, mac,     src,    dbd, lsa, state,                 master, seq)
-                        self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337)
+                        self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337, ip.data)
                         self.log("OSPF: Got new peer %s" % (dnet.ip_ntoa(ip.src)))
                     elif self.thread.hello:
-                        (iter, mac, src, dbd, lsa, state, master, seq) = self.neighbors[id]
+                        (iter, mac, src, dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
-                            self.neighbors[id] = (iter, src, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq)
+                            self.neighbors[id] = (iter, src, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data)
                             self.neighbor_liststore.set_value(iter, 2, "2WAY")
                     self.dr = hello.designated_router
                     self.bdr = hello.backup_designated_router
@@ -1148,12 +1269,12 @@ class mod_class(object):
                 header.parse(data[:24])
                 id = dnet.ip_ntoa(header.id)
                 if id in self.neighbors:
-                    (iter, mac, src, org_dbd, lsa, state, master, seq) = self.neighbors[id]
+                    (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
                     if header.type == ospf_header.TYPE_HELLO:
                         hello = ospf_hello()
                         hello.parse(data)
                         if state == ospf_thread.STATE_HELLO:
-                            self.neighbors[id] = (iter, eth.src, ip.src, org_dbd, lsa, ospf_thread.STATE_2WAY, master, seq)
+                            self.neighbors[id] = (iter, eth.src, ip.src, org_dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data)
                             self.neighbor_liststore.set_value(iter, 2, "2WAY")
                     elif header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
                         dbd = ospf_database_description()
@@ -1164,27 +1285,27 @@ class mod_class(object):
                                     #parse lsa header and store for master role in loading state
                                     dbd.parse(data, parse_lsa=True)
                                     if dbd.lsa_db != []:
-                                        self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq)
+                                        self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data)
                                         self.neighbor_liststore.set_value(iter, 2, "EXSTART")
                                 else:
-                                    self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq)
+                                    self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data)
                                     self.neighbor_liststore.set_value(iter, 2, "EXSTART")
                             else:
-                                self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, seq)
+                                self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, seq, ip.data)
                         elif state == ospf_thread.STATE_EXSTART:
                             if not dbd.flags & ospf_database_description.FLAGS_MORE and not master:
-                                self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE, master, seq)
+                                self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE, master, seq, ip.data)
                                 self.neighbor_liststore.set_value(iter, 2, "EXCHANGE")
                             elif not dbd.flags and master:
-                                self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq)
+                                self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data)
                                 self.neighbor_liststore.set_value(iter, 2, "LOADING")      
                     elif header.type == ospf_header.TYPE_LINK_STATE_REQUEST:
                         if state == ospf_thread.STATE_EXCHANGE:
-                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq)
+                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data)
                             self.neighbor_liststore.set_value(iter, 2, "LOADING")
                     elif header.type == ospf_header.TYPE_LINK_STATE_ACK:
                         if state == ospf_thread.STATE_LOADING:
-                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_FULL, master, seq)
+                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_FULL, master, seq, ip.data)
                             self.neighbor_liststore.set_value(iter, 2, "FULL")
                             self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                     elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
@@ -1195,13 +1316,12 @@ class mod_class(object):
                                 self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                             update = ospf_link_state_update()
                             update.parse(data)
-                            self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq)
+                            self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq, ip.data)
 
     # SIGNALS #
 
     def on_hello_togglebutton_toggled(self, btn):
-        self.thread.hello = btn.get_active()
-        if self.thread.hello:
+        if btn.get_active():
             self.area_entry.set_property("sensitive", False)
             self.auth_type_combobox.set_property("sensitive", False)
             self.auth_data_entry.set_property("sensitive", False)
@@ -1210,6 +1330,22 @@ class mod_class(object):
                 os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 self.filter = True
             self.log("OSPF: Hello thread activated")
+            self.auth_type = self.auth_type_liststore[self.auth_type_combobox.get_active()][1]
+            if self.auth_type == ospf_header.AUTH_NONE:
+                self.auth_data = 0
+            elif self.auth_type == ospf_header.AUTH_SIMPLE:
+                self.auth_data = self.auth_data_entry.get_text()[:8]
+            elif self.auth_type == ospf_header.AUTH_CRYPT:
+                key = self.auth_data_entry.get_text()
+                if len(key) > 16:
+                    key = key[:16]
+                elif len(key) < 16:
+                    key = "%s%s" % (key, "\0" * (16 - len(key)))
+                self.auth_data = ospf_crypt_auth_data(  key,
+                                                        0,
+                                                        ospf_crypt_auth_data.TYPE_MD5,
+                                                        int(time.time())
+                                                        )
         else:
             self.area_entry.set_property("sensitive", True)
             self.auth_type_combobox.set_property("sensitive", True)
@@ -1220,9 +1356,36 @@ class mod_class(object):
                 self.filter = False
             self.log("OSPF: Hello thread deactivated")
             for id in self.neighbors:
-                (iter, mac, src, org_dbd, lsa, state, master, seq) = self.neighbors[id]
+                (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
                 self.neighbor_liststore.set_value(iter, 2, "HELLO")
-                self.neighbors[id] = (iter, mac, src, None, [], ospf_thread.STATE_HELLO, master, 1337)
+                self.neighbors[id] = (iter, mac, src, None, [], ospf_thread.STATE_HELLO, master, 1337, last_packet)
+        self.thread.hello = btn.get_active()
+
+    def on_bf_button_clicked(self, btn):
+        bf = self.bf_checkbutton.get_active()
+        full = self.full_checkbutton.get_active()
+        wl = self.wordlist_filechooserbutton.get_filename()
+        select = self.neighbor_treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            iter = model.get_iter(i)
+            id = model.get_value(iter, 1)
+            ident = "%s" % (id)
+            if ident in self.bf:
+                (iter, data, digest, thread) = self.bf[ident]
+                if thread:
+                    return
+            (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
+            type = self.neighbor_liststore.get_value(iter, 3)
+            if not type == "DIGEST":
+                self.log("OSPF: Cant crack %s, doesnt use DIGEST authentication")
+                return
+            digest = str(last_packet)[-16:]
+            data = str(last_packet)[:-16]
+            thread = ospf_md5bf(self.log, model, iter, bf, full, wl, digest, data)
+            model.set_value(iter, 4, "RUNNING")
+            thread.start()
+            self.bf[ident] = (iter, data, digest, thread)
 
     def on_add_button_clicked(self, btn):
         net = self.network_entry.get_text()
