@@ -619,7 +619,10 @@ if __name__ == '__main__':
             else:
                 print "No iptables found in PATH."
                 print "Some modules wont work as expected."
-
+    elif PLATFORM == "FreeBSD":
+        if os.geteuid() != 0:
+            print "You must be root to run this script."
+            sys.exit(1)
     else:
         print "%s is not supported yet." % (PLATFORM)
         sys.exit(1)
