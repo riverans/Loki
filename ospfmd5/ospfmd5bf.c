@@ -105,35 +105,27 @@ int inc_brute_pw(char *cur, int pos, int full) {
     }
 }
 
-md5_byte_t *calc_md5(const u_char *packet, int len, const char *pw) {
-    md5_state_t state;
-    md5_byte_t *digest = (md5_byte_t *) malloc(sizeof(md5_byte_t) * 16);
-    
-    md5_init(&state);
-    md5_append(&state, (const md5_byte_t *) packet, len);
-    md5_append(&state, (const md5_byte_t *) pw, strlen(pw));
-    md5_finish(&state, digest);
-
-    return digest;
-}
-
 static PyObject *
 ospfmd5bf_bf(PyObject *self, PyObject *args)
 {
-    int bf, full, len;
+    int bf, full, len, foo;
     const char *wl, *data;
     FILE *wlist;
     char brute_pw[MAX_BRUTE_PW_LEN];
     char line[512];
     char *pw = NULL;
     char *md5sum;
-    char *digest;
     int count = 0;
     char *lockfile;
     struct stat fcheck;
+    md5_state_t base, cur;
+    md5_byte_t digest[16];
 
-    if(!PyArg_ParseTuple(args, "iisss#s", &bf, &full, &wl, &md5sum, &data, &len, &lockfile))
+    if(!PyArg_ParseTuple(args, "iiss#s#s", &bf, &full, &wl, &md5sum, &foo, &data, &len, &lockfile))
         return NULL;
+
+    md5_init(&base);
+    md5_append(&base, (const md5_byte_t *) data, len);
 
     if(!bf) {
         if(!(wlist = fopen(wl, "r"))) {
@@ -155,12 +147,15 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
             tmp = strchr(line, '\r');
             if(tmp)
                 *tmp = '\0';
-            digest = calc_md5(data, len, line);
+            len = strlen(line);
+            bzero(line + len, 16 - len);
+            memcpy(&cur, &base, sizeof(md5_state_t));
+            md5_append(&cur, (const md5_byte_t *) line, 16);
+            md5_finish(&cur, digest);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = line;
                 break;
             }
-            free(digest);
             count++;
         }
 
@@ -171,20 +166,21 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
 
         Py_BEGIN_ALLOW_THREADS
 
-        while(inc_brute_pw(brute_pw, 0, full)) {
+        do {
             if(count % CHECK_FOR_LOCKFILE == 0) {
                 if(stat(lockfile, &fcheck))
                     break;
                 count = 0;
             }
-            digest = calc_md5(data, len, brute_pw);
+            memcpy(&cur, &base, sizeof(md5_state_t));
+            md5_append(&cur, (const md5_byte_t *) brute_pw, 16);
+            md5_finish(&cur, digest);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = brute_pw;
                 break;
             }
-            free(digest);
             count++;
-        }
+        } while(inc_brute_pw(brute_pw, 0, full));
         
         Py_END_ALLOW_THREADS
     }

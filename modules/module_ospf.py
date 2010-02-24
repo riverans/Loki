@@ -194,7 +194,7 @@ class ospf_header(object):
         return ret
 
     def parse(self, data):
-        (self.version, self.type, len, self.id, self.area, csum, self.auth_type, self.auth_data) = struct.unpack("!BBHLLHHQ", data[:24])
+        (self.version, self.type, self.len, self.id, self.area, csum, self.auth_type, self.auth_data) = struct.unpack("!BBHLLHHQ", data[:24])
         return data[24:]
 
 class ospf_crypt_auth_data(object):
@@ -1052,13 +1052,13 @@ class ospf_md5bf(threading.Thread):
         pw = ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         src = self.model.get_value(self.iter, 0)
         #print pw
-        auth = model.get_value(self.iter, 3)
+        auth = self.model.get_value(self.iter, 3)
         if pw:
             self.model.set_value(self.iter, 4, pw)
             self.log("OSPF: Found password '%s' for host %s" % (pw, src))
         else:
             self.model.set_value(self.iter, 4, "NOT FOUND")
-            self.log("OSPF: No password found for hostn %s" % (src))
+            self.log("OSPF: No password found for host %s" % (src))
         if os.path.exists(self.tmpfile):
             os.remove(self.tmpfile)
 
@@ -1115,8 +1115,7 @@ class mod_class(object):
             self.filter = False
         if self.bf:
             for i in self.bf:
-                (iter, data, digest, thread) = self.bf[i]
-                thread.quit()
+                self.bf[i].quit()
         self.neighbor_liststore.clear()
         self.network_liststore.clear()
         self.auth_type_liststore.clear()
@@ -1125,6 +1124,7 @@ class mod_class(object):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
                 "on_bf_button_clicked" : self.on_bf_button_clicked,
+                "on_auth_type_combobox_changed" : self.on_auth_type_combobox_changed,
                 "on_add_button_clicked" : self.on_add_button_clicked,
                 "on_remove_button_clicked" : self.on_remove_button_clicked
                 }
@@ -1190,10 +1190,11 @@ class mod_class(object):
 
         self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
         self.area_entry = self.glade_xml.get_widget("area_entry")
+        self.auth_data_entry = self.glade_xml.get_widget("auth_data_entry")
+        self.id_spinbutton = self.glade_xml.get_widget("id_spinbutton")
         self.auth_type_combobox = self.glade_xml.get_widget("auth_type_combobox")
         self.auth_type_combobox.set_model(self.auth_type_liststore)
         self.auth_type_combobox.set_active(0)
-        self.auth_data_entry = self.glade_xml.get_widget("auth_data_entry")
 
         self.bf_checkbutton = self.glade_xml.get_widget("bf_checkbutton")
         self.full_checkbutton = self.glade_xml.get_widget("full_checkbutton")
@@ -1325,12 +1326,13 @@ class mod_class(object):
             self.area_entry.set_property("sensitive", False)
             self.auth_type_combobox.set_property("sensitive", False)
             self.auth_data_entry.set_property("sensitive", False)
+            self.id_spinbutton.set_property("sensitive", False)
             if not self.filter:
                 self.log("OSPF: Setting lokal packet filter for OSPF")
                 os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 self.filter = True
             self.log("OSPF: Hello thread activated")
-            self.auth_type = self.auth_type_liststore[self.auth_type_combobox.get_active()][1]
+            self.area = int(self.area_entry.get_text())
             if self.auth_type == ospf_header.AUTH_NONE:
                 self.auth_data = 0
             elif self.auth_type == ospf_header.AUTH_SIMPLE:
@@ -1342,7 +1344,7 @@ class mod_class(object):
                 elif len(key) < 16:
                     key = "%s%s" % (key, "\0" * (16 - len(key)))
                 self.auth_data = ospf_crypt_auth_data(  key,
-                                                        0,
+                                                        self.id_spinbutton.get_value_as_int(),
                                                         ospf_crypt_auth_data.TYPE_MD5,
                                                         int(time.time())
                                                         )
@@ -1350,6 +1352,7 @@ class mod_class(object):
             self.area_entry.set_property("sensitive", True)
             self.auth_type_combobox.set_property("sensitive", True)
             self.auth_data_entry.set_property("sensitive", True)
+            self.id_spinbutton.set_property("sensitive", True)
             if self.filter:
                 self.log("OSPF: Removing lokal packet filter for OSPF")
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
@@ -1372,21 +1375,36 @@ class mod_class(object):
             id = model.get_value(iter, 1)
             ident = "%s" % (id)
             if ident in self.bf:
-                (iter, data, digest, thread) = self.bf[ident]
-                if thread:
+                if self.bf[ident].is_alive():
                     return
             (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
             type = self.neighbor_liststore.get_value(iter, 3)
             if not type == "DIGEST":
                 self.log("OSPF: Cant crack %s, doesnt use DIGEST authentication")
                 return
-            digest = str(last_packet)[-16:]
-            data = str(last_packet)[:-16]
+            packet_str = str(last_packet)
+            hdr = ospf_header()
+            hdr.parse(packet_str)
+            digest = packet_str[hdr.len:hdr.len+16]
+            data = packet_str[:12] + "\0\0" + packet_str[14:hdr.len]
             thread = ospf_md5bf(self.log, model, iter, bf, full, wl, digest, data)
             model.set_value(iter, 4, "RUNNING")
             thread.start()
-            self.bf[ident] = (iter, data, digest, thread)
+            self.bf[ident] = thread
 
+    def on_auth_type_combobox_changed(self, cbox):
+        if self.auth_type_liststore and len(self.auth_type_liststore):
+            self.auth_type = self.auth_type_liststore[self.auth_type_combobox.get_active()][1]
+            if self.auth_type == ospf_header.AUTH_NONE:
+                self.auth_data_entry.set_property("sensitive", False)
+                self.id_spinbutton.set_property("sensitive", False)
+            elif self.auth_type == ospf_header.AUTH_SIMPLE:
+                self.auth_data_entry.set_property("sensitive", True)
+                self.id_spinbutton.set_property("sensitive", False)
+            elif self.auth_type == ospf_header.AUTH_CRYPT:
+                self.auth_data_entry.set_property("sensitive", True)
+                self.id_spinbutton.set_property("sensitive", True)
+        
     def on_add_button_clicked(self, btn):
         net = self.network_entry.get_text()
         mask = self.netmask_entry.get_text()

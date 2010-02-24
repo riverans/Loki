@@ -181,26 +181,103 @@
                                   <widget class="GtkHBox" id="hbox3">
                                     <property name="visible">True</property>
                                     <child>
-                                      <widget class="GtkComboBox" id="auth_type_combobox">
+                                      <widget class="GtkVBox" id="vbox8">
                                         <property name="visible">True</property>
-                                        <property name="items" translatable="yes"></property>
+                                        <property name="orientation">vertical</property>
+                                        <child>
+                                          <widget class="GtkLabel" id="label11">
+                                            <property name="visible">True</property>
+                                            <property name="label" translatable="yes">Type</property>
+                                          </widget>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">0</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <widget class="GtkComboBox" id="auth_type_combobox">
+                                            <property name="visible">True</property>
+                                            <property name="items" translatable="yes"></property>
+                                            <signal name="changed" handler="on_auth_type_combobox_changed"/>
+                                          </widget>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">1</property>
+                                          </packing>
+                                        </child>
                                       </widget>
                                       <packing>
-                                        <property name="expand">False</property>
-                                        <property name="fill">False</property>
                                         <property name="position">0</property>
                                       </packing>
                                     </child>
                                     <child>
-                                      <widget class="GtkEntry" id="auth_data_entry">
+                                      <widget class="GtkVBox" id="vbox6">
                                         <property name="visible">True</property>
-                                        <property name="can_focus">True</property>
-                                        <property name="invisible_char">&#x25CF;</property>
+                                        <property name="orientation">vertical</property>
+                                        <child>
+                                          <widget class="GtkLabel" id="label6">
+                                            <property name="visible">True</property>
+                                            <property name="label" translatable="yes">Key</property>
+                                          </widget>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">0</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <widget class="GtkEntry" id="auth_data_entry">
+                                            <property name="visible">True</property>
+                                            <property name="can_focus">True</property>
+                                            <property name="invisible_char">&#x25CF;</property>
+                                          </widget>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">1</property>
+                                          </packing>
+                                        </child>
                                       </widget>
                                       <packing>
                                         <property name="expand">False</property>
                                         <property name="fill">False</property>
                                         <property name="position">1</property>
+                                      </packing>
+                                    </child>
+                                    <child>
+                                      <widget class="GtkVBox" id="vbox7">
+                                        <property name="visible">True</property>
+                                        <property name="orientation">vertical</property>
+                                        <child>
+                                          <widget class="GtkLabel" id="label10">
+                                            <property name="visible">True</property>
+                                            <property name="label" translatable="yes">ID</property>
+                                          </widget>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">0</property>
+                                          </packing>
+                                        </child>
+                                        <child>
+                                          <widget class="GtkSpinButton" id="id_spinbutton">
+                                            <property name="visible">True</property>
+                                            <property name="can_focus">True</property>
+                                            <property name="max_length">3</property>
+                                            <property name="invisible_char">&#x25CF;</property>
+                                            <property name="adjustment">1 1 255 1 0 0</property>
+                                          </widget>
+                                          <packing>
+                                            <property name="expand">False</property>
+                                            <property name="fill">False</property>
+                                            <property name="position">1</property>
+                                          </packing>
+                                        </child>
+                                      </widget>
+                                      <packing>
+                                        <property name="position">2</property>
                                       </packing>
                                     </child>
                                   </widget>
