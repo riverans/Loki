@@ -39,7 +39,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #ifndef __USE_BSD
 #define __USE_BSD
@@ -174,7 +174,7 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
     char line[512];
     char *pw = NULL;
     char *md5sum;
-    char *digest;
+    md5_byte_t *digest;
     int count = 0;
     char *lockfile;
     struct stat fcheck;
@@ -202,7 +202,7 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
             tmp = strchr(line, '\r');
             if(tmp)
                 *tmp = '\0';
-            digest = calc_md5(data, len, line);
+            digest = calc_md5((u_char *) data, len, line);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = line;
                 break;
@@ -224,7 +224,7 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
                     break;
                 count = 0;
             }
-            digest = calc_md5(data, len, brute_pw);
+            digest = calc_md5((u_char *) data, len, brute_pw);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = brute_pw;
                 break;

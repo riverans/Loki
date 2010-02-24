@@ -34,9 +34,14 @@
 
 #include <Python.h>
 #include <sys/socket.h>
-#include <linux/tcp.h>
-#include <linux/in.h>
 #include <errno.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+#ifndef __FAVOR_BSD
+#define __FAVOR_BSD
+#endif
+#include <netinet/tcp.h>
 
 static PyObject *
 tcpmd5_set(PyObject *self, PyObject *args)
@@ -64,7 +69,7 @@ tcpmd5_set(PyObject *self, PyObject *args)
     memset(&md5args, 0, sizeof(md5args));
     memcpy(&md5args.tcpm_addr, &sin, sizeof(sin));
     md5args.tcpm_keylen = strlen(pw);
-    strncpy(md5args.tcpm_key, pw, TCP_MD5SIG_MAXKEYLEN);
+    memcpy(md5args.tcpm_key, pw, TCP_MD5SIG_MAXKEYLEN);
     if(setsockopt(sock, IPPROTO_TCP, TCP_MD5SIG, &md5args, sizeof(md5args)))
         printf("Enable TCP MD5 signing failed: %s\n", strerror(errno));
 /*
