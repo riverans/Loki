@@ -59,7 +59,7 @@ class bgp_msg(object):
 class bgp_open(bgp_msg):
     BGP_VERSION = 4
     
-    def __init__(self, my_as, hold_time = 256, identity = socket.gethostbyname(socket.gethostname()), parameters = []):
+    def __init__(self, my_as, hold_time = 256, identity = "1.3.3.7", parameters = []):
         bgp_msg.__init__(self, self.TYPE_OPEN)
         self.my_as = my_as
         self.hold_time = hold_time
@@ -360,7 +360,7 @@ class bgp_nlri(object):
 ### BGP_SESSION_CLASS ###
 
 class bgp_session(threading.Thread):
-    def __init__(self, parent, host, parameters, my_as, hold_time = 256, md5 = [], identity = socket.gethostbyname(socket.gethostname())):
+    def __init__(self, parent, host, parameters, my_as, hold_time = 256, md5 = [], identity = "1.3.3.7"):
         self.parent = parent
         self.log = parent.log
         self.liststore = parent.liststore
@@ -384,10 +384,11 @@ class bgp_session(threading.Thread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(timeout)
 
-        if self.parent.platform == "Linux":
+        if self.parent.platform == "Linux" or self.parent.platform == "FreeBSD":
             import tcpmd5
             for (i, j) in self.md5:
-                tcpmd5.tcpmd5.set(self.sock.fileno(), i, BGP_PORT, j)
+                if i == self.dest:
+                    tcpmd5.tcpmd5.set(self.sock.fileno(), self.parent.ip, i, BGP_PORT, j)
             
         self.sock.connect((self.dest, BGP_PORT))
         if not bf:
@@ -429,6 +430,11 @@ class bgp_session(threading.Thread):
                 self.active = False
             self.sem.release()
             time.sleep(self.hold_time / 4)
+        if self.parent.platform == "Linux" or self.parent.platform == "FreeBSD":
+            import tcpmd5
+            for (i, j) in self.md5:
+                if i == self.dest:
+                    tcpmd5.tcpmd5.clear(self.sock.fileno(), self.parent.ip, i, BGP_PORT)
         self.sock.close()
 
 ### MODULE_CLASS ###
@@ -465,25 +471,16 @@ class mod_class(object):
         self.treeview.set_model(self.liststore)
         self.treeview.set_headers_visible(True)
 
-        #column = gtk.TreeViewColumn()
-        #column.set_title("")
-        ##render_pixbuf = gtk.CellRendererPixbuf()
-        #render_pixbuf = gtk.CellRendererText()
-        #column.pack_start(render_pixbuf, expand=False)
-        ##column.add_attribute(render_pixbuf, 'pixbuf', 0)
-        #column.add_attribute(render_pixbuf, 'text', 1)
-        #self.treeview.append_column(column)
-
-        column2 = gtk.TreeViewColumn()
-        column2.set_title("Hosts")
+        column = gtk.TreeViewColumn()
+        column.set_title("Hosts")
         render_text = gtk.CellRendererText()
-        column2.pack_start(render_text, expand=True)
-        column2.add_attribute(render_text, 'text', 1)
-        self.treeview.append_column(column2)
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 1)
+        self.treeview.append_column(column)
 
         self.md5_entry = self.glade_xml.get_widget("md5_entry")
-        if self.platform != "Linux":
-            self.md5_entry.set_text("available only on Linux")
+        if self.platform != "Linux" and self.platform != "FreeBSD":
+            self.md5_entry.set_text("not available on %s" % self.platform)
             self.md5_entry.set_property("sensitive", False)            
 
         self.ip_entry = self.glade_xml.get_widget("ip_entry")
@@ -501,16 +498,19 @@ class mod_class(object):
     def set_log(self, log):
         self.__log = log
 
+    def set_ip(self, ip, mask):
+        self.ip = ip
+
     # SIGNALS #
 
     def on_connect_button_clicked(self, data):
         ip = self.ip_entry.get_text()
-        if self.sessions.has_key(ip):
+        if ip in self.sessions:
             self.log("BGP: Host already created")
             return
 
         md5 = []
-        if self.platform == "Linux":
+        if self.platform == "Linux" or self.platform == "FreeBSD":
             secret = self.md5_entry.get_text()
             if not secret == "":
                 md5.append((ip, secret))
@@ -527,7 +527,7 @@ class mod_class(object):
             parameters = []
         as_num = int(self.as_entry.get_text())
         hold = int(self.hold_entry.get_text())
-        self.sessions[ip] = bgp_session(self, ip, parameters, as_num, hold, md5)
+        self.sessions[ip] = bgp_session(self, ip, parameters, as_num, hold, md5, self.ip)
         try:
             self.sessions[ip].connect(ip)
         except Exception, e:
