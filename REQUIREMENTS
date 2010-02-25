@@ -1,15 +1,29 @@
 Requirements (versions are tested ones):
 
-python      2.6.4
+python      2.6.4, 2.6.2
 
-pygobject   2.18.0
-pygtk       2.14.1-r1
+pygobject   2.18.0, 2.16.1
+pygtk       2.14.1
 libglade    2.6.4
 
-dnet        1.11-r1
+dnet        1.11
 pylibpcap   0.5.1
-ipy         0.70
+ipy         0.70, 0.64
 
-for firewalling on Linux 'iptables' is need in the path.
 
-md5 checksum in bgp needs kernel option CONFIG_TCP_MD5SIG=y on Linux
+=== Linux ===
+
+- for firewalling 'iptables' is need in the path.
+- rfc2385 support in bgp needs following kernel options
+
+CONFIG_TCP_MD5SIG=y
+
+
+
+=== FreeBSD ===
+
+- rfc2385 support in bgp needs following kernel options
+
+options     IPSEC
+device      crypto
+options     TCP_SIGNATURE
