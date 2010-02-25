@@ -123,9 +123,7 @@ int inc_brute_pw(char *cur, int pos, int full) {
     }
 }
 
-md5_byte_t *calc_md5(const u_char *packet, int len, const char *pw) {
-    md5_state_t state;
-    md5_byte_t *digest = (md5_byte_t *) malloc(sizeof(md5_byte_t) * 16);
+void pre_calc_md5(const u_char *packet, int len, md5_state_t *state) {
     struct ip ip;
     struct tcphdr tcp;
     struct tcp4_pseudohdr phdr;
@@ -139,29 +137,22 @@ md5_byte_t *calc_md5(const u_char *packet, int len, const char *pw) {
     phdr.protocol = IPPROTO_TCP;
     phdr.len = htons(len - sizeof(struct ip));
 
-    md5_init(&state);
+    md5_init(state);
 
 //1. the TCP pseudo-header (in the order: source IP address,
 //   destination IP address, zero-padded protocol number, and
 //   segment length)
-    md5_append(&state, (const md5_byte_t *) &phdr, sizeof(struct tcp4_pseudohdr));
+    md5_append(state, (const md5_byte_t *) &phdr, sizeof(struct tcp4_pseudohdr));
 
 //2. the TCP header, excluding options, and assuming a checksum of
 //   zero
     tcp.th_sum = 0;
-    md5_append(&state, (const md5_byte_t *) &tcp, sizeof(struct tcphdr));
+    md5_append(state, (const md5_byte_t *) &tcp, sizeof(struct tcphdr));
     
 //3. the TCP segment data (if any)
     unsigned head_len = sizeof(struct ip) + (tcp.th_off << 2);
     unsigned data_len = len > head_len ? len - head_len : 0;
-    md5_append(&state, (const md5_byte_t *) packet + head_len, data_len);
-    
-//4. an independently-specified key or password, known to both TCPs
-//   and presumably connection-specific
-    md5_append(&state, (const md5_byte_t *) pw, strlen(pw));
-    md5_finish(&state, digest);
-
-    return digest;
+    md5_append(state, (const md5_byte_t *) packet + head_len, data_len);
 }
 
 static PyObject *
@@ -174,13 +165,16 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
     char line[512];
     char *pw = NULL;
     char *md5sum;
-    md5_byte_t *digest;
+    md5_byte_t digest[16];
+    md5_state_t state, cur;
     int count = 0;
     char *lockfile;
     struct stat fcheck;
 
     if(!PyArg_ParseTuple(args, "iisss#s", &bf, &full, &wl, &md5sum, &data, &len, &lockfile))
         return NULL;
+
+    pre_calc_md5((u_char *) data, len, &state);
 
     if(!bf) {
         if(!(wlist = fopen(wl, "r"))) {
@@ -202,12 +196,13 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
             tmp = strchr(line, '\r');
             if(tmp)
                 *tmp = '\0';
-            digest = calc_md5((u_char *) data, len, line);
+            memcpy(&cur, &state, sizeof(md5_state_t));
+            md5_append(&cur, (const md5_byte_t *) line, strlen(line));
+            md5_finish(&cur, digest);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = line;
                 break;
             }
-            free(digest);
             count++;
         }
 
@@ -218,20 +213,21 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
 
         Py_BEGIN_ALLOW_THREADS
 
-        while(inc_brute_pw(brute_pw, 0, full)) {
+        do {
             if(count % CHECK_FOR_LOCKFILE == 0) {
                 if(stat(lockfile, &fcheck))
                     break;
                 count = 0;
             }
-            digest = calc_md5((u_char *) data, len, brute_pw);
+            memcpy(&cur, &state, sizeof(md5_state_t));
+            md5_append(&cur, (const md5_byte_t *) brute_pw, strlen(brute_pw));
+            md5_finish(&cur, digest);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = brute_pw;
                 break;
             }
-            free(digest);
             count++;
-        }
+        } while(inc_brute_pw(brute_pw, 0, full));
         
         Py_END_ALLOW_THREADS
     }
