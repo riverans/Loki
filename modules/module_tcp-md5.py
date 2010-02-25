@@ -52,28 +52,29 @@ class bgp_md5bf(threading.Thread):
         self.wl = wl
         self.digest = digest
         self.data = data
+        self.running = True
         threading.Thread.__init__(self)
 
     def run(self):
         if self.bf and not self.wl:
             self.wl = ""
-        #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest, self.data)
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="tcp-md5-", suffix="-lock")
         os.close(handle)
         pw = tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
-        src = self.model.get_value(self.iter, 0)
-        dst = self.model.get_value(self.iter, 1)
-        #print pw
-        if pw:
-            self.model.set_value(self.iter, 2, pw)
-            self.log("TCP-MD5: Found password '%s' for connection %s->%s" % (pw, src, dst))
-        else:
-            self.model.set_value(self.iter, 2, "NOT FOUND")
-            self.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
-        if os.path.exists(self.tmpfile):
-            os.remove(self.tmpfile)
+        if self.running:
+            src = self.model.get_value(self.iter, 0)
+            dst = self.model.get_value(self.iter, 1)
+            if pw:
+                self.model.set_value(self.iter, 2, pw)
+                self.log("TCP-MD5: Found password '%s' for connection %s->%s" % (pw, src, dst))
+            else:
+                self.model.set_value(self.iter, 2, "NOT FOUND")
+                self.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
+            if os.path.exists(self.tmpfile):
+                os.remove(self.tmpfile)
 
     def quit(self):
+        self.running = False
         if os.path.exists(self.tmpfile):
             os.remove(self.tmpfile)
 
@@ -93,7 +94,9 @@ class mod_class(object):
         if self.opts:
             for i in self.opts:
                 (iter, data, digest, thread) = self.opts[i]
-                thread.quit()
+                if thread:
+                    if thread.is_alive():
+                        thread.quit()
         self.liststore.clear()
         
     def get_root(self):
