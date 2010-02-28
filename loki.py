@@ -229,6 +229,26 @@ class pcap_thread(threading.Thread):
                         if stop:
                             return
 
+class pcap_thread_offline(pcap_thread):
+    def __init__(self, parent, filename):
+        self.filename = filename
+        pcap_thread.__init__(self, parent, "null")
+
+    def run(self):
+        p = pcap.pcapObject()
+        #check to_ms = 100 for non linux
+        p.open_offline(self.filename)
+        while self.running:
+            try:
+                p.dispatch(1, self.dispatch_packet)
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
+        self.parent.log("Read thread terminated")
+
 class dnet_thread(threading.Thread):
     def __init__(self, interface):
         threading.Thread.__init__(self)
@@ -306,6 +326,10 @@ class codename_loki(object):
         tooltips.set_tip(self.network_button, "NETWORK")
         self.toolbar.insert(self.network_button, 0)
         self.toolbar.insert(gtk.SeparatorToolItem(), 0)
+        self.open_togglebutton = gtk.ToggleToolButton(gtk.STOCK_OPEN)
+        self.open_togglebutton.connect("toggled", self.on_open_togglebutton_toggled)
+        tooltips.set_tip(self.open_togglebutton, "OPEN")
+        self.toolbar.insert(self.open_togglebutton, 0)
         self.run_togglebutton = gtk.ToggleToolButton(gtk.STOCK_EXECUTE)
         self.run_togglebutton.connect("toggled", self.on_run_togglebutton_toogled)
         tooltips.set_tip(self.run_togglebutton, "RUN")
@@ -411,8 +435,9 @@ class codename_loki(object):
                     traceback.print_exc(file=sys.stdout)
                     print '-'*60
             try:
-                if "set_dnet" in dir(mod):
-                    mod.set_dnet(self.dnet_thread)
+                if self.dnet_thread:
+                    if "set_dnet" in dir(mod):
+                        mod.set_dnet(self.dnet_thread)
             except Exception, e:
                 print e
                 if DEBUG:
@@ -466,12 +491,10 @@ class codename_loki(object):
         return pos
 
     def log(self, msg, module=None):
-        #gtk.gdk.threads_enter()
         self.statusbar.push(self.msg_id, "[%i] %s" % (self.msg_id, msg))
         if DEBUG:
             print "[%i] %s" % (self.msg_id, msg)
         self.log_textbuffer.insert(self.log_textbuffer.get_end_iter(), "[%i] %s\n" % (self.msg_id, msg))
-        #gtk.gdk.threads_leave()
         self.msg_id += 1
         if module:
             if module not in self.module_active:
@@ -513,13 +536,14 @@ class codename_loki(object):
             self.pcap_thread = pcap_thread(self, self.interface)
             self.pcap_thread.start()
             self.dnet_thread = dnet_thread(self.interface)
-            self.dnet_thread.start()
             self.log("Listening on %s" % (self.interface))
             for i in self.modules:
                 self.start_module(i)
             for i in self.notebook:
                 i.set_property("sensitive", True)
             self.network_button.set_property("sensitive", False)
+            self.open_togglebutton.set_property("sensitive", False)
+            self.dnet_thread.start()
         else:
             for i in self.modules:
                 (mod, en) = self.modules[i]
@@ -533,6 +557,47 @@ class codename_loki(object):
                 self.dnet_thread.quit()
                 self.dnet_thread = None
             self.network_button.set_property("sensitive", True)
+            self.open_togglebutton.set_property("sensitive", True)
+
+    def on_open_togglebutton_toggled(self, btn):
+        if btn.get_active():
+            dialog = gtk.FileChooserDialog(title="Open", parent=self.window, action=gtk.FILE_CHOOSER_ACTION_OPEN, buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
+            #dialog.set_current_folder()
+            filter = gtk.FileFilter()
+            filter.set_name("Pcap files")
+            filter.add_pattern("*.cap")
+            filter.add_pattern("*.pcap")
+            dialog.add_filter(filter)
+            filter = gtk.FileFilter()
+            filter.set_name("All files")
+            filter.add_pattern("*")
+            dialog.add_filter(filter)
+            response = dialog.run()
+            if response == gtk.RESPONSE_OK:
+                self.pcap_thread = pcap_thread_offline(self, dialog.get_filename())
+                if not self.configured:
+                    self.interface = "null"
+                    self.ip = "0.0.0.0"
+                    self.mask = "0.0.0.0"
+                for i in self.modules:
+                    self.start_module(i)
+                for i in self.notebook:
+                    i.set_property("sensitive", True)
+                self.run_togglebutton.set_property("sensitive", False)
+                self.pcap_thread.start()
+            else:
+                btn.set_active(False)
+            dialog.destroy()
+        else:
+            for i in self.modules:
+                (mod, en) = self.modules[i]
+                mod.shut_mod()
+            for i in self.notebook:
+                i.set_property("sensitive", False)
+            if self.pcap_thread:
+                self.pcap_thread.quit()
+                self.pcap_thread = None
+            self.run_togglebutton.set_property("sensitive", True)
 
     def on_pref_button_clicked(self, data):
         pref_window = preference_window(self)
