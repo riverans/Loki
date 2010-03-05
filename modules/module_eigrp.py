@@ -404,7 +404,9 @@ class eigrp_peer(threading.Thread):
         iter = self.parent.liststore.append([dnet.ip_ntoa(self.peer), self.as_num])
         self.send()
         self.parent.log("EIGRP: Peer " + socket.inet_ntoa(self.peer) + " terminated")
-        self.parent.liststore.remove(iter)
+        if self.parent.liststore:
+            if self.parent.liststore.iter_is_valid(iter):
+                self.parent.liststore.remove(iter)
         del self.parent.peers[self.peer]
 
     def quit(self):
@@ -467,7 +469,8 @@ class mod_class(object):
                 self.peers[i].quit()
         if self.filter:
                 self.log("EIGRP: Removing lokal packet filter for EIGRP")
-                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
+                self.fw.delete(self.ospf_filter)
                 self.filter = False
         self.liststore.clear()
 
@@ -535,8 +538,20 @@ class mod_class(object):
         self.address = dnet.ip_aton(ip)
         self.mask = dnet.ip_aton(mask)
 
+    def set_fw(self, fw):
+        self.fw = fw
+
     def set_int(self, interface):
         self.interface = interface
+        self.ospf_filter = {    "device"    : self.interface,
+                                "op"        : dnet.FW_OP_BLOCK,
+                                "dir"       : dnet.FW_DIR_IN,
+                                "proto"     : dpkt.ip.IP_PROTO_EIGRP,
+                                "src"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
+                                "dst"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
+                                "sport"     : [0, 0],
+                                "dport"     : [0, 0]
+                                }
 
     def set_dnet(self, dnet):
         self.dnet = dnet
@@ -601,7 +616,8 @@ class mod_class(object):
             self.as_entry.set_property("sensitive", False)
             if not self.filter:
                 self.log("EIGRP: Setting lokal packet filter for EIGRP")
-                os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                #os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                self.fw.add(self.ospf_filter)
                 self.filter = True
             try:
                 self.spoof_togglebutton.set_property("sensitive", False)
@@ -619,6 +635,11 @@ class mod_class(object):
             self.hello_thread.start()
             self.log("EIGRP: Hello thread on %s started" % (self.interface))
         else:
+            if self.filter:
+                self.log("EIGRP: Removing lokal packet filter for EIGRP")
+                #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
+                self.fw.delete(self.ospf_filter)
+                self.filter = False
             self.hello_thread.quit()
             self.spoof_togglebutton.set_property("sensitive", True)
             self.as_entry.set_property("sensitive", True)

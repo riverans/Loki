@@ -1111,7 +1111,8 @@ class mod_class(object):
             self.thread.quit()
         if self.filter:
             self.log("OSPF: Removing lokal packet filter for OSPF")
-            os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            self.fw.delete(self.ospf_filter)
             self.filter = False
         if self.bf:
             for i in self.bf:
@@ -1228,8 +1229,20 @@ class mod_class(object):
         self.dnet = dnet
         self.mac = dnet.eth.get()
 
+    def set_fw(self, fw):
+        self.fw = fw
+
     def set_int(self, interface):
         self.interface = interface
+        self.ospf_filter = {    "device"    : self.interface,
+                                "op"        : dnet.FW_OP_BLOCK,
+                                "dir"       : dnet.FW_DIR_IN,
+                                "proto"     : dpkt.ip.IP_PROTO_OSPF,
+                                "src"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
+                                "dst"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
+                                "sport"     : [0, 0],
+                                "dport"     : [0, 0]
+                                }
 
     def get_ip_checks(self):
         return (self.check_ip, self.input_ip)
@@ -1335,7 +1348,8 @@ class mod_class(object):
             self.id_spinbutton.set_property("sensitive", False)
             if not self.filter:
                 self.log("OSPF: Setting lokal packet filter for OSPF")
-                os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                #os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                self.fw.add(self.ospf_filter)
                 self.filter = True
             self.log("OSPF: Hello thread activated")
             self.area = int(self.area_entry.get_text())
@@ -1361,7 +1375,8 @@ class mod_class(object):
             self.id_spinbutton.set_property("sensitive", True)
             if self.filter:
                 self.log("OSPF: Removing lokal packet filter for OSPF")
-                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                self.fw.delete(self.ospf_filter)
                 self.filter = False
             self.log("OSPF: Hello thread deactivated")
             for id in self.neighbors:
@@ -1394,7 +1409,7 @@ class mod_class(object):
             digest = packet_str[hdr.len:hdr.len+16]
             data = packet_str[:12] + "\0\0" + packet_str[14:hdr.len]
             thread = ospf_md5bf(self.log, model, iter, bf, full, wl, digest, data)
-            model.set_value(iter, 4, "RUNNING")
+            model.set_value(iter, 5, "RUNNING")
             thread.start()
             self.bf[ident] = thread
 

@@ -283,6 +283,7 @@ class codename_loki(object):
         self.configured = False
         self.pcap_thread = None
         self.dnet_thread = None
+        self.fw = None
 
         self.eth_checks = []
         self.ip_checks = []
@@ -445,6 +446,15 @@ class codename_loki(object):
                     traceback.print_exc(file=sys.stdout)
                     print '-'*60
             try:
+                if "set_fw" in dir(mod):
+                    mod.set_fw(self.fw)
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
+            try:
                 if "set_int" in dir(mod):
                     mod.set_int(self.interface)
             except Exception, e:
@@ -537,6 +547,7 @@ class codename_loki(object):
             self.pcap_thread.start()
             self.dnet_thread = dnet_thread(self.interface)
             self.log("Listening on %s" % (self.interface))
+            self.fw = dnet.fw()
             for i in self.modules:
                 self.start_module(i)
             for i in self.notebook:
