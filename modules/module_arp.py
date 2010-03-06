@@ -51,6 +51,7 @@ class spoof_thread(threading.Thread):
         self.reset = False
 
     def run(self):
+        self.parent.log("ARP: Spoof thread started")
         while self.running:
             if self.parent.dnet:
                 for iter in self.parent.spoofs:
@@ -61,7 +62,7 @@ class spoof_thread(threading.Thread):
                             time.sleep(0.001)
             for x in xrange(self.delay):
                 if not self.running:
-                    return
+                    break
                 if self.reset:
                     self.reset = False
                     break
@@ -314,7 +315,7 @@ class mod_class(object):
             return False
         (ref_src, ref_dst) = user_data
         (src, dst, count) = model.get(iter, 1, 2, 3)
-        if src == ref_src and dst == ref_dst:
+        if (src == ref_src and dst == ref_dst) or (dst == ref_src and src == ref_dst):
             self.spoof_treestore.set(iter, 3, str(int(count) + 1))
             return True
         return False
@@ -456,7 +457,7 @@ class mod_class(object):
             cur = self.spoof_treestore.get_string_from_iter(parent)
             (run, data, org_data, hosts) = self.spoofs[cur]
             if run:
-                self.spoofs[cur] = (False, data, org_data)
+                self.spoofs[cur] = (False, data, org_data, hosts)
                 for j in org_data:
                     self.dnet.eth.send(j)
             for i in hosts:
