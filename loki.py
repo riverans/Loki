@@ -678,24 +678,7 @@ class codename_loki(object):
         gtk.main_quit()
 
 if __name__ == '__main__':
-    if PLATFORM == "Linux":
-        if os.geteuid() != 0:
-            print "You must be root to run this script."
-            sys.exit(1)
-        else:
-            file_found = 0
-            paths = string.split(os.environ["PATH"], os.pathsep)
-            for path in paths:
-                if os.path.exists(os.path.join(path, "iptables")):
-                    file_found = 1
-                    break
-            if file_found:
-                if DEBUG:
-                    print "Using iptables from %s" % os.path.abspath(os.path.join(path, "iptables"))
-            else:
-                print "No iptables found in PATH."
-                print "Some modules wont work as expected."
-    elif PLATFORM == "FreeBSD":
+    if PLATFORM == "Linux" or PLATFORM == "FreeBSD":
         if os.geteuid() != 0:
             print "You must be root to run this script."
             sys.exit(1)
