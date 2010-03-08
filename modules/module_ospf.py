@@ -1032,9 +1032,8 @@ class ospf_thread(threading.Thread):
         self.running = False
 
 class ospf_md5bf(threading.Thread):
-    def __init__(self, log, model, iter, bf, full, wl, digest, data):
-        self.log = log
-        self.model = model
+    def __init__(self, parent, iter, bf, full, wl, digest, data):
+        self.parent = parent
         self.iter = iter
         self.bf = bf
         self.full = full
@@ -1050,15 +1049,13 @@ class ospf_md5bf(threading.Thread):
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
         os.close(handle)
         pw = ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
-        src = self.model.get_value(self.iter, 0)
-        #print pw
-        auth = self.model.get_value(self.iter, 3)
+        src = self.parent.neighbor_liststore.get_value(self.iter, parent.NEIGH_IP_ROW)
         if pw:
-            self.model.set_value(self.iter, 5, pw)
-            self.log("OSPF: Found password '%s' for host %s" % (pw, src))
+            self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
+            self.parent.log("OSPF: Found password '%s' for host %s" % (pw, src))
         else:
-            self.model.set_value(self.iter, 5, "NOT FOUND")
-            self.log("OSPF: No password found for host %s" % (src))
+            self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, "NOT FOUND")
+            self.parent.log("OSPF: No password found for host %s" % (src))
         if os.path.exists(self.tmpfile):
             os.remove(self.tmpfile)
 
@@ -1068,7 +1065,18 @@ class ospf_md5bf(threading.Thread):
 
 ### MODULE_CLASS ###
 
-class mod_class(object):    
+class mod_class(object):
+    NEIGH_IP_ROW = 0
+    NEIGH_ID_ROW = 1
+    NEIGH_AREA_ROW = 2
+    NEIGH_STATE_ROW = 3
+    NEIGH_AUTH_ROW = 4
+    NEIGH_CRACK_ROW = 5
+
+    NET_NET_ROW = 0
+    NET_MASK_ROW = 1
+    NET_TYPE_ROW = 2
+    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -1139,37 +1147,37 @@ class mod_class(object):
         column.set_title("IP")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 0)
+        column.add_attribute(render_text, 'text', self.NEIGH_IP_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("ID")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 1)
+        column.add_attribute(render_text, 'text', self.NEIGH_ID_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("AREA")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 2)
+        column.add_attribute(render_text, 'text', self.NEIGH_AREA_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("STATE")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 3)
+        column.add_attribute(render_text, 'text', self.NEIGH_STATE_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("AUTH")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 4)
+        column.add_attribute(render_text, 'text', self.NEIGH_AUTH_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("CRACK")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 5)
+        column.add_attribute(render_text, 'text', self.NEIGH_CRACK_ROW)
         self.neighbor_treeview.append_column(column)
 
         self.network_treeview = self.glade_xml.get_widget("network_treeview")
@@ -1278,7 +1286,7 @@ class mod_class(object):
                         (iter, mac, src, dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
                             self.neighbors[id] = (iter, src, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data)
-                            self.neighbor_liststore.set_value(iter, 3, "2WAY")
+                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
                     self.dr = hello.designated_router
                     self.bdr = hello.backup_designated_router
                     self.options = hello.options
@@ -1295,7 +1303,7 @@ class mod_class(object):
                         hello.parse(data)
                         if state == ospf_thread.STATE_HELLO:
                             self.neighbors[id] = (iter, eth.src, ip.src, org_dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data)
-                            self.neighbor_liststore.set_value(iter, 3, "2WAY")
+                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
                     elif header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
                         dbd = ospf_database_description()
                         dbd.parse(data)
@@ -1306,33 +1314,33 @@ class mod_class(object):
                                     dbd.parse(data, parse_lsa=True)
                                     if dbd.lsa_db != []:
                                         self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data)
-                                        self.neighbor_liststore.set_value(iter, 3, "EXSTART")
+                                        self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
                                 else:
                                     self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data)
-                                    self.neighbor_liststore.set_value(iter, 3, "EXSTART")
+                                    self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
                             else:
                                 self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, seq, ip.data)
                         elif state == ospf_thread.STATE_EXSTART:
                             if not dbd.flags & ospf_database_description.FLAGS_MORE and not master:
                                 self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE, master, seq, ip.data)
-                                self.neighbor_liststore.set_value(iter, 3, "EXCHANGE")
+                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXCHANGE")
                             elif not dbd.flags and master:
                                 self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data)
-                                self.neighbor_liststore.set_value(iter, 3, "LOADING")      
+                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")      
                     elif header.type == ospf_header.TYPE_LINK_STATE_REQUEST:
                         if state == ospf_thread.STATE_EXCHANGE:
                             self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data)
-                            self.neighbor_liststore.set_value(iter, 3, "LOADING")
+                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")
                     elif header.type == ospf_header.TYPE_LINK_STATE_ACK:
                         if state == ospf_thread.STATE_LOADING:
                             self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_FULL, master, seq, ip.data)
-                            self.neighbor_liststore.set_value(iter, 3, "FULL")
+                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "FULL")
                             self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                     elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
                         if state > ospf_thread.STATE_EXSTART:
                             if state < ospf_thread.STATE_LOADING:
                                 state = ospf_thread.STATE_FULL
-                                self.neighbor_liststore.set_value(iter, 3, "FULL")
+                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "FULL")
                                 self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                             update = ospf_link_state_update()
                             update.parse(data)
@@ -1381,7 +1389,7 @@ class mod_class(object):
             self.log("OSPF: Hello thread deactivated")
             for id in self.neighbors:
                 (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
-                self.neighbor_liststore.set_value(iter, 3, "HELLO")
+                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "HELLO")
                 self.neighbors[id] = (iter, mac, src, None, [], ospf_thread.STATE_HELLO, master, 1337, last_packet)
         self.thread.hello = btn.get_active()
 
@@ -1393,13 +1401,13 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            id = model.get_value(iter, 1)
+            id = model.get_value(iter, self.parent.NEIGH_IP_ROW)
             ident = "%s" % (id)
             if ident in self.bf:
                 if self.bf[ident].is_alive():
                     return
             (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
-            type = self.neighbor_liststore.get_value(iter, 4)
+            type = self.neighbor_liststore.get_value(iter, self.NEIGH_AUTH_ROW)
             if not type == "DIGEST":
                 self.log("OSPF: Cant crack %s, doesnt use DIGEST authentication")
                 return
@@ -1408,8 +1416,8 @@ class mod_class(object):
             hdr.parse(packet_str)
             digest = packet_str[hdr.len:hdr.len+16]
             data = packet_str[:12] + "\0\0" + packet_str[14:hdr.len]
-            thread = ospf_md5bf(self.log, model, iter, bf, full, wl, digest, data)
-            model.set_value(iter, 5, "RUNNING")
+            thread = ospf_md5bf(self, iter, bf, full, wl, digest, data)
+            model.set_value(iter, self.NEIGH_CRACK_ROW, "RUNNING")
             thread.start()
             self.bf[ident] = thread
 
@@ -1441,4 +1449,4 @@ class mod_class(object):
             iter = model.get_iter(i)
             (net, mask, type, active, removed) = self.nets[model.get_string_from_iter(iter)]
             self.nets[model.get_string_from_iter(iter)] = (net, mask, type, False, True)
-            self.network_liststore.set_value(iter, 2, "REMOVED")
+            self.network_liststore.set_value(iter, self.NET_TYPE_ROW, "REMOVED")
