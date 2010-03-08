@@ -176,7 +176,7 @@ class pcap_thread(threading.Thread):
     def run(self):
         p = pcap.pcapObject()
         #check to_ms = 100 for non linux
-        p.open_live(self.interface, 1600, 0, 100)
+        p.open_live(self.interface, 1600, 1, 100)
         p.setnonblock(1)
         while self.running:
             try:
