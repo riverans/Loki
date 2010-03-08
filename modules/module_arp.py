@@ -102,7 +102,6 @@ class mod_class(object):
         self.upper_add = {}
         self.lower_add = {}
         self.spoofs = {}
-        self.spoof_thread.start()
         if not self.macs:
             self.macs = self.parse_macs(self.macfile)
 
@@ -119,6 +118,7 @@ class mod_class(object):
         dic = { "on_add_upper_button_clicked" : self.on_add_upper_button_clicked,
                 "on_add_lower_button_clicked" : self.on_add_lower_button_clicked,
                 "on_add_spoof_button_clicked" : self.on_add_spoof_button_clicked,
+                "on_clear_spoof_button_clicked" : self.on_clear_spoof_button_clicked,
                 "on_remove_spoof_button_clicked" : self.on_remove_spoof_button_clicked,
                 "on_stop_spoof_button_clicked" : self.on_stop_spoof_button_clicked,
                 "on_start_spoof_button_clicked" : self.on_start_spoof_button_clicked,
@@ -148,6 +148,7 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 2)
         self.hosts_treeview.append_column(column)
+        self.hosts_treeview.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
 
         self.upper_add_treeview = self.glade_xml.get_widget("upper_add_treeview")
         self.upper_add_treeview.set_model(self.upper_add_liststore)
@@ -435,6 +436,12 @@ class mod_class(object):
         self.upper_add_liststore.clear()
         self.lower_add_liststore.clear()
 
+    def on_clear_spoof_button_clicked(self, data):
+        self.upper_add = {}
+        self.lower_add = {}
+        self.upper_add_liststore.clear()
+        self.lower_add_liststore.clear()
+
     def on_remove_spoof_button_clicked(self, data):
         self.on_stop_spoof_button_clicked(data)
         select = self.spoof_treeview.get_selection()
@@ -478,6 +485,8 @@ class mod_class(object):
             for i in hosts:
                 (ip, rand_mac, iter, reply) = self.hosts[i]
                 self.hosts[i] = (ip, rand_mac, iter, True)
+        if not self.spoof_thread.is_alive():
+            self.spoof_thread.start()
         self.spoof_thread.wakeup()
 
     def on_scan_start_button_clicked(self, data):
