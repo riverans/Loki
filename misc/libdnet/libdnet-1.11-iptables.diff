@@ -46,14 +46,13 @@ diff --exclude='*~' --exclude='.*' -I '$Id:' -urN libdnet-1.11.orig/python/setup
                   dnet_srcs,
 diff --exclude='*~' --exclude='.*' -I '$Id:' -urN libdnet-1.11.orig/src/fw-iptables.c libdnet-1.11/src/fw-iptables.c
 --- libdnet-1.11.orig/src/fw-iptables.c	1970-01-01 01:00:00.000000000 +0100
-+++ libdnet-1.11/src/fw-iptables.c	2010-03-05 10:40:53.000000000 +0100
-@@ -0,0 +1,304 @@
++++ libdnet-1.11/src/fw-iptables.c	2010-03-08 14:26:03.000000000 +0100
+@@ -0,0 +1,307 @@
 +/*
 + * fw-iptables.c
 + * 
 + * Copyright (c) 2010 Daniel Mende <mail@c0decafe.de>
 + *
-+
 + */
 +
 +#include <stdarg.h>
@@ -72,6 +71,10 @@ diff --exclude='*~' --exclude='.*' -I '$Id:' -urN libdnet-1.11.orig/src/fw-iptab
 +#include "dnet/addr.h"
 +#include "dnet/intf.h"
 +#include "dnet/fw.h"
++
++#ifndef NFPROTO_IPV4
++#define NFPROTO_IPV4 2
++#endif
 +
 +#define TABLENAME "filter"
 +#define ALLOW_TARGET "ALLOW"
@@ -260,7 +263,7 @@ diff --exclude='*~' --exclude='.*' -I '$Id:' -urN libdnet-1.11.orig/src/fw-iptab
 +			free(modarg[1]);
 +			free(modarg[0]);
 +		}
-+		/* XXX - ICMP? - DBT */
++		/* XXX - ICMP? - TBD */
 +	}
 +
 +	
