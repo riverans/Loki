@@ -94,7 +94,6 @@ class mod_class(object):
         self.dnet = None
         self.spoof_thread = None
         self.macs = None
-        self.reply = True
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self, 30)
@@ -251,7 +250,7 @@ class mod_class(object):
                             (ip, rand_mac_dst, iter_dst, reply_dst) = self.hosts[i]
                             if ip_dst == ip:
                                 break
-                        if reply_src:
+                        if reply_src and reply_dst:
                             _arp = dpkt.arp.ARP(    hrd=dpkt.arp.ARP_HRD_ETH,
                                                     pro=dpkt.arp.ARP_PRO_IP,
                                                     op=dpkt.arp.ARP_OP_REPLY,
@@ -469,7 +468,7 @@ class mod_class(object):
                     self.dnet.eth.send(j)
             for i in hosts:
                 (ip, rand_mac, iter, reply) = self.hosts[i]
-                self.hosts[i] = (ip, rand_mac, iter, True)
+                self.hosts[i] = (ip, rand_mac, iter, False)
 
     def on_start_spoof_button_clicked(self, data):
         select = self.spoof_treeview.get_selection()
