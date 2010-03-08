@@ -43,9 +43,8 @@ import gtk
 import gtk.glade
 
 class bgp_md5bf(threading.Thread):
-    def __init__(self, log, model, iter, bf, full, wl, digest, data):
-        self.log = log
-        self.model = model
+    def __init__(self, parent, iter, bf, full, wl, digest, data):
+        self.parent = parent
         self.iter = iter
         self.bf = bf
         self.full = full
@@ -62,14 +61,14 @@ class bgp_md5bf(threading.Thread):
         os.close(handle)
         pw = tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         if self.running:
-            src = self.model.get_value(self.iter, 0)
-            dst = self.model.get_value(self.iter, 1)
+            src = self.parent.liststore.get_value(self.iter, self.parent.SOURCE_ROW)
+            dst = self.parent.liststore.get_value(self.iter, self.parent.DESTINATION_ROW)
             if pw:
-                self.model.set_value(self.iter, 2, pw)
-                self.log("TCP-MD5: Found password '%s' for connection %s->%s" % (pw, src, dst))
+                self.parent.liststore.set_value(self.iter, self.parent.SECRET_ROW, pw)
+                self.parent.log("TCP-MD5: Found password '%s' for connection %s->%s" % (pw, src, dst))
             else:
-                self.model.set_value(self.iter, 2, "NOT FOUND")
-                self.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
+                self.paren.liststore.set_value(self.iter, self.parent.SECRET_ROW, "NOT FOUND")
+                self.parent.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
             if os.path.exists(self.tmpfile):
                 os.remove(self.tmpfile)
 
@@ -79,6 +78,10 @@ class bgp_md5bf(threading.Thread):
             os.remove(self.tmpfile)
 
 class mod_class(object):
+    SOURCE_ROW = 0
+    DESTINATION_ROW = 1
+    SECRET_ROW = 2
+    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -113,19 +116,19 @@ class mod_class(object):
         column.set_title("Source")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 0)
+        column.add_attribute(render_text, 'text', self.SOURCE_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Destination")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 1)
+        column.add_attribute(render_text, 'text', self.DESTINATION_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Secret")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 2)
+        column.add_attribute(render_text, 'text', self.SECRET_ROW)
         self.treeview.append_column(column)
 
         self.bf_checkbutton = self.glade_xml.get_widget("bf_checkbutton")
@@ -171,14 +174,14 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            src = model.get_value(iter, 0)
-            dst = model.get_value(iter, 1)
+            src = model.get_value(iter, self.SOURCE_ROW)
+            dst = model.get_value(iter, self.DESTINATION_ROW)
             ident = "%s->%s" % (src, dst)
             (iter, data, digest, thread) = self.opts[ident]
             if thread:
                 return
-            thread = bgp_md5bf(self.log, model, iter, bf, full, wl, digest, data)
-            model.set_value(iter, 2, "RUNNING")
+            thread = bgp_md5bf(self, iter, bf, full, wl, digest, data)
+            model.set_value(iter, self.SECRET_ROW, "RUNNING")
             thread.start()
             self.opts[ident] = (iter, data, digest, thread)
             
