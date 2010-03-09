@@ -49,8 +49,11 @@ class mod_class(object):
     def get_root(self):
         return gtk.Label("TEST")
 
+    def log(self, msg):
+        self.__log(msg, self.name)
+
     def set_log(self, log):
-        self.log = log
+        self.__log = log
 
     #def get_eth_checks(self):
         #pass
