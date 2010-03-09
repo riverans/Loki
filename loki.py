@@ -240,7 +240,8 @@ class pcap_thread_offline(pcap_thread):
         p.open_offline(self.filename)
         while self.running:
             try:
-                p.dispatch(1, self.dispatch_packet)
+                if not p.dispatch(1, self.dispatch_packet):
+                    self.running = False
             except Exception, e:
                 print e
                 if DEBUG:
