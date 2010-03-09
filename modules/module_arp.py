@@ -94,6 +94,7 @@ class mod_class(object):
         self.dnet = None
         self.spoof_thread = None
         self.macs = None
+        self.mac = None
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self, 30)
@@ -240,33 +241,34 @@ class mod_class(object):
     def input_eth(self, eth, timestamp):
         arp = dpkt.arp.ARP(str(eth.data))
         mac = dnet.eth_ntoa(str(eth.src))
-        if not eth.src == self.mac:
-            if arp.op == dpkt.arp.ARP_OP_REQUEST:
-                ip_dst = dnet.eth_ntoa(str(arp.tha))
-                for h in self.hosts:
-                    if mac == h:
-                        (ip_src, rand_mac_src, iter_src, reply_src) = self.hosts[mac]
-                        for i in self.hosts:
-                            (ip, rand_mac_dst, iter_dst, reply_dst) = self.hosts[i]
-                            if ip_dst == ip:
+        if self.mac:
+            if not eth.src == self.mac:
+                if arp.op == dpkt.arp.ARP_OP_REQUEST:
+                    ip_dst = dnet.eth_ntoa(str(arp.tha))
+                    for h in self.hosts:
+                        if mac == h:
+                            (ip_src, rand_mac_src, iter_src, reply_src) = self.hosts[mac]
+                            for i in self.hosts:
+                                (ip, rand_mac_dst, iter_dst, reply_dst) = self.hosts[i]
+                                if ip_dst == ip:
+                                    break
+                            if reply_src and reply_dst:
+                                _arp = dpkt.arp.ARP(    hrd=dpkt.arp.ARP_HRD_ETH,
+                                                        pro=dpkt.arp.ARP_PRO_IP,
+                                                        op=dpkt.arp.ARP_OP_REPLY,
+                                                        sha=dnet.eth_aton(rand_mac_dst),
+                                                        spa=arp.tpa,
+                                                        tha=arp.sha,
+                                                        tpa=arp.spa
+                                                        )
+                                _eth = dpkt.ethernet.Ethernet(  dst=arp.sha,
+                                                                src=dnet.eth_aton(rand_mac_dst),
+                                                                type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                                data=str(_arp)
+                                                                )
+                                print "sending reply"
+                                self.dnet.send(str(_eth))
                                 break
-                        if reply_src and reply_dst:
-                            _arp = dpkt.arp.ARP(    hrd=dpkt.arp.ARP_HRD_ETH,
-                                                    pro=dpkt.arp.ARP_PRO_IP,
-                                                    op=dpkt.arp.ARP_OP_REPLY,
-                                                    sha=dnet.eth_aton(rand_mac_dst),
-                                                    spa=arp.tpa,
-                                                    tha=arp.sha,
-                                                    tpa=arp.spa
-                                                    )
-                            _eth = dpkt.ethernet.Ethernet(  dst=arp.sha,
-                                                            src=dnet.eth_aton(rand_mac_dst),
-                                                            type=dpkt.ethernet.ETH_TYPE_ARP,
-                                                            data=str(_arp)
-                                                            )
-                            print "sending reply"
-                            self.dnet.send(str(_eth))
-                            break
         for h in self.hosts:
             if mac == h:
                 return
@@ -332,7 +334,11 @@ class mod_class(object):
 
     def mac_to_vendor(self, mac):
         mac = mac.replace(":", "-")
-        return self.macs[mac[0:8].upper()]
+        try:
+            vendor = self.macs[mac[0:8].upper()]
+        except:
+            vendor = "Unknown"
+        return vendor
 
     # SIGNALS #
 
