@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: ascii -*-
+
 #       loki.py
 #       
 #       Copyright 2009 Daniel Mende <dmende@ernw.de>
@@ -46,7 +49,7 @@ import dpkt
 import pcap
 import dnet
 
-DEBUG = False
+DEBUG = True
 
 VERSION = "v0.2"
 PLATFORM = platform.system()
@@ -502,6 +505,7 @@ class codename_loki(object):
         return pos
 
     def log(self, msg, module=None):
+        #if not gtk.Object.flags(self.statusbar) & gtk.IN_DESTRUCTION:
         self.statusbar.push(self.msg_id, "[%i] %s" % (self.msg_id, msg))
         if DEBUG:
             print "[%i] %s" % (self.msg_id, msg)
