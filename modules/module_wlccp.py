@@ -161,6 +161,7 @@ class election_thread(threading.Thread):
 class mod_class(object):
     HOSTS_HOST_ROW = 0
     HOSTS_TYPE_ROW = 1
+    HOSTS_PRIO_ROW = 2
     
     COMMS_HOST_ROW = 0
     COMMS_STATE_ROW = 1
@@ -181,7 +182,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "wlccp"
         self.gladefile = "modules/module_wlccp.glade"
-        self.hosts_liststore = gtk.ListStore(str, str)
+        self.hosts_liststore = gtk.ListStore(str, str, str)
         self.comms_liststore = gtk.ListStore(str, str, str)
         self.dnet = None
         self.election_thread = None
@@ -222,6 +223,12 @@ class mod_class(object):
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.HOSTS_TYPE_ROW)
+        self.hosts_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Priority")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.HOSTS_PRIO_ROW)
         self.hosts_treeview.append_column(column)
 
         column = gtk.TreeViewColumn()
@@ -273,11 +280,25 @@ class mod_class(object):
         header = wlccp_header()
         ret = header.parse(eth.data)
         orig = dnet.eth_ntoa(header.orig_node_mac)
-        if header.msg_type & 0x41:
+        dst = dnet.eth_ntoa(header.dst_node_mac)
+        if header.msg_type == 0x01:
+            #SCM advertisment request
+            if not orig == "00:00:00:00:00:00":
+                if orig not in self.hosts:
+                    type = self.node_types[header.orig_node_type]
+                    iter = self.hosts_liststore.append([orig, type, ""])
+                    self.hosts[orig] = (iter,)
+        elif header.msg_type == 0x41:
             #SCM advertisment reply
-            if orig not in self.hosts and not orig == "00:00:00:00:00:00":
-                iter = self.hosts_liststore.append([orig, self.node_types[header.orig_node_type]])
-                self.hosts[orig] = (iter)
+            if not dst == "00:00:00:00:00:00":
+                type = self.node_types[header.dst_node_type]
+                prio = str(ord(ret[10]))
+                if dst not in self.hosts:
+                    iter = self.hosts_liststore.append([dst, type, prio])
+                    self.hosts[dst] = (iter,)
+                else:
+                    (iter,) = self.hosts[dst]
+                    self.hosts_liststore.set(iter, self.HOSTS_TYPE_ROW, type, self.HOSTS_PRIO_ROW, prio)
 
     def get_udp_checks(self):
         return (self.check_udp, self.input_udp)
@@ -449,6 +470,7 @@ class mod_class(object):
                 pw = asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
                 self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection))
                 self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
+                self.ctk_label.set_text("LEAP PW: %s" % pw)
 
     def on_gen_nsk_button_clicked(self, btn):
         select = self.comms_treeview.get_selection()
@@ -462,6 +484,7 @@ class mod_class(object):
                 nsk = self.gen_nsk(host)
                 self.log("WLCCP: Found NSK %s for connection %s" % (nsk.encode("hex"), connection))
                 self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), leap_pw, nsk, nonces, ctk)
+                self.ctk_label.set_text("NSK: %s" % nsk.encode("hex"))
 
     def on_gen_ctk_button_clicked(self, btn):
         select = self.comms_treeview.get_selection()
@@ -472,9 +495,8 @@ class mod_class(object):
             connection = model.get_value(iter, self.COMMS_HOST_ROW)
             (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk) = self.comms[host]
             if supp_node and dst_node and nonce_req and nonce_repl and counter:
-                ctk = "A3:6E:C5:71:8B:60:53:D0:34:A9:9B:7B:CA:66:51:26:EB:02:5B:3B:23:37:43:C0:98:69:45:51:BD:53:27:D3" #self.gen_ctk(host)
-                self.log("WLCCP: Found CTK %s for connection %s" % (ctk, connection))
-                #(ctk.encode("hex"), connection))
+                ctk = "A36EC5718B6053D034A99B7BCA665126EB025B3B233743C098694551BD5327D3" #self.gen_ctk(host)
+                self.log("WLCCP: Found CTK %s for connection %s" % (ctk, connection)) #(ctk.encode("hex"), connection))
                 self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk)
                 self.ctk_label.set_text("CTK: %s" % ctk)
 
