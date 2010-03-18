@@ -44,7 +44,7 @@
 #ifndef ARCH_IS_BIG_ENDIAN
 #define ARCH_IS_BIG_ENDIAN 0
 #endif
-#include "../lib/md5.h"
+#include "lib/md5.h"
 
 #define VERSION "0.1"
 #define MAX_BRUTE_PW_LEN 16
