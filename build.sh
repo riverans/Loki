@@ -26,3 +26,8 @@ gcc -g -c -o lib/asleap/asleap.o lib/asleap/asleap.c -fpic -Wall -I./lib/asleap
 gcc -g -c -o asleap/asleap.o asleap/asleap.c `python-config --cflags` -fpic -Wall -I.
 ld -shared -soname asleap.so asleap/asleap.o lib/asleap/common.o lib/asleap/asleap.o lib/asleap/utils.o lib/asleap/sha1.o -o asleap/asleap.so -lc -lpcap -lcrypt -lcrypto
 strip asleap/asleap.so
+
+#Build SHA1 Module
+gcc -g -c -o sha1/sha1_prf.o sha1/sha1_prf.c `python-config --cflags` -fpic -Wall -I.
+ld -shared -soname sha1_prf.so sha1/sha1_prf.o  -o sha1/sha1_prf.so -lssl
+strip sha1/sha1_prf.so

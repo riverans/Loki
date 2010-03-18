@@ -44,6 +44,7 @@ import dnet
 import dpkt
 
 import asleap
+import sha1
 
 DEBUG = False
 
@@ -452,7 +453,7 @@ class mod_class(object):
         if len(ctk_seed) != 86:
             print "ctk_seed len incorrect"
         
-        return asleap.asleap.sha1_prf(nsk, "SWAN IN to IA linkContext Transfer Key Derivation", ctk_seed, 32)
+        return sha1.sha1_prf.sha1_prf(nsk, "SWAN IN to IA linkContext Transfer Key Derivation", ctk_seed, 32)
 
     def on_crack_leap_button_clicked(self, btn):
         select = self.comms_treeview.get_selection()
@@ -495,10 +496,11 @@ class mod_class(object):
             connection = model.get_value(iter, self.COMMS_HOST_ROW)
             (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk) = self.comms[host]
             if supp_node and dst_node and nonce_req and nonce_repl and counter:
-                ctk = "A36EC5718B6053D034A99B7BCA665126EB025B3B233743C098694551BD5327D3" #self.gen_ctk(host)
-                self.log("WLCCP: Found CTK %s for connection %s" % (ctk, connection)) #(ctk.encode("hex"), connection))
+                #ctk = "A36EC5718B6053D034A99B7BCA665126EB025B3B233743C098694551BD5327D3"
+                ctk = self.gen_ctk(host)
+                self.log("WLCCP: Found CTK %s for connection %s" % (ctk.encode("hex"), connection))
                 self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk)
-                self.ctk_label.set_text("CTK: %s" % ctk)
+                self.ctk_label.set_text("CTK: %s" % ctk.encode("hex"))
 
     def on_get_master_togglebutton_toggled(self, btn):
         if btn.get_active():
