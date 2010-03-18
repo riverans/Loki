@@ -43,8 +43,8 @@ import gtk
 import dnet
 import dpkt
 
-import asleap
-import sha1
+from loki import asleap
+from loki import sha1
 
 DEBUG = False
 

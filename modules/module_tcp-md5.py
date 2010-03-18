@@ -36,7 +36,7 @@ import threading
 import dpkt
 import dnet
 
-import tcpmd5
+from loki import tcpmd5
 
 import gobject
 import gtk

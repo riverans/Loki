@@ -38,7 +38,7 @@ import tempfile
 import threading
 import time
 
-import ospfmd5
+from loki import ospfmd5
 
 import dnet
 import dpkt
