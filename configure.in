@@ -38,13 +38,5 @@ AC_CHECK_FUNCS([bzero getcwd gethostbyname gettimeofday inet_ntoa memset mkdir s
 AC_CONFIG_FILES([Makefile
                  lib/Makefile
                  lib/asleap/Makefile
-                 loki/Makefile
-                 loki/asleap/Makefile
-                 loki/asleap/setup.py
-                 loki/ospfmd5/Makefile
-                 loki/ospfmd5/setup.py
-                 loki/sha1/Makefile
-                 loki/sha1/setup.py
-                 loki/tcpmd5/Makefile
-                 loki/tcpmd5/setup.py])
+                 setup.py])
 AC_OUTPUT

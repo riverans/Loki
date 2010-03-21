@@ -1,0 +1,86 @@
+from distutils.core import setup, Extension
+
+asleap_srcs = [ '@top_srcdir@/loki/asleap/asleap.c', '@top_srcdir@/lib/asleap/asleap.c']
+asleap_incdirs = [ '@top_srcdir@' ]
+asleap_libdirs = []
+asleap_libs = []
+asleap_extargs = []
+asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o']
+
+ospfmd5bf_srcs = [ '@top_srcdir@/loki/ospfmd5/ospfmd5bf.c', '@top_srcdir@/lib/md5.c' ]
+ospfmd5bf_incdirs = [ '@top_srcdir@' ]
+ospfmd5bf_libdirs = []
+ospfmd5bf_libs = []
+ospfmd5bf_extargs = []
+ospfmd5bf_extobj = []
+
+sha1_prf_srcs = [ '@top_srcdir@/loki/sha1/sha1_prf.c' ]
+sha1_prf_incdirs = []
+sha1_prf_libdirs = []
+sha1_prf_libs = []
+sha1_prf_extargs = []
+sha1_prf_extobj = '@LIBS@'.split()
+
+tcpmd5_srcs = [ '@top_srcdir@/loki/tcpmd5/tcpmd5.c' ]
+tcpmd5_incdirs = []
+tcpmd5_libdirs = []
+tcpmd5_libs = []
+tcpmd5_extargs = []
+tcpmd5_extobj = []
+
+tcpmd5bf_srcs = [ '@top_srcdir@/loki/tcpmd5/tcpmd5bf.c', '@top_srcdir@/lib/md5.c' ]
+tcpmd5bf_incdirs = [ '@top_srcdir@' ]
+tcpmd5bf_libdirs = []
+tcpmd5bf_libs = []
+tcpmd5bf_extargs = []
+tcpmd5bf_extobj = []
+
+asleap = Extension( 'loki.asleap.asleap',
+                    asleap_srcs,
+                    include_dirs=asleap_incdirs,
+                    library_dirs=asleap_libdirs,
+                    libraries=asleap_libs,
+                    extra_compile_args=asleap_extargs,
+                    extra_objects=asleap_extobj)
+
+ospfmd5bf = Extension(  'loki.ospfmd5.ospfmd5bf',
+                        ospfmd5bf_srcs,
+                        include_dirs=ospfmd5bf_incdirs,
+                        library_dirs=ospfmd5bf_libdirs,
+                        libraries=ospfmd5bf_libs,
+                        extra_compile_args=ospfmd5bf_extargs,
+                        extra_objects=ospfmd5bf_extobj)
+
+sha1_prf = Extension(   'loki.sha1.sha1_prf',
+                        sha1_prf_srcs,
+                        include_dirs=sha1_prf_incdirs,
+                        library_dirs=sha1_prf_libdirs,
+                        libraries=sha1_prf_libs,
+                        extra_compile_args=sha1_prf_extargs,
+                        extra_objects=sha1_prf_extobj)
+
+tcpmd5 = Extension( 'loki.tcpmd5.tcpmd5',
+                    tcpmd5_srcs,
+                    include_dirs=tcpmd5_incdirs,
+                    library_dirs=tcpmd5_libdirs,
+                    libraries=tcpmd5_libs,
+                    extra_compile_args=tcpmd5_extargs,
+                    extra_objects=tcpmd5_extobj)
+
+tcpmd5bf = Extension(   'loki.tcpmd5.tcpmd5bf',
+                        tcpmd5bf_srcs,
+                        include_dirs=tcpmd5bf_incdirs,
+                        library_dirs=tcpmd5bf_libdirs,
+                        libraries=tcpmd5bf_libs,
+                        extra_compile_args=tcpmd5bf_extargs,
+                        extra_objects=tcpmd5bf_extobj)
+                    
+setup(name='loki',
+      version='@VERSION@',
+      description='',
+      author='Daniel Mende',
+      author_email='dmende@ernw.de',
+      url='https://c0decafe.de',
+      packages=['loki', 'loki.asleap', 'loki.ospfmd5', 'loki.sha1', 'loki.tcpmd5'],
+      ext_modules=[asleap, ospfmd5bf, sha1_prf, tcpmd5, tcpmd5bf]
+     )
