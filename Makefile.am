@@ -11,9 +11,9 @@ python-build:
 python-clean:
 	rm -rf *build
 
-clean: python-clean
+clean: clean-recursive python-clean
 
-distclean: clean
+distclean: clean-recursive
 
 python-install:
 	$(PYTHON) setup.py install --prefix=$(DESTDIR)$(prefix)

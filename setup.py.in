@@ -6,6 +6,7 @@ asleap_libdirs = []
 asleap_libs = []
 asleap_extargs = []
 asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o']
+asleap_extobj += '@LIBS@'.split()
 
 ospfmd5bf_srcs = [ '@top_srcdir@/loki/ospfmd5/ospfmd5bf.c', '@top_srcdir@/lib/md5.c' ]
 ospfmd5bf_incdirs = [ '@top_srcdir@' ]
