@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#ifndef _LINUX
+#ifndef HAVE_ENDIAN_H
 #warning "Assuming little-endian for Windows"
 #else
 #include <endian.h>

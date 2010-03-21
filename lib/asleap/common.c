@@ -29,7 +29,7 @@
 #include "common.h"
 #include "utils.h"
 
-#ifdef _OPENSSL_MD4
+#ifdef HAVE_OPENSSL_MD4_H
 #include <openssl/md4.h>
 #define MD4Init MD4_Init
 #define MD4Update MD4_Update

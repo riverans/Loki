@@ -1,0 +1,50 @@
+AC_PREREQ([2.63])
+AC_INIT([loki], [0.2], [bugs@c0decafe.de])
+AM_INIT_AUTOMAKE(loki, 0.2)
+
+CPPFLAGS="$CPPFLAGS -fpic"
+
+# Checks for programs.
+AC_PROG_CC
+AC_PROG_MAKE_SET
+AC_PROG_RANLIB
+AM_PATH_PYTHON([2.6])
+
+# Checks for libraries.
+AC_CHECK_LIB(pcap, pcap_open_live)
+AC_CHECK_LIB(crypt, encrypt)
+AC_CHECK_LIB(crypto, MD4)
+AC_CHECK_LIB(ssl, SHA1_Init)
+
+# Checks for header files.
+AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([openssl/md4.h])
+AC_CHECK_HEADERS([endian.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_TYPE_OFF_T
+AC_TYPE_SIZE_T
+AC_TYPE_UINT16_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT64_T
+AC_TYPE_UINT8_T
+
+# Checks for library functions.
+AC_FUNC_FORK
+AC_FUNC_FSEEKO
+AC_FUNC_MALLOC
+AC_CHECK_FUNCS([bzero getcwd gethostbyname gettimeofday inet_ntoa memset mkdir select socket strchr strerror strtoul])
+
+AC_CONFIG_FILES([Makefile
+                 lib/Makefile
+                 lib/asleap/Makefile
+                 loki/Makefile
+                 loki/asleap/Makefile
+                 loki/asleap/setup.py
+                 loki/ospfmd5/Makefile
+                 loki/ospfmd5/setup.py
+                 loki/sha1/Makefile
+                 loki/sha1/setup.py
+                 loki/tcpmd5/Makefile
+                 loki/tcpmd5/setup.py])
+AC_OUTPUT
