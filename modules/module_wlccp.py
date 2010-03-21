@@ -131,7 +131,6 @@ class election_thread(threading.Thread):
     
     def run(self):
         self.parent.log("WLCCP: Election Thread started")
-        #~ version=None, sap=None, dst_type=None, msg_type=None, id=None, flags=None, orig_node_type=None, orig_node_mac=None, dst_node_type=None, dst_node_mac=None):
         header = wlccp_header(0xc1, 0x0, 0x8003, 0x41, 0x0, 0x2800, 0x0, dnet.eth_aton("00:00:00:00:00:00"), 0x2, dnet.eth_aton(self.mac))
         h_data = header.render("%s\x00\x01\x00\x00\xff\x00%s\x00\x00\x00\x00\x00\x02\x00\x00\x00\x05%s%s%s%s%s%s%s%s"
                     % ( dnet.eth_aton(self.mac),
@@ -469,9 +468,12 @@ class mod_class(object):
                 if not wl:
                     return
                 pw = asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
-                self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection))
-                self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
-                self.ctk_label.set_text("LEAP PW: %s" % pw)
+                if pw != "":
+                    self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection))
+                    self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
+                    self.ctk_label.set_text("LEAP PW: %s" % pw)
+                else:
+                    self.log("WLCCP: Password for %s not found." % connection)
 
     def on_gen_nsk_button_clicked(self, btn):
         select = self.comms_treeview.get_selection()
@@ -496,7 +498,6 @@ class mod_class(object):
             connection = model.get_value(iter, self.COMMS_HOST_ROW)
             (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk) = self.comms[host]
             if supp_node and dst_node and nonce_req and nonce_repl and counter:
-                #ctk = "A36EC5718B6053D034A99B7BCA665126EB025B3B233743C098694551BD5327D3"
                 ctk = self.gen_ctk(host)
                 self.log("WLCCP: Found CTK %s for connection %s" % (ctk.encode("hex"), connection))
                 self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk)
