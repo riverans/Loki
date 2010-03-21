@@ -1,4 +1,4 @@
-AC_PREREQ([2.63])
+AC_PREREQ([2.62])
 AC_INIT([loki], [0.2], [bugs@c0decafe.de])
 AM_INIT_AUTOMAKE(loki, 0.2)
 
