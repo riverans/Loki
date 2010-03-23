@@ -30,6 +30,11 @@
 
 #ifdef HAVE_CRYPT_H
 #include <crypt.h>
+#else
+# ifdef HAVE_OPENSSL_DES_H
+#  include <openssl/des.h>
+#  define USE_OPENSSL_DES 1
+# endif
 #endif
 
 #include <unistd.h>
@@ -173,16 +178,27 @@ void Collapse(unsigned char *in, unsigned char *out)
 
 void DesEncrypt(unsigned char *clear, unsigned char *key, unsigned char *cipher)
 {
-#ifdef HAVE_CRYPT_H
 	unsigned char des_key[8];
 	unsigned char crypt_key[66];
 	unsigned char des_input[66];
+#ifdef USE_OPENSSL_DES
+	DES_key_schedule sched;
+	DES_cblock des_output;
+#endif
 
 	MakeKey(key, des_key);
-
+	
+#ifdef USE_OPENSSL_DES
+	DES_set_key_unchecked((DES_cblock *) &des_key, &sched);
+#else
 	Expand(des_key, crypt_key);
 	setkey((char *)crypt_key);
+#endif
 
+#ifdef USE_OPENSSL_DES
+	DES_ecb_encrypt((DES_cblock *) &clear, &des_output, &sched, 1);
+	memcpy(cipher, des_output, sizeof(DES_cblock));
+#else
 	Expand(clear, des_input);
 	encrypt((char *)des_input, 0);
 	Collapse(des_input, cipher);
