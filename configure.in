@@ -35,6 +35,21 @@ AC_FUNC_FSEEKO
 AC_FUNC_MALLOC
 AC_CHECK_FUNCS([bzero getcwd gethostbyname gettimeofday inet_ntoa memset mkdir select socket strchr strerror strtoul])
 
+# Error conditions
+if test "$ac_cv_lib_pcap_pcap_open_live" = no ; then
+    AC_ERROR(libpcap not found!)
+fi
+if test "$ac_cv_lib_ssl_SHA1_Init" = no ; then
+    AC_ERROR(libssl not found!)
+else
+    if test "$ac_cv_lib_crypt_encrypt" = no ; then
+        if test "$ac_cv_header_openssl_des_h" = no ; then
+            AC_ERROR(no usable DES implementation found!)
+        fi
+    fi
+fi
+
+
 AC_CONFIG_FILES([Makefile
                  lib/Makefile
                  lib/asleap/Makefile
