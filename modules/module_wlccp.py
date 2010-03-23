@@ -470,7 +470,7 @@ class mod_class(object):
                     return
                 pw = asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
                 if pw != "":
-                    self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection))
+                    self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection.replace('\n       <=>\n', ' <=> ')))
                     for i in xrange(self.comms_treestore.iter_n_children(iter)):
                         child = self.comms_treestore.iter_nth_child(iter, i)
                         if self.comms_treestore.get(child, self.COMMS_HOST_ROW) == ("Password",):
@@ -484,7 +484,7 @@ class mod_class(object):
                     self.comms_treestore.append(iter, [ "CTK", ctk.encode("hex"), "" ])
                     self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
                 else:
-                    self.log("WLCCP: Password for %s not found." % connection)
+                    self.log("WLCCP: Password for %s not found." % connection.replace('\n       <=>\n', ' <=> '))
 
     def on_get_master_togglebutton_toggled(self, btn):
         if btn.get_active():
