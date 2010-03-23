@@ -173,6 +173,7 @@ void Collapse(unsigned char *in, unsigned char *out)
 
 void DesEncrypt(unsigned char *clear, unsigned char *key, unsigned char *cipher)
 {
+#ifdef HAVE_CRYPT_H
 	unsigned char des_key[8];
 	unsigned char crypt_key[66];
 	unsigned char des_input[66];
@@ -185,6 +186,7 @@ void DesEncrypt(unsigned char *clear, unsigned char *key, unsigned char *cipher)
 	Expand(clear, des_input);
 	encrypt((char *)des_input, 0);
 	Collapse(des_input, cipher);
+#endif
 }
 
 int IsBlank(char *s)
