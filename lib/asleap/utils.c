@@ -27,7 +27,11 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdint.h>
+
+#ifdef HAVE_CRYPT_H
 #include <crypt.h>
+#endif
+
 #include <unistd.h>
 #include <ctype.h>
 #include <netinet/in.h>		/* for ntohs() */

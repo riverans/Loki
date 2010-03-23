@@ -1,3 +1,6 @@
+# configure.in
+# Copyright 2010 Daniel Mende <dmende@ernw.de> 
+
 AC_PREREQ([2.62])
 AC_INIT([loki], [0.2], [bugs@c0decafe.de])
 AM_INIT_AUTOMAKE(loki, 0.2)
@@ -15,8 +18,8 @@ AC_CHECK_LIB(ssl, SHA1_Init)
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h syslog.h unistd.h])
+AC_CHECK_HEADERS([netpacket/packet.h linux/if.h linux/wireless.h crypt.h endian.h sys/endian.h])
 AC_CHECK_HEADERS([openssl/md4.h])
-AC_CHECK_HEADERS([endian.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_OFF_T

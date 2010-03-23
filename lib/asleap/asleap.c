@@ -39,12 +39,21 @@
 #include <sys/ioctl.h>
 
 #include <net/ethernet.h>
-#include <pcap-bpf.h>
+//#include <pcap-bpf.h>
 #include <sys/types.h>
 #include <pcap.h>
+
+#ifdef HAVE_NETPACKET_PACKET_H
 #include <netpacket/packet.h>
+#endif
+
+#ifdef HAVE_LINUX_IF_H
 #include <linux/if.h>
+#endif
+
+#ifdef HAVE_LINUX_WIRELESS_H
 #include <linux/wireless.h>
+#endif
 
 #include "asleap.h"
 #include "utils.h"
