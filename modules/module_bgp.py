@@ -385,10 +385,10 @@ class bgp_session(threading.Thread):
         self.sock.settimeout(timeout)
 
         if self.parent.platform == "Linux" or self.parent.platform == "FreeBSD":
-            import tcpmd5
+            import loki
             for (i, j) in self.md5:
                 if i == self.dest:
-                    tcpmd5.tcpmd5.set(self.sock.fileno(), self.parent.ip, i, BGP_PORT, j)
+                    loki.tcpmd5.tcpmd5.set(self.sock.fileno(), self.parent.ip, i, BGP_PORT, j)
             
         self.sock.connect((self.dest, BGP_PORT))
         if not bf:
@@ -431,10 +431,10 @@ class bgp_session(threading.Thread):
             self.sem.release()
             time.sleep(self.hold_time / 4)
         if self.parent.platform == "Linux" or self.parent.platform == "FreeBSD":
-            import tcpmd5
+            import loki
             for (i, j) in self.md5:
                 if i == self.dest:
-                    tcpmd5.tcpmd5.clear(self.sock.fileno(), self.parent.ip, i, BGP_PORT)
+                    loki.tcpmd5.tcpmd5.clear(self.sock.fileno(), self.parent.ip, i, BGP_PORT)
         self.sock.close()
 
 ### MODULE_CLASS ###
@@ -444,7 +444,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "bgp"
-        self.gladefile = "modules/module_bgp.glade"
+        self.gladefile = "/modules/module_bgp.glade"
         self.liststore = gtk.ListStore(str, str)
         self.session = None
 
@@ -461,7 +461,7 @@ class mod_class(object):
         self.liststore.clear()
 
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_connect_button_clicked" : self.on_connect_button_clicked,
                 "on_update_button_clicked" : self.on_update_button_clicked,
                 "on_disconnect_button_clicked" : self.on_disconnect_button_clicked

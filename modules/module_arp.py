@@ -41,6 +41,7 @@ import IPy
 
 import gobject
 import gtk
+import gtk.glade
 
 class spoof_thread(threading.Thread):
     def __init__(self, parent, delay):
@@ -85,8 +86,8 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "arp"
-        self.gladefile = "modules/module_arp.glade"
-        self.macfile = "modules/mac.txt"
+        self.gladefile = "/modules/module_arp.glade"
+        self.macfile = "/modules/mac.txt"
         self.hosts_liststore = gtk.ListStore(str, str, str)
         self.upper_add_liststore = gtk.ListStore(str, str)
         self.lower_add_liststore = gtk.ListStore(str, str)
@@ -103,7 +104,7 @@ class mod_class(object):
         self.lower_add = {}
         self.spoofs = {}
         if not self.macs:
-            self.macs = self.parse_macs(self.macfile)
+            self.macs = self.parse_macs(self.parent.data_dir + self.macfile)
 
     def shut_mod(self):
         if self.spoof_thread:
@@ -114,7 +115,7 @@ class mod_class(object):
         self.spoof_treestore.clear()
 
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_add_upper_button_clicked" : self.on_add_upper_button_clicked,
                 "on_add_lower_button_clicked" : self.on_add_lower_button_clicked,
                 "on_add_spoof_button_clicked" : self.on_add_spoof_button_clicked,

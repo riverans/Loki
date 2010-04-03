@@ -338,7 +338,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "ldp"
-        self.gladefile = "modules/module_ldp.glade"
+        self.gladefile = "/modules/module_ldp.glade"
         self.liststore = gtk.ListStore(str, str)
         self.hello_thread = None
         self.listener = None
@@ -362,7 +362,7 @@ class mod_class(object):
         self.liststore.clear()
         
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
                 "on_listen_togglebutton_toggled" : self.on_listen_togglebutton_toggled,
                 "on_update_button_clicked" : self.on_update_button_clicked

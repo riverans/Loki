@@ -36,7 +36,7 @@ import threading
 import dpkt
 import dnet
 
-from loki import tcpmd5
+import loki
 
 import gobject
 import gtk
@@ -59,7 +59,7 @@ class bgp_md5bf(threading.Thread):
             self.wl = ""
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="tcp-md5-", suffix="-lock")
         os.close(handle)
-        pw = tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        pw = loki.tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         if self.running:
             src = self.parent.liststore.get_value(self.iter, self.parent.SOURCE_ROW)
             dst = self.parent.liststore.get_value(self.iter, self.parent.DESTINATION_ROW)
@@ -86,7 +86,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "tcp-md5"
-        self.gladefile = "modules/module_tcp-md5.glade"
+        self.gladefile = "/modules/module_tcp-md5.glade"
         self.liststore = gtk.ListStore(str, str, str)
         self.opts = None
 
@@ -103,7 +103,7 @@ class mod_class(object):
         self.liststore.clear()
         
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_crack_button_clicked" : self.on_crack_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)

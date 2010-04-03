@@ -441,7 +441,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "eigrp"
-        self.gladefile = "modules/module_eigrp.glade"
+        self.gladefile = "/modules/module_eigrp.glade"
         self.liststore = gtk.ListStore(str, int)
         self.filter = False
         self.hello_thread = None
@@ -475,7 +475,7 @@ class mod_class(object):
         self.liststore.clear()
 
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
                 "on_spoof_togglebutton_toggled" : self.on_spoof_togglebutton_toggled,
                 "on_goodbye_button_clicked" : self.on_goodbye_button_clicked,

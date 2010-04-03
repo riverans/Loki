@@ -48,12 +48,13 @@ import dpkt
 import pcap
 import dnet
 
-DEBUG = True
+DEBUG = False
 
 VERSION = "v0.2"
 PLATFORM = platform.system()
 
-MODULE_PATH="./modules/"
+MODULE_PATH="/modules"
+DATA_DIR="."
 
 class about_window(gtk.Window):
     def __init__(self, parent):
@@ -287,6 +288,7 @@ class codename_loki(object):
         self.pcap_thread = None
         self.dnet_thread = None
         self.fw = None
+        self.data_dir = DATA_DIR
 
         self.eth_checks = []
         self.ip_checks = []
@@ -360,7 +362,7 @@ class codename_loki(object):
         
         gtk.main()
 
-    def load_all_modules(self, path=MODULE_PATH):
+    def load_all_modules(self, path=DATA_DIR + MODULE_PATH):
         #import the modules
         if DEBUG:
             print "Loading modules..."

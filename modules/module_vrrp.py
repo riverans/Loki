@@ -197,7 +197,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "vrrp"
-        self.gladefile = "modules/module_vrrp.glade"
+        self.gladefile = "/modules/module_vrrp.glade"
         self.liststore = gtk.ListStore(str, str, int, str)
         self.thread = None
 
@@ -212,7 +212,7 @@ class mod_class(object):
         self.liststore.clear()
         
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_get_button_clicked" : self.on_get_button_clicked,
                 "on_release_button_clicked" : self.on_release_button_clicked
                 }

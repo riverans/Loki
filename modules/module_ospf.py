@@ -38,7 +38,7 @@ import tempfile
 import threading
 import time
 
-from loki import ospfmd5
+import loki
 
 import dnet
 import dpkt
@@ -46,6 +46,7 @@ import IPy
 
 import gobject
 import gtk
+import gtk.glade
 
 OSPF_VERSION = 2
 
@@ -1048,7 +1049,7 @@ class ospf_md5bf(threading.Thread):
         #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest, self.data)
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
         os.close(handle)
-        pw = ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        pw = loki.ospfmd5bf.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         src = self.parent.neighbor_liststore.get_value(self.iter, parent.NEIGH_IP_ROW)
         if pw:
             self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
@@ -1081,7 +1082,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "ospf"
-        self.gladefile = "modules/module_ospf.glade"
+        self.gladefile = "/modules/module_ospf.glade"
         self.neighbor_liststore = gtk.ListStore(str, str, int, str, str, str)
         self.network_liststore = gtk.ListStore(str, str, str)
         self.auth_type_liststore = gtk.ListStore(str, int)
@@ -1130,7 +1131,7 @@ class mod_class(object):
         self.auth_type_liststore.clear()
         
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
                 "on_bf_button_clicked" : self.on_bf_button_clicked,
                 "on_auth_type_combobox_changed" : self.on_auth_type_combobox_changed,

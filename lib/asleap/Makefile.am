@@ -3,9 +3,8 @@
 
 INCLUDES =   -I$(top_srcdir)/lib/asleap/
 
-AM_CPPFLAGS= -fpic
+AM_CPPFLAGS= -fpic -U_FORTIFY_SOURCE
 
-noinst_PROGRAMS =   asleap
-#genkeys
+noinst_PROGRAMS =   asleap genkeys
 asleap_SOURCES =    asleap.c sha1.c common.c utils.c md4.c
-#genkeys_SOURCES =   genkeys.c md4.c common.c utils.c
+genkeys_SOURCES =   genkeys.c md4.c common.c utils.c

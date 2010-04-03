@@ -184,7 +184,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "rip"
-        self.gladefile = "modules/module_rip.glade"
+        self.gladefile = "/modules/module_rip.glade"
         self.host_liststore = gtk.ListStore(str)
         self.route_liststore = gtk.ListStore(str, str, str, str)
         self.thread = None
@@ -202,7 +202,7 @@ class mod_class(object):
         self.route_liststore.clear()
         
     def get_root(self):
-        self.glade_xml = gtk.glade.XML(self.gladefile)
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_add_button_clicked" : self.on_add_button_clicked,
                 "on_del_button_clicked" : self.on_del_button_clicked
                 }
