@@ -10,7 +10,7 @@ noinst_SCRIPTS = python-build loki-build
 bin_SCRIPTS = loki.py
 
 loki-build:
-	$(SED) -i 's#DATA_DIR="."#DATA_DIR="$(instdir)"#g' loki.py
+	$(SED) -i.bak 's#DATA_DIR="."#DATA_DIR="$(instdir)"#g' loki.py
 	touch python-build
 
 python-build:
