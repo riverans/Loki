@@ -18,13 +18,6 @@ ospfmd5bf_libs = []
 ospfmd5bf_extargs = []
 ospfmd5bf_extobj = []
 
-sha1_prf_srcs = [ '@top_srcdir@/loki/sha1/sha1_prf.c' ]
-sha1_prf_incdirs = []
-sha1_prf_libdirs = []
-sha1_prf_libs = []
-sha1_prf_extargs = []
-sha1_prf_extobj = '@LIBS@'.split()
-
 tcpmd5_srcs = [ '@top_srcdir@/loki/tcpmd5/tcpmd5.c' ]
 tcpmd5_incdirs = []
 tcpmd5_libdirs = []
@@ -55,14 +48,6 @@ ospfmd5bf = Extension(  'loki.ospfmd5.ospfmd5bf',
                         extra_compile_args=ospfmd5bf_extargs,
                         extra_objects=ospfmd5bf_extobj)
 
-sha1_prf = Extension(   'loki.sha1.sha1_prf',
-                        sha1_prf_srcs,
-                        include_dirs=sha1_prf_incdirs,
-                        library_dirs=sha1_prf_libdirs,
-                        libraries=sha1_prf_libs,
-                        extra_compile_args=sha1_prf_extargs,
-                        extra_objects=sha1_prf_extobj)
-
 tcpmd5 = Extension( 'loki.tcpmd5.tcpmd5',
                     tcpmd5_srcs,
                     include_dirs=tcpmd5_incdirs,
@@ -85,6 +70,6 @@ setup(name='loki',
       author='Daniel Mende',
       author_email='dmende@ernw.de',
       url='https://c0decafe.de',
-      packages=['loki', 'loki.asleap', 'loki.ospfmd5', 'loki.sha1', 'loki.tcpmd5'],
-      ext_modules=[asleap, ospfmd5bf, sha1_prf, tcpmd5, tcpmd5bf]
+      packages=['loki', 'loki.asleap', 'loki.ospfmd5', 'loki.tcpmd5'],
+      ext_modules=[asleap, ospfmd5bf, tcpmd5, tcpmd5bf]
      )

@@ -191,7 +191,14 @@ class mod_class(object):
     def start_mod(self):
         self.hosts = {}
         self.comms = {}
-
+        #~ self.comms["test"] = (None, (("bla", "\x42\x92\xb7\x31\x0e\x30\xf9\xe1", "test"), "\x77\x55\xe7\x19\x15\xdf\xff\xe3\x00\x55\x6b\x72\x04\xaf\x99\x0f\xe3\x39\x1b\x4c\xc2\x18\xca\x1f", "\x1b\xae\x38\xf0\x6c\xf3\x96\xca", "\x00\x95\xc9\x98\x37\xfb\x04\xce\x62\x7e\x37\x6e\x9b\x5a\xc3\x48\x16\x2a\x47\xe3\xb7\x1f\x3f\x52"), "b]_^.'62ft]LsawO~SwXc-hI3+_AE."
+#~ , None, None, None)
+        #~ print "nsk: %s" % self.gen_nsk("test").encode("hex")
+        #~ print "nsk1: %s" % self.gen_nsk1("test").encode("hex")
+        #~ print "nsk2: %s" % self.gen_nsk2("test").encode("hex")
+        #~ print "nsk3: %s" % self.gen_nsk3("test").encode("hex")
+        #~ print "should be: 3528c1a93f4fcde35b20424b2b897ea4"
+        
     def shut_mod(self):
         if self.election_thread:
             self.election_thread.quit()
@@ -429,7 +436,7 @@ class mod_class(object):
                         #skip WTLV_INIT_SESSION header
                         ret = ret[8:]
                         #get nonces from WTLV_IN_SECURE_CONTEXT_REPLY header
-                        nonces = ret[24:56]                            
+                        nonces = ret[26:58]                            
                         self.log("WLCCP: PATH-REQUEST seen for %s" % host)
                         self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonces, nonce_repl, counter, mic), ctk)
         except:
@@ -443,39 +450,75 @@ class mod_class(object):
             return None
 
         (iter, ((id, chall, user), leap_auth_resp, leap_supp_chall, leap_supp_resp), leap_pw, nsk, nonces, ctk) = self.comms[host]
+
+        unicode_leap_pw = ""
+        for i in leap_pw:
+            unicode_leap_pw += (i + "\0")
         
-        md4 = hashlib.new("md4", leap_pw).digest()
+        md4 = hashlib.new("md4", unicode_leap_pw).digest()
         md4 = hashlib.new("md4", md4).digest()
         
         md5 = hashlib.md5()
         md5.update(md4)
-        md5.update(chall)
-        md5.update(leap_auth_resp)
         md5.update(leap_supp_chall)
         md5.update(leap_supp_resp)
+        md5.update(chall)
+        md5.update(leap_auth_resp)
 
         return md5.digest()
+
+    def calcPrf(self, key, input, offset, len, output, outOffset, outLen):
+        numPasses = (outLen + 19) / 20
+        passIndex = offset + len - 1
+        outIndex = outOffset
+
+        input = input[:passIndex] + chr(0)
+        for currPass in xrange(numPasses):
+            genHmacSHA1 = hmac.new(key, digestmod=hashlib.sha1)
+            genHmacSHA1.update(input[offset:offset+len])
+            output = output[:outOffset] + genHmacSHA1.digest()
+            outOffset += 20
+            input = input[:passIndex] + chr(ord(input[passIndex]) + 1)
+        return output[:outLen]
         
+    def rc4crypt(self, data, key):
+        x = 0
+        box = range(256)
+        for i in xrange(256):
+            x = (x + box[i] + ord(key[i % len(key)])) % 256
+            box[i], box[x] = box[x], box[i]
+        x = 0
+        y = 0
+        out = []
+        for char in data:
+            x = (x + 1) % 256
+            y = (y + box[x]) % 256
+            box[x], box[y] = box[y], box[x]
+            out.append(chr(ord(char) ^ box[(box[x] + box[y]) % 256]))        
+        return ''.join(out)
+
     def gen_ctk(self, host):
         if not host in self.comms:
             return None
 
         (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter, (mic, packet)), ctk) = self.comms[host]
 
-        ctk_seed = "\0%s%s%s%s%s\0" % (supp_node, dst_node, nonce_req, nonce_repl, counter)
-        if len(nsk) != 16:
-            print "nsk len incorrect short"
-        if len(ctk_seed) != 86:
-            print "ctk_seed len incorrect"
-        
-        ctk = loki.sha1.sha1_prf.sha1_prf(nsk, "SWAN IN to IA linkContext Transfer Key Derivation", ctk_seed, 32)
-
-        mac = hmac.new(ctk)
-        tmp = packet[:-16]
+        ctk_seed = "SWAN IN to IA linkContext Transfer Key Derivation\0%s%s%s%s%s\0" % (dst_node, supp_node, nonce_req, nonce_repl, counter)
+        ctk = self.calcPrf(nsk, ctk_seed, 0, len(ctk_seed), "", 0, 32)
+        mac = hmac.new(ctk[16:32])
+        tmp = packet[54:-16]
         mac.update(tmp)
-        print "given mic:  %s" % mic.encode("hex")
-        print "calced mic: %s" % mac.digest().encode("hex")
-
+        result = mac.digest()
+        if result != mic:
+            print "=== OOOOPS something went wrong, MIC calculation failed ! ==="
+            print "given mic:   %s" % mic.encode("hex")
+            print "calced mic:  %s" % result.encode("hex")
+        i = self.comms_treestore.iter_parent(iter)
+        if not i:
+            i = iter
+        connection = self.comms_treestore.get_value(i, self.COMMS_HOST_ROW)
+        self.log("WLCCP: Found CTK %s for connection %s" % (ctk.encode("hex"), connection.replace('\n       <=>\n', ' <=> ')))
+        
         return ctk
 
     def on_crack_leap_button_clicked(self, btn):
