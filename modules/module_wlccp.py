@@ -47,7 +47,7 @@ import dpkt
 
 import loki
 
-DEBUG = True
+DEBUG = False
 
 class wlccp_header(object):
     def __init__(self, version=None, sap=None, dst_type=None, msg_type=None, id=None, flags=None, orig_node_type=None, orig_node_mac=None, dst_node_type=None, dst_node_mac=None):
@@ -555,12 +555,13 @@ class mod_class(object):
                            self.comms_treestore.set(child, self.COMMS_TYPE_ROW, pw)
                            break
                     self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
-                    nsk = self.gen_nsk(host)
-                    self.comms_treestore.append(iter, [ "NSK", nsk.encode("hex"), "", "" ])
-                    self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
-                    ctk = self.gen_ctk(host)
-                    self.comms_treestore.append(iter, [ "CTK", ctk.encode("hex"), "", "" ])
-                    self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
+                    if model.get_value(iter, self.COMMS_TYPE_ROW) != self.node_types[0x40]:
+                        nsk = self.gen_nsk(host)
+                        self.comms_treestore.append(iter, [ "NSK", nsk.encode("hex"), "", "" ])
+                        self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
+                        ctk = self.gen_ctk(host)
+                        self.comms_treestore.append(iter, [ "CTK", ctk.encode("hex"), "", "" ])
+                        self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
                 else:
                     self.log("WLCCP: Password for %s not found." % connection.replace('\n       <=>\n', ' <=> '))
 
