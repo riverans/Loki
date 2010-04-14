@@ -165,8 +165,9 @@ class mod_class(object):
     HOSTS_PRIO_ROW = 2
     
     COMMS_HOST_ROW = 0
-    COMMS_STATE_ROW = 1
-    COMMS_ORIGIN_ROW = 2
+    COMMS_TYPE_ROW = 1
+    COMMS_STATE_ROW = 2
+    COMMS_ORIGIN_ROW = 3
 
     node_types = {  0x00 : "NODE_TYPE_NONE",
                     0x01 : "NODE_TYPE_AP",
@@ -184,7 +185,7 @@ class mod_class(object):
         self.name = "wlccp"
         self.gladefile = "/modules/module_wlccp.glade"
         self.hosts_liststore = gtk.ListStore(str, str, str)
-        self.comms_treestore = gtk.TreeStore(str, str, str)
+        self.comms_treestore = gtk.TreeStore(str, str, str, str)
         self.dnet = None
         self.election_thread = None
 
@@ -242,6 +243,12 @@ class mod_class(object):
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.COMMS_HOST_ROW)
+        self.comms_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Type")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.COMMS_TYPE_ROW)
         self.comms_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("State")
@@ -329,7 +336,7 @@ class mod_class(object):
                 if host in self.comms:
                     (iter, leap, leap_pw, nsk, nonces, ctk) = self.comms[host]
                 elif not host == "00:00:00:00:00:00":
-                    iter = self.comms_treestore.append(None, ["%s\n       <=>\n%s" % (dnet.eth_ntoa(header.orig_node_mac), dnet.eth_ntoa(header.dst_node_mac)), "", host])
+                    iter = self.comms_treestore.append(None, ["%s\n       <=>\n%s" % (dnet.eth_ntoa(header.orig_node_mac), dnet.eth_ntoa(header.dst_node_mac)), self.node_types[eap_auth.requestor_type], "", host])
                     self.comms[host] = (iter, (None, None, None, None), None, None, (None, None, None, None, None, (None, None)), None)
                 (eapol_version, eapol_type, eapol_len) = struct.unpack("!BBH", ret[2:6])
                 ret = ret[6:]
@@ -350,7 +357,7 @@ class mod_class(object):
                                 chall = ret[:8]
                                 user = ret[8:16]
                                 self.comms_treestore.set(iter, self.COMMS_STATE_ROW, "EAP-AUTH challenge from authenticator seen")
-                                self.comms_treestore.append(iter, [ "User", user, "" ])
+                                self.comms_treestore.append(iter, [ "User", user, "", "" ])
                                 self.log("WLCCP: EAP-AUTH challenge from authenticator seen for %s" % host)
                                 self.comms[host] = (iter, ((id, chall, user), leap_auth_resp, leap_supp_chall, leap_supp_resp), leap_pw, nsk, nonces, ctk)
                             elif leap_auth_chall and leap_auth_resp and not leap_supp_chall and not leap_supp_resp:
@@ -379,7 +386,7 @@ class mod_class(object):
                             elif leap_auth_chall and leap_auth_resp and leap_supp_chall and not leap_supp_resp:
                                 resp = ret[:24]
                                 self.comms_treestore.set(iter, self.COMMS_STATE_ROW, "EAP-AUTH response from supplicant seen")
-                                self.comms_treestore.append(iter, [ "Password", "*ready to crack*", "" ])
+                                self.comms_treestore.append(iter, [ "Password", "*ready to crack*", "", "" ])
                                 self.log("WLCCP: EAP-AUTH response from supplicant seen for %s" % host)
                                 self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, resp), leap_pw, nsk, nonces, ctk)
                             else:
@@ -505,18 +512,21 @@ class mod_class(object):
 
         ctk_seed = "SWAN IN to IA linkContext Transfer Key Derivation\0%s%s%s%s%s\0" % (dst_node, supp_node, nonce_req, nonce_repl, counter)
         ctk = self.calcPrf(nsk, ctk_seed, 0, len(ctk_seed), "", 0, 32)
-        mac = hmac.new(ctk[16:32])
-        tmp = packet[54:-16]
-        mac.update(tmp)
-        result = mac.digest()
-        if result != mic:
-            print "=== OOOOPS something went wrong, MIC calculation failed ! ==="
-            print "given mic:   %s" % mic.encode("hex")
-            print "calced mic:  %s" % result.encode("hex")
         i = self.comms_treestore.iter_parent(iter)
         if not i:
             i = iter
         connection = self.comms_treestore.get_value(i, self.COMMS_HOST_ROW)
+        if mic and packet:
+            mac = hmac.new(ctk[16:32])
+            tmp = packet[54:-16]
+            mac.update(tmp)
+            result = mac.digest()
+            if result != mic:
+                print "=== OOOOPS something went wrong, MIC calculation failed ! ==="
+                print "given mic:   %s" % mic.encode("hex")
+                print "calced mic:  %s" % result.encode("hex")
+        else:
+            self.log("WLCCP: Can't verify CTK mic for connection %s, none found." % connection.replace('\n       <=>\n', ' <=> '))
         self.log("WLCCP: Found CTK %s for connection %s" % (ctk.encode("hex"), connection.replace('\n       <=>\n', ' <=> ')))
         
         return ctk
@@ -542,14 +552,14 @@ class mod_class(object):
                     for i in xrange(self.comms_treestore.iter_n_children(iter)):
                         child = self.comms_treestore.iter_nth_child(iter, i)
                         if self.comms_treestore.get(child, self.COMMS_HOST_ROW) == ("Password",):
-                           self.comms_treestore.set(child, self.COMMS_STATE_ROW, pw)
+                           self.comms_treestore.set(child, self.COMMS_TYPE_ROW, pw)
                            break
                     self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
                     nsk = self.gen_nsk(host)
-                    self.comms_treestore.append(iter, [ "NSK", nsk.encode("hex"), "" ])
+                    self.comms_treestore.append(iter, [ "NSK", nsk.encode("hex"), "", "" ])
                     self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
                     ctk = self.gen_ctk(host)
-                    self.comms_treestore.append(iter, [ "CTK", ctk.encode("hex"), "" ])
+                    self.comms_treestore.append(iter, [ "CTK", ctk.encode("hex"), "", "" ])
                     self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
                 else:
                     self.log("WLCCP: Password for %s not found." % connection.replace('\n       <=>\n', ' <=> '))
