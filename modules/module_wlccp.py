@@ -47,7 +47,7 @@ import dpkt
 
 import loki
 
-DEBUG = False
+DEBUG = True
 
 class wlccp_header(object):
     def __init__(self, version=None, sap=None, dst_type=None, msg_type=None, id=None, flags=None, orig_node_type=None, orig_node_mac=None, dst_node_type=None, dst_node_mac=None):
@@ -178,7 +178,16 @@ class mod_class(object):
                     0x40 : "NODE_TYPE_CLIENT",
                     0x8000 : "NODE_TYPE_MULTICAST"
                     }
-    
+                    
+    NODE_TYPE_NONE = 0x00
+    NODE_TYPE_AP = 0x01
+    NODE_TYPE_SCM = 0x02
+    NODE_TYPE_LCM = 0x04
+    NODE_TYPE_CCM = 0x08
+    NODE_TYPE_INFRA = 0x10
+    NODE_TYPE_CLIENT = 0x40
+    NODE_TYPE_MULTICAST = 0x8000
+                        
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -188,17 +197,14 @@ class mod_class(object):
         self.comms_treestore = gtk.TreeStore(str, str, str, str)
         self.dnet = None
         self.election_thread = None
+        self.rc4prepend = ""
+        for i in xrange(256):
+            self.rc4prepend += chr(i)
 
     def start_mod(self):
         self.hosts = {}
         self.comms = {}
-        #~ self.comms["test"] = (None, (("bla", "\x42\x92\xb7\x31\x0e\x30\xf9\xe1", "test"), "\x77\x55\xe7\x19\x15\xdf\xff\xe3\x00\x55\x6b\x72\x04\xaf\x99\x0f\xe3\x39\x1b\x4c\xc2\x18\xca\x1f", "\x1b\xae\x38\xf0\x6c\xf3\x96\xca", "\x00\x95\xc9\x98\x37\xfb\x04\xce\x62\x7e\x37\x6e\x9b\x5a\xc3\x48\x16\x2a\x47\xe3\xb7\x1f\x3f\x52"), "b]_^.'62ft]LsawO~SwXc-hI3+_AE."
-#~ , None, None, None)
-        #~ print "nsk: %s" % self.gen_nsk("test").encode("hex")
-        #~ print "nsk1: %s" % self.gen_nsk1("test").encode("hex")
-        #~ print "nsk2: %s" % self.gen_nsk2("test").encode("hex")
-        #~ print "nsk3: %s" % self.gen_nsk3("test").encode("hex")
-        #~ print "should be: 3528c1a93f4fcde35b20424b2b897ea4"
+        self.clients = {}
         
     def shut_mod(self):
         if self.election_thread:
@@ -446,6 +452,69 @@ class mod_class(object):
                         nonces = ret[26:58]                            
                         self.log("WLCCP: PATH-REQUEST seen for %s" % host)
                         self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonces, nonce_repl, counter, mic), ctk)
+            elif header.msg_type & 0x3f == 0x09:
+                host = dnet.eth_ntoa(header.orig_node_mac)
+                if header.msg_type & 0xc0 == 0x40:
+                    #PreRegistration_Reply found
+                    if host in self.comms:
+                        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter, mic), ctk) = self.comms[host]
+                        #skip PreRegistration header
+                        ret = ret[22:]
+                        (contextreq_len,) = struct.unpack("!H", ret[2:4])
+                        #substract WLCCP_MIC_len
+                        contextreq_len = contextreq_len - 30
+                        #get Supplicant-ID from WLCCP_MN_SECURE_CONTEXT_REQ
+                        id = ret[16:24]
+                        (id_type,) = struct.unpack("!H", id[:2])
+                        if id_type == self.NODE_TYPE_CLIENT:
+                            client = dnet.eth_ntoa(id[2:])
+                            if client in self.clients:
+                                (org_host, ssid, key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
+                                #get Destination-ID from WLCCP_MN_SECURE_CONTEXT_REQ
+                                ap = dnet.eth_ntoa(ret[10:16])
+                                crypt = ret[24:contextreq_len]
+
+                                print crypt.encode("hex")
+                                
+                                #skip WLCCP_MN_SECURE_CONTEXT_REPLY
+                                ret = ret[contextreq_len:]
+                                #get Message Sequence Counter from WLCCP_MIC
+                                msc = ret[4:12]
+                                self.clients[client] = (org_host, ssid, key_mgmt, ap, crypt, msc, pmk)
+                                self.log("WLCCP: PREREGISTRATION-REPLY seen for %s" % client)
+                else:
+                    #PreRegistration_Request found
+                    if host in self.comms:
+                        (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonce_req, nonce_repl, counter, mic), ctk) = self.comms[host]
+                        #skip PreRegistration header
+                        ret = ret[22:]
+                        (type, len) = struct.unpack("!HH", ret[:4])
+                        if type == 0x10b and len == 0x95:
+                            #get Supplicant-ID from WLCCP_MN_SECURE_CONTEXT_REQ
+                            id = ret[16:24]
+                            (id_type,) = struct.unpack("!H", id[:2])
+                            if id_type == self.NODE_TYPE_CLIENT:
+                                client = dnet.eth_ntoa(id[2:])
+                                #get key management type
+                                key_mgmt = ret[25:26]
+                                #get ssid len and ssid
+                                (ssid_len,) = struct.unpack("!H", ret[68:70])
+                                ssid = ret[70:70 + ssid_len]
+                                if client not in self.clients:
+                                    self.clients[client] = (None, ssid, key_mgmt, None, None, None, None)
+                                else:
+                                    (org_host, org_ssid, org_key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
+                                    self.clients[client] = (host, ssid, key_mgmt, ap, crypt, msc, pmk)
+                                self.log("WLCCP: PREREGISTRATION-REQUEST seen for %s on ssid %s" % (client, ssid))
+                            else:
+                                if DEBUG:
+                                    self.log("WLCCP: FAIL 3 %s" % id.encode("hex"))
+                        else:
+                            if DEBUG:
+                                self.log("WLCCP: FAIL 2 %i:%i" % (type, len))
+                    else:
+                        if DEBUG:
+                            self.log("WLCCP: FAIL 1 %s" % host)
         except:
             if DEBUG:
                 print '-'*60
@@ -549,8 +618,8 @@ class mod_class(object):
                 pw = loki.asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
                 if pw != "":
                     self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection.replace('\n       <=>\n', ' <=> ')))
-                    for i in xrange(self.comms_treestore.iter_n_children(iter)):
-                        child = self.comms_treestore.iter_nth_child(iter, i)
+                    for j in xrange(self.comms_treestore.iter_n_children(iter)):
+                        child = self.comms_treestore.iter_nth_child(iter, j)
                         if self.comms_treestore.get(child, self.COMMS_HOST_ROW) == ("Password",):
                            self.comms_treestore.set(child, self.COMMS_TYPE_ROW, pw)
                            break
@@ -562,6 +631,63 @@ class mod_class(object):
                         ctk = self.gen_ctk(host)
                         self.comms_treestore.append(iter, [ "CTK", ctk.encode("hex"), "", "" ])
                         self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
+
+                    #~ for client in self.clients:
+                        #~ (c_host, ssid, key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
+                        #~ if c_host == host or True:
+#~ 
+                            #~ # b1) offset
+                            #~ # a1) plain RC4
+                            #~ print "1"
+                            #~ decrypt = self.rc4crypt(key_mgmt + crypt, msc + ctk[:16])
+                            #~ print decrypt.encode("hex")
+                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
+                            #~ print "2"
+                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt, msc + ctk[:16])[16:]
+                            #~ print decrypt.encode("hex")
+                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
+                            #~ print "3"
+                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt, msc + ctk[:16])[256:]
+                            #~ print decrypt.encode("hex")
+#~ 
+                            #~ # b2) offset + 4
+                            #~ print "1a"
+                            #~ decrypt = self.rc4crypt(key_mgmt + crypt[4:], msc + ctk[:16])
+                            #~ print decrypt.encode("hex")
+                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
+                            #~ print "2a"
+                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt[4:], msc + ctk[:16])[16:]
+                            #~ print decrypt.encode("hex")
+                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
+                            #~ print "3a"
+                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt[4:], msc + ctk[:16])[256:]
+                            #~ print decrypt.encode("hex")
+#~ 
+                            #~ # b3) offset + 32
+                            #~ print "1b"
+                            #~ decrypt = self.rc4crypt(key_mgmt + crypt[32:], msc + ctk[:16])
+                            #~ print decrypt.encode("hex")
+                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
+                            #~ print "2b"
+                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt[32:], msc + ctk[:16])[16:]
+                            #~ print decrypt.encode("hex")
+                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
+                            #~ print "3b"
+                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt[32:], msc + ctk[:16])[256:]
+                            #~ print decrypt.encode("hex")
+#~ 
+                            #~ # b4) offset + 36
+                            #~ print "1c"
+                            #~ decrypt = self.rc4crypt(key_mgmt + crypt[36:], msc + ctk[:16])
+                            #~ print decrypt.encode("hex")
+                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
+                            #~ print "2c"
+                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt[36:], msc + ctk[:16])[16:]
+                            #~ print decrypt.encode("hex")
+                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
+                            #~ print "3c"
+                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt[36:], msc + ctk[:16])[256:]
+                            #~ print decrypt.encode("hex")
                 else:
                     self.log("WLCCP: Password for %s not found." % connection.replace('\n       <=>\n', ' <=> '))
 
