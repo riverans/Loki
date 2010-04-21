@@ -23,19 +23,19 @@ gcc -c -o lib/md5.o lib/md5.c -fpic -Wall
 #cd ../..
 
 #Build TCPMD5 Modules
-gcc -c -o loki/tcpmd5/tcpmd5.o loki/tcpmd5/tcpmd5.c `python-config --cflags` -fpic -Wall
-gcc -c -o loki/tcpmd5/tcpmd5bf.o loki/tcpmd5/tcpmd5bf.c `python-config --cflags` -fpic -Wall -I.
-ld -shared -soname tcpmd5.so loki/tcpmd5/tcpmd5.o -o loki/tcpmd5/tcpmd5.so -lc
-ld -shared -soname tcpmd5bf.so loki/tcpmd5/tcpmd5bf.o lib/md5.o -o loki/tcpmd5/tcpmd5bf.so -lc
+gcc -c -o loki_bindings/tcpmd5/tcpmd5.o loki_bindings/tcpmd5/tcpmd5.c `python-config --cflags` -fpic -Wall
+gcc -c -o loki_bindings/tcpmd5/tcpmd5bf.o loki_bindings/tcpmd5/tcpmd5bf.c `python-config --cflags` -fpic -Wall -I.
+ld -shared -soname tcpmd5.so loki_bindings/tcpmd5/tcpmd5.o -o loki_bindings/tcpmd5/tcpmd5.so -lc
+ld -shared -soname tcpmd5bf.so loki_bindings/tcpmd5/tcpmd5bf.o lib/md5.o -o loki_bindings/tcpmd5/tcpmd5bf.so -lc
 
 #Build OSPF BF Module
-gcc -c -o loki/ospfmd5/ospfmd5bf.o loki/ospfmd5/ospfmd5bf.c `python-config --cflags` -fpic -Wall -I.
-ld -shared -soname ospfmd5bf.so loki/ospfmd5/ospfmd5bf.o lib/md5.o -o loki/ospfmd5/ospfmd5bf.so -lc
+gcc -c -o loki_bindings/ospfmd5/ospfmd5bf.o loki_bindings/ospfmd5/ospfmd5bf.c `python-config --cflags` -fpic -Wall -I.
+ld -shared -soname ospfmd5bf.so loki_bindings/ospfmd5/ospfmd5bf.o lib/md5.o -o loki_bindings/ospfmd5/ospfmd5bf.so -lc
 
 #Build ASLEAP Module
-gcc -c -o loki/asleap/common.o lib/asleap/common.c -I./lib/asleap -fpic -DHAVE_OPENSSL_MD4_H -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-gcc -c -o loki/asleap/utils.o lib/asleap/utils.c -I./lib/asleap -fpic -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-gcc -c -o loki/asleap/sha1.o lib/asleap/sha1.c -I./lib/asleap -fpic -DHAVE_ENDIAN_H -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-gcc -c -o loki/asleap/bin_asleap.o lib/asleap/asleap.c -I./lib/asleap -fpic -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
-gcc -c -o loki/asleap/asleap.o loki/asleap/asleap.c `python-config --cflags` -fpic -Wall -I.
-ld -shared -soname asleap.so loki/asleap/asleap.o loki/asleap/common.o loki/asleap/utils.o loki/asleap/sha1.o loki/asleap/bin_asleap.o -o loki/asleap/asleap.so -lc -lpcap -lcrypt -lcrypto -lssl
+gcc -c -o loki_bindings/asleap/common.o lib/asleap/common.c -I./lib/asleap -fpic -DHAVE_OPENSSL_MD4_H -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+gcc -c -o loki_bindings/asleap/utils.o lib/asleap/utils.c -I./lib/asleap -fpic -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+gcc -c -o loki_bindings/asleap/sha1.o lib/asleap/sha1.c -I./lib/asleap -fpic -DHAVE_ENDIAN_H -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+gcc -c -o loki_bindings/asleap/bin_asleap.o lib/asleap/asleap.c -I./lib/asleap -fpic -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
+gcc -c -o loki_bindings/asleap/asleap.o loki_bindings/asleap/asleap.c `python-config --cflags` -fpic -Wall -I.
+ld -shared -soname asleap.so loki_bindings/asleap/asleap.o loki_bindings/asleap/common.o loki_bindings/asleap/utils.o loki_bindings/asleap/sha1.o loki_bindings/asleap/bin_asleap.o -o loki_bindings/asleap/asleap.so -lc -lpcap -lcrypt -lcrypto -lssl
