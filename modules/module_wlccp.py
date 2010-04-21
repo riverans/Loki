@@ -45,7 +45,7 @@ import gtk.glade
 import dnet
 import dpkt
 
-import loki
+import loki_bindings
 
 DEBUG = False
 
@@ -202,9 +202,6 @@ class mod_class(object):
         self.comms_treestore = gtk.TreeStore(str, str, str, str)
         self.dnet = None
         self.election_thread = None
-        self.rc4prepend = ""
-        for i in xrange(256):
-            self.rc4prepend += chr(i)
 
     def start_mod(self):
         self.hosts = {}
@@ -654,7 +651,7 @@ class mod_class(object):
                 wl = self.wordlist_filechooserbutton.get_filename()
                 if not wl:
                     return
-                pw = loki.asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
+                pw = loki_bindings.asleap.asleap.attack_leap(wl, chall, leap_auth_resp, id, user)
                 if pw != "":
                     self.log("WLCCP: Found LEAP-Password %s for connection %s" % (pw, connection.replace('\n       <=>\n', ' <=> ')))
                     for j in xrange(self.comms_treestore.iter_n_children(iter)):

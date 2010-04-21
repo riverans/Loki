@@ -385,10 +385,10 @@ class bgp_session(threading.Thread):
         self.sock.settimeout(timeout)
 
         if self.parent.platform == "Linux" or self.parent.platform == "FreeBSD":
-            import loki
+            import loki_bindings
             for (i, j) in self.md5:
                 if i == self.dest:
-                    loki.tcpmd5.tcpmd5.set(self.sock.fileno(), self.parent.ip, i, BGP_PORT, j)
+                    loki_bindings.tcpmd5.tcpmd5.set(self.sock.fileno(), self.parent.ip, i, BGP_PORT, j)
             
         self.sock.connect((self.dest, BGP_PORT))
         if not bf:
@@ -431,10 +431,10 @@ class bgp_session(threading.Thread):
             self.sem.release()
             time.sleep(self.hold_time / 4)
         if self.parent.platform == "Linux" or self.parent.platform == "FreeBSD":
-            import loki
+            import loki_bindings
             for (i, j) in self.md5:
                 if i == self.dest:
-                    loki.tcpmd5.tcpmd5.clear(self.sock.fileno(), self.parent.ip, i, BGP_PORT)
+                    loki_bindings.tcpmd5.tcpmd5.clear(self.sock.fileno(), self.parent.ip, i, BGP_PORT)
         self.sock.close()
 
 ### MODULE_CLASS ###

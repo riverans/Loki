@@ -48,7 +48,7 @@ import dpkt
 import pcap
 import dnet
 
-DEBUG = True
+DEBUG = False
 
 VERSION = "v0.2.1"
 PLATFORM = platform.system()

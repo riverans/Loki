@@ -32,7 +32,7 @@ tcpmd5bf_libs = []
 tcpmd5bf_extargs = []
 tcpmd5bf_extobj = []
 
-asleap = Extension( 'loki.asleap.asleap',
+asleap = Extension( 'loki_bindings.asleap.asleap',
                     asleap_srcs,
                     include_dirs=asleap_incdirs,
                     library_dirs=asleap_libdirs,
@@ -40,7 +40,7 @@ asleap = Extension( 'loki.asleap.asleap',
                     extra_compile_args=asleap_extargs,
                     extra_objects=asleap_extobj)
 
-ospfmd5bf = Extension(  'loki.ospfmd5.ospfmd5bf',
+ospfmd5bf = Extension(  'loki_bindings.ospfmd5.ospfmd5bf',
                         ospfmd5bf_srcs,
                         include_dirs=ospfmd5bf_incdirs,
                         library_dirs=ospfmd5bf_libdirs,
@@ -48,7 +48,7 @@ ospfmd5bf = Extension(  'loki.ospfmd5.ospfmd5bf',
                         extra_compile_args=ospfmd5bf_extargs,
                         extra_objects=ospfmd5bf_extobj)
 
-tcpmd5 = Extension( 'loki.tcpmd5.tcpmd5',
+tcpmd5 = Extension( 'loki_bindings.tcpmd5.tcpmd5',
                     tcpmd5_srcs,
                     include_dirs=tcpmd5_incdirs,
                     library_dirs=tcpmd5_libdirs,
@@ -56,7 +56,7 @@ tcpmd5 = Extension( 'loki.tcpmd5.tcpmd5',
                     extra_compile_args=tcpmd5_extargs,
                     extra_objects=tcpmd5_extobj)
 
-tcpmd5bf = Extension(   'loki.tcpmd5.tcpmd5bf',
+tcpmd5bf = Extension(   'loki_bindings.tcpmd5.tcpmd5bf',
                         tcpmd5bf_srcs,
                         include_dirs=tcpmd5bf_incdirs,
                         library_dirs=tcpmd5bf_libdirs,
@@ -64,12 +64,12 @@ tcpmd5bf = Extension(   'loki.tcpmd5.tcpmd5bf',
                         extra_compile_args=tcpmd5bf_extargs,
                         extra_objects=tcpmd5bf_extobj)
                     
-setup(name='loki',
+setup(name='loki_bindings',
       version='@VERSION@',
       description='',
       author='Daniel Mende',
       author_email='dmende@ernw.de',
       url='https://c0decafe.de',
-      packages=['loki', 'loki.asleap', 'loki.ospfmd5', 'loki.tcpmd5'],
+      packages=['loki_bindings', 'loki_bindings.asleap', 'loki_bindings.ospfmd5', 'loki_bindings.tcpmd5'],
       ext_modules=[asleap, ospfmd5bf, tcpmd5, tcpmd5bf]
      )

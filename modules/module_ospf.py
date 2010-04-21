@@ -38,7 +38,7 @@ import tempfile
 import threading
 import time
 
-import loki
+import loki_bindings
 
 import dnet
 import dpkt
@@ -462,6 +462,13 @@ class ospf_link_state_advertisement_header(object):
     TYPE_SUMMARY_LINK_IP = 3
     TYPE_SUMMARY_LINK_ASBR = 4
     TYPE_AS_EXTERNAL = 5
+
+    TYPES = {   1 : "TYPE_ROUTER_LINKS",
+                2 : "TYPE_NETWORK_LINKS",
+                3 : "TYPE_SUMMARY_LINK_IP",
+                4 : "TYPE_SUMMARY_LINK_ASBR",
+                5 : "TYPE_AS_EXTERNAL"
+                }
     
     def __init__(self, ls_age=None, options=None, ls_type=None, ls_id=None, advert_router=None, ls_seq=None):
         self.ls_age = ls_age
@@ -545,6 +552,12 @@ class ospf_router_link_advertisement_link(object):
     TYPE_TRANSIT_NET = 2
     TYPE_STUB_NET = 3
     TYPE_VIRTUAL = 4
+
+    TYPES = {   1 : "TYPE_POINT_TO_POINT",
+                2 : "TYPE_TRANSIT_NET",
+                3 : "TYPE_STUB_NET",
+                4 : "TYPE_VIRTUAL"
+                }
 
     LINK_ID_NEIGH_ID = 1
     LINK_ID_DESEG_ADDR = 2
@@ -1049,7 +1062,7 @@ class ospf_md5bf(threading.Thread):
         #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest, self.data)
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
         os.close(handle)
-        pw = loki.ospfmd5bf.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        pw = loki_bindings.ospfmd5bf.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         src = self.parent.neighbor_liststore.get_value(self.iter, parent.NEIGH_IP_ROW)
         if pw:
             self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
@@ -1083,7 +1096,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "ospf"
         self.gladefile = "/modules/module_ospf.glade"
-        self.neighbor_liststore = gtk.ListStore(str, str, int, str, str, str)
+        self.neighbor_liststore = gtk.TreeStore(str, str, int, str, str, str)
         self.network_liststore = gtk.ListStore(str, str, str)
         self.auth_type_liststore = gtk.ListStore(str, int)
         for i in dir(ospf_header):
@@ -1279,7 +1292,7 @@ class mod_class(object):
                         else:
                             master = False
                         #print "Local %s (%i) - Peer %s (%i) => Master " % (dnet.ip_ntoa(self.ip), socket.ntohl(ip_int), id, socket.ntohl(header.id)) + str(master)
-                        iter = self.neighbor_liststore.append([dnet.ip_ntoa(ip.src), id, header.area, "HELLO", header.auth_to_string(), ""])
+                        iter = self.neighbor_liststore.append(None, [dnet.ip_ntoa(ip.src), id, header.area, "HELLO", header.auth_to_string(), ""])
                         #                    (iter, mac,     src,    dbd, lsa, state,                 master, seq)
                         self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337, ip.data)
                         self.log("OSPF: Got new peer %s" % (dnet.ip_ntoa(ip.src)))
@@ -1345,6 +1358,13 @@ class mod_class(object):
                                 self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                             update = ospf_link_state_update()
                             update.parse(data)
+                            
+                            ### ADD LSA'S TO NEIGH-STORE ###
+                            for lsa in update.advertisements:
+                                if lsa.type == ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS:
+                                    for link in lsa.links:
+                                        self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", dnet.ip_ntoa(link.id), dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", ""])
+
                             self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq, ip.data)
 
     # SIGNALS #
@@ -1380,8 +1400,15 @@ class mod_class(object):
         else:
             self.area_entry.set_property("sensitive", True)
             self.auth_type_combobox.set_property("sensitive", True)
-            self.auth_data_entry.set_property("sensitive", True)
-            self.id_spinbutton.set_property("sensitive", True)
+            if self.auth_type == ospf_header.AUTH_NONE:
+                self.auth_data_entry.set_property("sensitive", False)
+                self.id_spinbutton.set_property("sensitive", False)
+            elif self.auth_type == ospf_header.AUTH_SIMPLE:
+                self.auth_data_entry.set_property("sensitive", True)
+                self.id_spinbutton.set_property("sensitive", False)
+            elif self.auth_type == ospf_header.AUTH_CRYPT:
+                self.auth_data_entry.set_property("sensitive", True)
+                self.id_spinbutton.set_property("sensitive", True)
             if self.filter:
                 self.log("OSPF: Removing lokal packet filter for OSPF")
                 #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
