@@ -3,7 +3,7 @@
 
 from distutils.core import setup, Extension
 
-asleap_srcs = [ '@top_srcdir@/loki/asleap/asleap.c', '@top_srcdir@/lib/asleap/asleap.c']
+asleap_srcs = [ '@top_srcdir@/loki_bindings/asleap/asleap.c', '@top_srcdir@/lib/asleap/asleap.c']
 asleap_incdirs = [ '@top_srcdir@' ]
 asleap_libdirs = []
 asleap_libs = []
@@ -11,21 +11,21 @@ asleap_extargs = []
 asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o']
 asleap_extobj += '@LIBS@'.split()
 
-ospfmd5bf_srcs = [ '@top_srcdir@/loki/ospfmd5/ospfmd5bf.c', '@top_srcdir@/lib/md5.c' ]
+ospfmd5bf_srcs = [ '@top_srcdir@/loki_bindings/ospfmd5/ospfmd5bf.c', '@top_srcdir@/lib/md5.c' ]
 ospfmd5bf_incdirs = [ '@top_srcdir@' ]
 ospfmd5bf_libdirs = []
 ospfmd5bf_libs = []
 ospfmd5bf_extargs = []
 ospfmd5bf_extobj = []
 
-tcpmd5_srcs = [ '@top_srcdir@/loki/tcpmd5/tcpmd5.c' ]
+tcpmd5_srcs = [ '@top_srcdir@/loki_bindings/tcpmd5/tcpmd5.c' ]
 tcpmd5_incdirs = []
 tcpmd5_libdirs = []
 tcpmd5_libs = []
 tcpmd5_extargs = []
 tcpmd5_extobj = []
 
-tcpmd5bf_srcs = [ '@top_srcdir@/loki/tcpmd5/tcpmd5bf.c', '@top_srcdir@/lib/md5.c' ]
+tcpmd5bf_srcs = [ '@top_srcdir@/loki_bindings/tcpmd5/tcpmd5bf.c', '@top_srcdir@/lib/md5.c' ]
 tcpmd5bf_incdirs = [ '@top_srcdir@' ]
 tcpmd5bf_libdirs = []
 tcpmd5bf_libs = []
