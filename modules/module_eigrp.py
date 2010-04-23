@@ -280,6 +280,14 @@ class eigrp_external_route(eigrp_tlv):
             dest += self.dest[x:x+1]
         return eigrp_tlv.render(self, self.next_hop + self.originating_router + struct.pack("!IIIIxxBBIIIBBxxB", self.originating_as, self.arbitrary_tag, self.external_metric, self.external_proto, self.flags, self.delay, self.bandwidth, mtu_and_hop, self.reliability, self.load, self.prefix) + dest)
 
+    def parse(self, data):
+        self.next_hop = dnet.ip_ntoa(data[:4])
+        self.originating_router = dnet.ip_ntoa(data[4:8])
+        (self.originating_as, self.arbitrary_tag, self.external_metric, self.external_proto, self.flags, self.delay, self.bandwidth, mtu_and_hop, self.reliability, self.load, self.prefix) = struct.unpack("!IIIIxxBBIIIBBxxB", data[8:44])
+        self.mtu = mtu_and_hop >> 8
+        self.hop_count = mtu_and_hop & 0x000000ff
+        self.dest = dnet.ip_ntoa(data[44:] + '\0' * (48 - len(data)))
+
 ### THREAD_CLASSES ###
 
 class eigrp_hello_thread(threading.Thread):
@@ -414,12 +422,15 @@ class eigrp_peer(threading.Thread):
                     if tlv.type == eigrp_tlv.EIGRP_TYPE_INTERNAL_ROUTE:
                         route = eigrp_internal_route()
                         route.parse(tlv.data)
-                        print route.next_hop
-                        print route.prefix
-                        print route.dest
-                        ## insert entry in treeview ##
+                        if route.next_hop == "0.0.0.0":
+                            route.next_hop = dnet.ip_ntoa(self.peer)
+                        self.parent.treestore.append(self.iter, ["INTERNAL_ROUTE", route.dest + "/" + str(route.prefix) + " via " + route.next_hop])
                     if tlv.type == eigrp_tlv.EIGRP_TYPE_EXTERNAL_ROUTE:
-                        pass
+                        route = eigrp_external_route()
+                        route.parse(tlv.data)
+                        if route.next_hop == "0.0.0.0":
+                            route.next_hop = dnet.ip_ntoa(self.peer)
+                        self.parent.treestore.append(self.iter, ["EXTERNAL_ROUTE", route.dest + "/" + str(route.prefix) + " via " + route.next_hop + " on AS" + str(route.originating_as)])
 
     def update(self, msg):
         self.sem.acquire()
@@ -427,12 +438,12 @@ class eigrp_peer(threading.Thread):
         self.sem.release()
         
     def run(self):
-        iter = self.parent.liststore.append([dnet.ip_ntoa(self.peer), self.as_num])
+        self.iter = self.parent.treestore.append(None, [dnet.ip_ntoa(self.peer), str(self.as_num)])
         self.send()
         self.parent.log("EIGRP: Peer " + socket.inet_ntoa(self.peer) + " terminated")
-        if self.parent.liststore:
-            if self.parent.liststore.iter_is_valid(iter):
-                self.parent.liststore.remove(iter)
+        if self.parent.treestore:
+            if self.parent.treestore.iter_is_valid(self.iter):
+                self.parent.treestore.remove(self.iter)
         del self.parent.peers[self.peer]
 
     def quit(self):
@@ -468,7 +479,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "eigrp"
         self.gladefile = "/modules/module_eigrp.glade"
-        self.liststore = gtk.ListStore(str, int)
+        self.treestore = gtk.TreeStore(str, str)
         self.filter = False
         self.hello_thread = None
         self.goodbye_thread = None
@@ -498,7 +509,7 @@ class mod_class(object):
                 #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
                 self.fw.delete(self.ospf_filter)
                 self.filter = False
-        self.liststore.clear()
+        self.treestore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -523,7 +534,7 @@ class mod_class(object):
         self.update_textview = self.glade_xml.get_widget("update_textview")
         
         self.treeview = self.glade_xml.get_widget("neighbor_treeview")
-        self.treeview.set_model(self.liststore)
+        self.treeview.set_model(self.treestore)
         self.treeview.set_headers_visible(True)
 
         column = gtk.TreeViewColumn()
@@ -715,7 +726,7 @@ class mod_class(object):
             self.peers[peer].quit()
 
     def on_clear_button_clicked(self, data):
-        #self.liststore.clear()
+        #self.treestore.clear()
         for i in self.peers:
             self.peers[i].quit()
 
