@@ -220,9 +220,12 @@ class eigrp_version(eigrp_tlv):
         return eigrp_tlv.render(self, struct.pack("!HH", self.ios_ver, self.eigrp_ver))
 
 class eigrp_internal_route(eigrp_tlv):
-    def __init__(self, next_hop, delay, bandwidth, mtu, hop_count, reliability, load, prefix, dest):
+    def __init__(self, next_hop = None, delay = None, bandwidth = None, mtu = None, hop_count = None, reliability = None, load = None, prefix = None, dest = None):
         eigrp_tlv.__init__(self, eigrp_tlv.EIGRP_TYPE_INTERNAL_ROUTE)
-        self.next_hop = dnet.ip_aton(next_hop)
+        if next_hop:
+            self.next_hop = dnet.ip_aton(next_hop)
+        else:
+            self.next_hop = next_hop
         self.delay = delay
         self.bandwidth = bandwidth
         self.mtu = mtu
@@ -230,7 +233,10 @@ class eigrp_internal_route(eigrp_tlv):
         self.reliability = reliability
         self.load = load
         self.prefix = prefix
-        self.dest = dnet.ip_aton(dest)
+        if dest:
+            self.dest = dnet.ip_aton(dest)
+        else:
+            self.dest = dest
 
     def render(self):
         mtu_and_hop = (self.mtu << 8) + self.hop_count
@@ -238,6 +244,13 @@ class eigrp_internal_route(eigrp_tlv):
         for x in xrange(0, self.prefix / 8):
             dest += self.dest[x:x+1]
         return eigrp_tlv.render(self, self.next_hop + struct.pack("!IIIBBxxB", self.delay, self.bandwidth, mtu_and_hop, self.reliability, self.load, self.prefix) + dest)
+
+    def parse(self, data):
+        self.next_hop = dnet.ip_ntoa(data[:4])
+        (self.delay, self.bandwidth, mtu_and_hop, self.reliability, self.load, self.prefix) = struct.unpack("!IIIBBxxB", data[4:21])
+        self.mtu = mtu_and_hop >> 8
+        self.hop_count = mtu_and_hop & 0x000000ff
+        self.dest = dnet.ip_ntoa(data[21:] + '\0' * (25 - len(data)))
 
 class eigrp_external_route(eigrp_tlv):
     EIGRP_EXTERNAL_PROTO_OSPF = 6
@@ -336,7 +349,7 @@ class eigrp_peer(threading.Thread):
         self.peer = peer
         self.as_num = as_num
         self.sock = None
-        self.msg = None
+        self.msg = eigrp_packet(eigrp_packet.EIGRP_OPTCODE_UPDATE, eigrp_packet.EIGRP_FLAGS_INIT, 0, 0, self.as_num, None)
         self.running = True
         self.seq_num = 0
         self.auth = auth
@@ -394,6 +407,19 @@ class eigrp_peer(threading.Thread):
             self.sem.acquire()
             self.msg = reply
             self.sem.release()
+            if packet.optcode == eigrp_packet.EIGRP_OPTCODE_UPDATE and len(payload) > 4:
+                tlv = eigrp_tlv()
+                while payload:
+                    payload = tlv.parse(payload)
+                    if tlv.type == eigrp_tlv.EIGRP_TYPE_INTERNAL_ROUTE:
+                        route = eigrp_internal_route()
+                        route.parse(tlv.data)
+                        print route.next_hop
+                        print route.prefix
+                        print route.dest
+                        ## insert entry in treeview ##
+                    if tlv.type == eigrp_tlv.EIGRP_TYPE_EXTERNAL_ROUTE:
+                        pass
 
     def update(self, msg):
         self.sem.acquire()
@@ -588,14 +614,16 @@ class mod_class(object):
         if src not in self.peers:
             packet = eigrp_packet()
             packet.parse(data)
-            self.add_peer(mac, src, packet.as_num)
+            if self.hello_thread and self.hello_thread.is_alive():
+                self.add_peer(mac, src, packet.as_num)
         
     def disp_unicast(self, data, mac, src):
         #print "disp_unicast from " + socket.inet_ntoa(src)
         if src not in self.peers:
             packet = eigrp_packet()
             packet.parse(data)
-            self.add_peer(mac, src, packet.as_num)
+            if self.hello_thread and self.hello_thread.is_alive():
+                self.add_peer(mac, src, packet.as_num)
         else:
             self.peers[src].input(data)
         
