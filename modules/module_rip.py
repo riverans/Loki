@@ -110,8 +110,12 @@ class rip_entry(object):
         return struct.pack("!HH", self.af, self.tag) + self.addr + self.mask + self.nh + struct.pack("!I", self.metric)
 
     def parse(self, data):
-        (self.af, self.tag, self.addr, self.mask, self.nh, self.metric) = struct.unpack("!HHIIII", data[:20])
-        return data[:20]
+        (self.af, self.tag) = struct.unpack("!HH", data[:4])
+        self.addr = data[4:8]
+        self.mask = data[8:12]
+        self.nh = data[12:16]
+        (self.metric, ) = struct.unpack("!I", data[16:20])
+        return data[20:]
 
 class rip_auth(object):
     #~  0                   1                   2                   3 3
@@ -185,7 +189,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "rip"
         self.gladefile = "/modules/module_rip.glade"
-        self.host_liststore = gtk.ListStore(str)
+        self.host_treestore = gtk.TreeStore(str)
         self.route_liststore = gtk.ListStore(str, str, str, str)
         self.thread = None
 
@@ -198,7 +202,7 @@ class mod_class(object):
         if self.thread:
             if self.thread.is_alive():
                 self.thread.shutdown()
-        self.host_liststore.clear()
+        self.host_treestore.clear()
         self.route_liststore.clear()
         
     def get_root(self):
@@ -209,11 +213,11 @@ class mod_class(object):
         self.glade_xml.signal_autoconnect(dic)
 
         self.host_treeview = self.glade_xml.get_widget("host_treeview")
-        self.host_treeview.set_model(self.host_liststore)
+        self.host_treeview.set_model(self.host_treestore)
         self.host_treeview.set_headers_visible(True)
 
         column = gtk.TreeViewColumn()
-        column.set_title("Source")
+        column.set_title("Host")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 0)
@@ -280,9 +284,16 @@ class mod_class(object):
         if ip.dst == dnet.ip_aton(RIP_MULTICAST_ADDRESS) and ip.src != self.ip:
             if ip.src not in self.hosts:
                 src = dnet.ip_ntoa(ip.src)
-                iter = self.host_liststore.append([src])
+                iter = self.host_treestore.append(None, [src])
                 self.log("RIP: Got new host %s" % (src))
                 self.hosts[ip.src] = (iter, src)
+                msg = rip_message()
+                msg.parse(udp.data)
+                for i in msg.entries:
+                    nh = dnet.ip_ntoa(i.nh)
+                    if nh == "0.0.0.0":
+                        nh = src
+                    self.host_treestore.append(iter, [dnet.ip_ntoa(i.addr) + "/" + dnet.ip_ntoa(i.mask) + " via " + nh])
 
     # SIGNALS #
 
