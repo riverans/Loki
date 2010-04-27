@@ -257,8 +257,8 @@ class eigrp_external_route(eigrp_tlv):
     
     def __init__(self, next_hop, originating_router, originating_as, arbitrary_tag, external_metric, external_proto, flags, delay, bandwidth, mtu, hop_count, reliability, load, prefix, dest):
         eigrp_tlv.__init__(self, eigrp_tlv.EIGRP_TYPE_EXTERNAL_ROUTE)
-        self.next_hop = socket.inet_atoi(next_hop)
-        self.originating_router = socket.inet_atoi(originating_router)
+        self.next_hop = dnet.ip_aton(next_hop)
+        self.originating_router = dnet.ip_aton(originating_router)
         self.originating_as = originating_as
         self.arbitrary_tag = arbitrary_tag
         self.external_metric = external_metric
@@ -271,14 +271,14 @@ class eigrp_external_route(eigrp_tlv):
         self.reliability = reliability
         self.load = load
         self.prefix = prefix
-        self.dest = socket.inet_atoi(dest)
+        self.dest = dnet.ip_aton(dest)
 
     def render(self):
         mtu_and_hop = (self.mtu << 8) + self.hop_count
         dest = ""
         for x in xrange(0, self.prefix / 8):
             dest += self.dest[x:x+1]
-        return eigrp_tlv.render(self, self.next_hop + self.originating_router + struct.pack("!IIIIxxBBIIIBBxxB", self.originating_as, self.arbitrary_tag, self.external_metric, self.external_proto, self.flags, self.delay, self.bandwidth, mtu_and_hop, self.reliability, self.load, self.prefix) + dest)
+        return eigrp_tlv.render(self, self.next_hop + self.originating_router + struct.pack("!IIIxxBBIIIBBxxB", self.originating_as, self.arbitrary_tag, self.external_metric, self.external_proto, self.flags, self.delay, self.bandwidth, mtu_and_hop, self.reliability, self.load, self.prefix) + dest)
 
     def parse(self, data):
         self.next_hop = dnet.ip_ntoa(data[:4])
@@ -528,7 +528,7 @@ class mod_class(object):
         self.spoof_togglebutton = self.glade_xml.get_widget("spoof_togglebutton")
 
         self.interface_entry = self.glade_xml.get_widget("interface_entry")
-        self.as_entry = self.glade_xml.get_widget("as_entry")
+        self.as_spinbutton = self.glade_xml.get_widget("as_spinbutton")
         self.spoof_entry = self.glade_xml.get_widget("spoof_entry")
 
         self.update_textview = self.glade_xml.get_widget("update_textview")
@@ -555,6 +555,33 @@ class mod_class(object):
         self.goodbye_label = self.glade_xml.get_widget("goodbye_label")
         self.goodbye_progressbar = self.glade_xml.get_widget("goodbye_progressbar")
 
+        self.notebook = self.glade_xml.get_widget("notebook")
+
+        self.next_hop_entry = self.glade_xml.get_widget("next_hop_entry")
+        self.delay_spinbutton = self.glade_xml.get_widget("delay_spinbutton")
+        self.bandwidth_spinbutton = self.glade_xml.get_widget("bandwidth_spinbutton")
+        self.mtu_spinbutton = self.glade_xml.get_widget("mtu_spinbutton")
+        self.hop_count_spinbutton = self.glade_xml.get_widget("hop_count_spinbutton")
+        self.reliability_spinbutton = self.glade_xml.get_widget("reliability_spinbutton")
+        self.load_spinbutton = self.glade_xml.get_widget("load_spinbutton")
+        self.prefix_spinbutton = self.glade_xml.get_widget("prefix_spinbutton")
+        self.destination_entry = self.glade_xml.get_widget("destination_entry")
+
+        self.next_hop_entry1 = self.glade_xml.get_widget("next_hop_entry1")
+        self.delay_spinbutton1 = self.glade_xml.get_widget("delay_spinbutton1")
+        self.bandwidth_spinbutton1 = self.glade_xml.get_widget("bandwidth_spinbutton1")
+        self.mtu_spinbutton1 = self.glade_xml.get_widget("mtu_spinbutton1")
+        self.hop_count_spinbutton1 = self.glade_xml.get_widget("hop_count_spinbutton1")
+        self.reliability_spinbutton1 = self.glade_xml.get_widget("reliability_spinbutton1")
+        self.load_spinbutton1 = self.glade_xml.get_widget("load_spinbutton1")
+        self.prefix_spinbutton1 = self.glade_xml.get_widget("prefix_spinbutton1")
+        self.destination_entry1 = self.glade_xml.get_widget("destination_entry1")
+
+        self.orig_router_entry = self.glade_xml.get_widget("orig_router_entry")
+        self.orig_as_spinbutton = self.glade_xml.get_widget("orig_as_spinbutton")
+        self.external_metric_spinbutton = self.glade_xml.get_widget("external_metric_spinbutton")
+        self.external_id_spinbutton = self.glade_xml.get_widget("external_id_spinbutton")
+        
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -651,8 +678,8 @@ class mod_class(object):
 
     def on_hello_togglebutton_toggled(self, btn):
         if btn.get_property("active"):
-            self.as_num = int(self.as_entry.get_text())
-            self.as_entry.set_property("sensitive", False)
+            self.as_num = int(self.as_spinbutton.get_value())
+            self.as_spinbutton.set_property("sensitive", False)
             if not self.filter:
                 self.log("EIGRP: Setting lokal packet filter for EIGRP")
                 #os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
@@ -681,7 +708,7 @@ class mod_class(object):
                 self.filter = False
             self.hello_thread.quit()
             self.spoof_togglebutton.set_property("sensitive", True)
-            self.as_entry.set_property("sensitive", True)
+            self.as_spinbutton.set_property("sensitive", True)
 
     def on_spoof_togglebutton_toggled(self, btn):
         if btn.get_property("active"):
@@ -713,7 +740,11 @@ class mod_class(object):
         if ret == gtk.RESPONSE_OK:
             try:
                 peer = entry.get_text()
-                self.add_peer(dnet.arp.get(dnet.ip_aton(peer)), dnet.ip_aton(peer), int(self.as_entry.get_text()))
+                arp = dnet.arp()
+                mac = arp.get(dnet.addr(peer))
+                if not mac:
+                    raise Exception("Unable to get mac address")
+                self.add_peer(mac.data, dnet.ip_aton(peer), int(self.as_spinbutton.get_value()))
             except Exception, e:
                 self.log("EIGRP: Cant add peer %s: %s" % (peer, e))
 
@@ -731,18 +762,66 @@ class mod_class(object):
             self.peers[i].quit()
 
     def on_update_button_clicked(self, data):
-        buffer = self.update_textview.get_buffer()
-        text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
-        if text != "":
+        page = self.notebook.get_current_page()
+        if page == 0:
+            msg = eigrp_packet( eigrp_packet.EIGRP_OPTCODE_UPDATE,
+                                eigrp_packet.EIGRP_FLAGS_COND_RECV,
+                                0,
+                                0,
+                                int(self.as_spinbutton.get_value()),
+                                [   eigrp_internal_route(
+                                        self.next_hop_entry.get_text(),
+                                        int(self.delay_spinbutton.get_value()),
+                                        int(self.bandwidth_spinbutton.get_value()),
+                                        int(self.mtu_spinbutton.get_value()),
+                                        int(self.hop_count_spinbutton.get_value()),
+                                        int(self.reliability_spinbutton.get_value()),
+                                        int(self.load_spinbutton.get_value()),
+                                        int(self.prefix_spinbutton.get_value()),
+                                        self.destination_entry.get_text()
+                                        )
+                                    ]
+                                )
+        elif page == 1:
+            msg = eigrp_packet( eigrp_packet.EIGRP_OPTCODE_UPDATE,
+                                eigrp_packet.EIGRP_FLAGS_COND_RECV,
+                                0,
+                                0,
+                                int(self.as_spinbutton.get_value()),
+                                [   eigrp_external_route(
+                                        self.next_hop_entry1.get_text(),
+                                        self.orig_router_entry.get_text(),
+                                        int(self.orig_as_spinbutton.get_value()),
+                                        0,
+                                        int(self.external_metric_spinbutton.get_value()),
+                                        int(self.external_id_spinbutton.get_value()),
+                                        0,
+                                        int(self.delay_spinbutton1.get_value()),
+                                        int(self.bandwidth_spinbutton1.get_value()),
+                                        int(self.mtu_spinbutton1.get_value()),
+                                        int(self.hop_count_spinbutton1.get_value()),
+                                        int(self.reliability_spinbutton1.get_value()),
+                                        int(self.load_spinbutton1.get_value()),
+                                        int(self.prefix_spinbutton1.get_value()),
+                                        self.destination_entry1.get_text()
+                                        )
+                                    ]
+                                )
+        elif page == 2:
+            buffer = self.update_textview.get_buffer()
+            text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter())
+            if text == "":
+                return
             exec("msg = " + text)
-            select = self.treeview.get_selection()
-            (model, paths) = select.get_selected_rows()
-            for i in paths:
-                host = model.get_value(model.get_iter(i), 0)
-                self.log("EIGRP: Sending update to %s" % (host))
-                peer = dnet.ip_aton(host)
-                self.peers[peer].update(msg)
-        
+
+        select = self.treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            host = model.get_value(model.get_iter(i), 0)
+            self.log("EIGRP: Sending update to %s" % (host))
+            peer = dnet.ip_aton(host)
+            self.peers[peer].update(msg)
+            
     def on_stop_button_clicked(self, data):
         self.goodbye_thread.quit()
         self.goodbye_window.hide_all()
