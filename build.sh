@@ -39,3 +39,8 @@ gcc -c -o loki_bindings/asleap/sha1.o lib/asleap/sha1.c -I./lib/asleap -fpic -DH
 gcc -c -o loki_bindings/asleap/bin_asleap.o lib/asleap/asleap.c -I./lib/asleap -fpic -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 gcc -c -o loki_bindings/asleap/asleap.o loki_bindings/asleap/asleap.c `python-config --cflags` -fpic -Wall -I.
 ld -shared -soname asleap.so loki_bindings/asleap/asleap.o loki_bindings/asleap/common.o loki_bindings/asleap/utils.o loki_bindings/asleap/sha1.o loki_bindings/asleap/bin_asleap.o -o loki_bindings/asleap/asleap.so -lc -lpcap -lcrypt -lcrypto -lssl
+
+#Build MPLS Module
+gcc -c -o loki_bindings/mpls/mplstun.o loki_bindings/mpls/mplstun.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
+gcc -c -o lib/mplstun.o lib/mplstun.c -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
+ld -shared -soname mplstun.so loki_bindings/mpls/mplstun.o lib/mplstun.o -o loki_bindings/mpls/mplstun.so -lc -lpcap -ldnet

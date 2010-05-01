@@ -21,10 +21,11 @@ AC_CHECK_LIB(pcap, pcap_open_live)
 AC_CHECK_LIB(crypt, encrypt)
 AC_CHECK_LIB(crypto, MD4)
 AC_CHECK_LIB(ssl, [SHA1_Init, DES_ecb_encrypt])
+AC_CHECK_LIB(dnet, eth_open)
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/ioctl.h sys/socket.h sys/time.h syslog.h unistd.h])
-AC_CHECK_HEADERS([netpacket/packet.h linux/if.h linux/wireless.h crypt.h openssl/des.h endian.h sys/endian.h])
+AC_CHECK_HEADERS([netpacket/packet.h linux/if.h linux/if_tun.h linux/wireless.h crypt.h openssl/des.h endian.h sys/endian.h])
 AC_CHECK_HEADERS([openssl/md4.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
