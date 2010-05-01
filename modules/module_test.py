@@ -31,8 +31,11 @@
 
 import threading
 
+import dnet
+
 import gobject
 import gtk
+import gtk.glade
 
 class mod_class(object):
     def __init__(self, parent, platform):
