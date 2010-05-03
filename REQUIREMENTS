@@ -8,6 +8,7 @@ libglade    2.6.4		http://www.gnome.org
 
 dnet        1.11		http://libdnet.sourceforge.net/
 pylibpcap   0.5.1		http://sourceforge.net/projects/pylibpcap/
+dpkt        1.6         http://code.google.com/p/dpkt/
 ipy         0.70, 0.64		http://software.inl.fr/trac/trac.cgi/wiki/IPy http://pypi.python.org/pypi/IPy
 
 
