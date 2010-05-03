@@ -39,6 +39,7 @@ import threading
 import time
 import traceback
 import string
+import struct
 
 import gobject
 import gtk
@@ -200,7 +201,9 @@ class pcap_thread(threading.Thread):
     def dispatch_packet(self, pktlen, data, timestamp):
         if not data:
             return
-        eth = dpkt.ethernet.Ethernet(data)
+        #parse and build dpkt.eth on myself, as dpkt parsing method strips dot1q, mpls, etc...
+        (dst, src, type) = struct.unpack("!6s6sH", data[:14])
+        eth = dpkt.ethernet.Ethernet(dst=dst, src=src, type=type, data=data[14:])
         for (check, call, name) in self.parent.eth_checks:
             (ret, stop) = check(eth)
             if ret:
@@ -401,6 +404,8 @@ class codename_loki(object):
         (mod, enabled) = self.modules[module]
         mod.set_log(self.log)
         root = mod.get_root()
+        if not root:
+            root = gtk.Label(mod.name)
         if root.get_parent():
             root.reparent(self.notebook)
             self.notebook.set_tab_label(root, gtk.Label(mod.name))
