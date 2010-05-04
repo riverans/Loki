@@ -43,4 +43,8 @@ ld -shared -soname asleap.so loki_bindings/asleap/asleap.o loki_bindings/asleap/
 #Build MPLS Module
 gcc -c -o loki_bindings/mpls/mplstun.o loki_bindings/mpls/mplstun.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
 gcc -c -o lib/mplstun.o lib/mplstun.c -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
+gcc -c -o loki_bindings/mpls/mplsred.o loki_bindings/mpls/mplsred.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
+gcc -c -o lib/mplsred.o lib/mplsred.c -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
+ld -shared -soname mplsred.so loki_bindings/mpls/mplsred.o lib/mplsred.o -o loki_bindings/mpls/mplsred.so -lc -lpcap -ldnet
 ld -shared -soname mplstun.so loki_bindings/mpls/mplstun.o lib/mplstun.o -o loki_bindings/mpls/mplstun.so -lc -lpcap -ldnet
+

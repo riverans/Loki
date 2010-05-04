@@ -111,6 +111,15 @@ mplstun_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplstun_extobj = []
 mplstun_extobj += '@LIBS@'.split()
 
+mplsred_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplsred.c', '@top_srcdir@/lib/mplsred.c' ]
+mplsred_incdirs = [ '@top_srcdir@' ]
+mplsred_libdirs = []
+mplsred_libs = []
+mplsred_extargs = []
+mplsred_extargs += '@DEFS@'.replace("\ ", "_").split()
+mplsred_extobj = []
+mplsred_extobj += '@LIBS@'.split()
+
 asleap = Extension( 'loki_bindings.asleap.asleap',
                     asleap_srcs,
                     include_dirs=asleap_incdirs,
@@ -151,6 +160,14 @@ mplstun = Extension(    'loki_bindings.mpls.mplstun',
                         extra_compile_args=mplstun_extargs,
                         extra_objects=mplstun_extobj)
 
+mplsred = Extension(    'loki_bindings.mpls.mplsred',
+                        mplsred_srcs,
+                        include_dirs=mplsred_incdirs,
+                        library_dirs=mplsred_libdirs,
+                        libraries=mplsred_libs,
+                        extra_compile_args=mplsred_extargs,
+                        extra_objects=mplsred_extobj)
+
 setup(name='loki_bindings',
       version='@VERSION@',
       description='',
@@ -158,5 +175,5 @@ setup(name='loki_bindings',
       author_email='dmende@ernw.de',
       url='https://c0decafe.de',
       packages=['loki_bindings', 'loki_bindings.asleap', 'loki_bindings.ospfmd5', 'loki_bindings.tcpmd5', 'loki_bindings.mpls'],
-      ext_modules=[asleap, ospfmd5bf, tcpmd5, tcpmd5bf, mplstun]
+      ext_modules=[asleap, ospfmd5bf, tcpmd5, tcpmd5bf, mplstun, mplsred]
      )
