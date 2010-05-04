@@ -267,7 +267,6 @@ class mod_class(object):
                                                                 type=dpkt.ethernet.ETH_TYPE_ARP,
                                                                 data=str(_arp)
                                                                 )
-                                print "sending reply"
                                 self.dnet.send(str(_eth))
                                 break
         for h in self.hosts:
