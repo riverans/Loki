@@ -60,6 +60,7 @@ fi
 AC_CONFIG_FILES([Makefile
                  lib/Makefile
                  lib/asleap/Makefile
+                 src/Makefile
                  modules/Makefile
                  setup.py])
 AC_OUTPUT

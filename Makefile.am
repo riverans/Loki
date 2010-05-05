@@ -2,16 +2,11 @@
 # Copyright 2010 Daniel Mende <dmende@ernw.de> 
 
 instdir = $(pkgdatadir)
-SUBDIRS =	lib modules
+SUBDIRS =	lib src modules
 
 AUX_DIST =	install-sh
 
-noinst_SCRIPTS = python-build loki-build
-bin_SCRIPTS = loki.py
-
-loki-build:
-	$(SED) -i.bak 's#DATA_DIR="."#DATA_DIR="$(instdir)"#g' loki.py
-	touch python-build
+noinst_SCRIPTS = python-build
 
 python-build:
 	$(PYTHON) setup.py build
