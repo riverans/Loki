@@ -48,3 +48,13 @@ gcc -c -o lib/mplsred.o lib/mplsred.c -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_L
 ld -shared -soname mplsred.so loki_bindings/mpls/mplsred.o lib/mplsred.o -o loki_bindings/mpls/mplsred.so -lc -lpcap -ldnet
 ld -shared -soname mplstun.so loki_bindings/mpls/mplstun.o lib/mplstun.o -o loki_bindings/mpls/mplstun.so -lc -lpcap -ldnet
 
+#Bulding mpls-tunnel
+gcc -o src/mpls_tunnel.o -fpic  -g  -c  src/mpls-tunnel.c -DVERSION=\"DEVEL\"
+gcc -g -O2  -o src/mpls_tunnel src/mpls_tunnel.o  -ldnet -lpcap
+
+cat >> loki << EOF
+PYTHONPATH=. python src/loki.py
+EOF
+
+chmod +x loki
+ln -s src/mpls_tunnel mpls_tunnel
