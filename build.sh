@@ -52,7 +52,7 @@ ld -shared -soname mplstun.so loki_bindings/mpls/mplstun.o lib/mplstun.o -o loki
 gcc -o src/mpls_tunnel.o -fpic  -g  -c  src/mpls-tunnel.c -DVERSION=\"DEVEL\"
 gcc -g -O2  -o src/mpls_tunnel src/mpls_tunnel.o  -ldnet -lpcap
 
-cat >> loki << EOF
+cat > loki << EOF
 PYTHONPATH=. python src/loki.py
 EOF
 
