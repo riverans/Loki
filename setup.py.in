@@ -17,6 +17,16 @@ except Exception, e:
     print "******************************************************"
 
 try:
+    import pygtk
+    pygtk.require("2.0")
+except Exception, e:
+    print "'import gobject' failed:" + e
+    print "******************************************************"
+    print "*** You need the python module 'gobject' installed ***"
+    print "***                See REQUIREMENTS                ***"
+    print "******************************************************"
+
+try:
     import gtk
 except Exception, e:
     print "'import gtk' failed:" + e
