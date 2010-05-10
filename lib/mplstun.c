@@ -76,7 +76,13 @@ int tun_alloc(char *dev, short flags) {
 #endif
 }
 
+
 int mplstun(tun_mode mode, char *in_device, char *out_device, uint16_t in_label, uint16_t out_label, char *in_mac, char *out_mac, uint16_t in_trans_label, uint16_t out_trans_label, char *lock_file)
+{
+    return mplstun_v(mode, in_device, out_device, in_label, out_label, in_mac, out_mac, in_trans_label, out_trans_label, lock_file, 0);
+}
+
+int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_label, uint16_t out_label, char *in_mac, char *out_mac, uint16_t in_trans_label, uint16_t out_trans_label, char *lock_file, int verbose)
 {
     eth_t *dnet_handle;
     pcap_t *pcap_handle;
@@ -93,7 +99,6 @@ int mplstun(tun_mode mode, char *in_device, char *out_device, uint16_t in_label,
     struct pcap_pkthdr *pcap_header;
     struct bpf_program pcap_filter;
     
-    int verbose = 0;
     char tun_device[TUN_DEV_NAME_LENGTH];
     
     struct ether_header *eheader;

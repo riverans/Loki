@@ -41,6 +41,9 @@ import traceback
 import string
 import struct
 
+import pygtk
+pygtk.require('2.0')
+
 import gobject
 import gtk
 gtk.gdk.threads_init()

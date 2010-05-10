@@ -8,7 +8,7 @@ AM_CPPFLAGS= -fpic
 
 bin_SCRIPTS = loki.py
 bin_PROGRAMS =   mpls_tunnel
-mpls_tunnel_SOURCES = mpls-tunnel.c   
+mpls_tunnel_SOURCES = mpls-tunnel.c ../lib/mplstun.c
 
 noinst_SCRIPTS = loki-build
 

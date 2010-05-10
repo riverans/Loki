@@ -79,5 +79,6 @@
 typedef enum e_tun_mode { NONE_TUN, L2_TUN, L3_TUN } tun_mode;
 
 extern int mplstun(tun_mode, char*, char*, uint16_t, uint16_t, char*, char*, uint16_t, uint16_t, char*);
+extern int mplstun_v(tun_mode, char*, char*, uint16_t, uint16_t, char*, char*, uint16_t, uint16_t, char*, int);
 
 #endif
