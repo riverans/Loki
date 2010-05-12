@@ -48,7 +48,7 @@ class redirect_thread(threading.Thread):
         self.parent = parent
         self.model = model
         self.iter = iter
-        self.filter = "ether src %s and ether dst %s" % (from_mac, to_mac)
+        self.filter = "ether src %s and ether dst %s and mpls" % (from_mac, to_mac)
         if filter != "":
             self.filter += " and %s" % filter
         self.num_label = num_label
@@ -67,6 +67,8 @@ class redirect_thread(threading.Thread):
         if os.path.exists(self.tmpfile):
             os.remove(self.tmpfile)
         if self.model.iter_is_valid(self.iter):
+            (ident,) = self.model.get(self.iter, self.parent.REDIRECT_INDEX_ROW)
+            del self.parent.redirects[ident]
             self.model.remove(self.iter)
     
     def quit(self):

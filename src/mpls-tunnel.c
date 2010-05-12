@@ -60,7 +60,7 @@ int main(int argc, char *argv[])
 {
     int opt;
 
-    char null[2] = "0\n";
+    char nullstr[2] = "0\n";
     int verbose = 0;
     char *mode = NULL;
     char *in_device = NULL;
@@ -69,11 +69,12 @@ int main(int argc, char *argv[])
     char *out_label = NULL;
     char *in_mac = NULL;
     char *out_mac = NULL;
-    char *in_trans = null;
-    char *out_trans = null;
+    char *in_trans = nullstr;
+    char *out_trans = nullstr;
     tun_mode tmode = NONE_TUN;
 
     int pid;
+    FILE *lfile;
 
     printf("%s version %s\t\tby Daniel Mende - dmende@ernw.de\n", argv[0], VERSION);
     fflush(stdout);
@@ -160,6 +161,8 @@ int main(int argc, char *argv[])
 
     pid = getpid();
     snprintf(lockfile, LOCKFILE_LENGTH, "/tmp/%s-%i-lock", argv[0], pid);
+    lfile = fopen(lockfile, "w");
+    fclose(lfile);
     
     mplstun_v(tmode, in_device, out_device, atoi(in_label), atoi(out_label), in_mac, out_mac, atoi(in_trans), atoi(out_trans), lockfile, verbose);
    

@@ -50,14 +50,14 @@
 #ifdef HAVE_LINUX_IF_H
  #include <linux/if.h>
 #else
- #warning ############ FIXME ############
+ #error ### currently only supports linux ###
 #endif
 
 #ifdef HAVE_LINUX_IF_TUN_H
  #include <linux/if_tun.h>
  #define USE_LINUX_TUN 1
 #else
- #warning ############ FIXME ############
+ #error ### currently only supports linux ###
 #endif
 
 #include <dnet.h>
@@ -65,7 +65,7 @@
 
 #define READ_BUFFER_SIZE 1600
 #define WRITE_BUFFER_SIZE 1600
-#define PCAP_FILTER_SIZE 1024
+#define PCAP_FILTER_LENGTH 1024
 #define TUN_DEV_NAME_LENGTH 8
 
 #define CHECK_FOR_LOCKFILE 1000

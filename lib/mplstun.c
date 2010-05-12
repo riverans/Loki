@@ -95,7 +95,7 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
 
     char pcap_errbuf[PCAP_ERRBUF_SIZE];
     const u_char *pcap_packet;
-    char filter[PCAP_FILTER_SIZE];
+    char filter[PCAP_FILTER_LENGTH];
     struct pcap_pkthdr *pcap_header;
     struct bpf_program pcap_filter;
     
@@ -127,15 +127,29 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
     if (verbose)
         printf("Tunnel interface %s created\n", tun_device);
 
-    pcap_handle = pcap_open_live(in_device, BUFSIZ, 1, 1000, pcap_errbuf);
+    //~ pcap_handle = pcap_open_live(in_device, BUFSIZ, 1, 1000, pcap_errbuf);
+    //~ if (pcap_handle == NULL) {
+        //~ fprintf(stderr, "Couldn't open pcap in_device: %s\n", pcap_errbuf);
+        //~ return 2;
+    //~ }
+
+    pcap_handle = pcap_create(in_device, pcap_errbuf);
     if (pcap_handle == NULL) {
-        fprintf(stderr, "Couldn't open pcap in_device: %s\n", pcap_errbuf);
+        fprintf(stderr, "Couldn't open device: %s\n", pcap_geterr(pcap_handle));
         return 2;
     }
-    if (verbose) 
+    if (pcap_set_promisc(pcap_handle, 1) == -1) {
+        fprintf(stderr, "Couldn't set promisc mode: %s\n", pcap_geterr(pcap_handle));
+        return 2;
+    }
+    if (pcap_activate(pcap_handle)) {
+        fprintf(stderr, "Couldn't activate pcap: %s\n", pcap_geterr(pcap_handle));
+        return 2;
+    }
+    if (verbose)
         printf("Opening tunnel at %s with MAC %s\n", in_device, in_mac);
         
-    snprintf(filter, PCAP_FILTER_SIZE, "ether dst %s and ether type 0x8847", in_mac);
+    snprintf(filter, PCAP_FILTER_LENGTH, "ether dst %s and ether src %s and mpls", in_mac, out_mac);
     if (pcap_compile(pcap_handle, &pcap_filter, filter, 0, 0) == -1) {
         fprintf(stderr, "Couldn't parse filter: %s\n", pcap_geterr(pcap_handle));
         return 2;

@@ -45,12 +45,16 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     
     unsigned label;
     u_char local_packet[MAX_PACKET_LEN];
+
+    int pcap_fd,fm;
+    fd_set fds;
+    struct timeval timeout;
     
     pcap_t *pcap_handle;
     const u_char *pcap_packet;
     struct pcap_pkthdr *pcap_header;
     struct bpf_program pcap_filter;
-    
+
     eth_t *libdnet_handle;
     
     pcap_handle = pcap_create(in_device, NULL);
@@ -60,10 +64,6 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     }
     if (pcap_set_promisc(pcap_handle, 1) == -1) {
         fprintf(stderr, "Couldn't set promisc mode: %s\n", pcap_geterr(pcap_handle));
-        return 2;
-    }
-    if (pcap_set_timeout(pcap_handle, TIMEOUT_USEC)) {
-        fprintf(stderr, "Couldn't set timeout: %s\n", pcap_geterr(pcap_handle));
         return 2;
     }
     if (pcap_activate(pcap_handle)) {
@@ -84,6 +84,12 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     if (verbose)
         printf("Using filter %s\n", filter);
 
+    pcap_fd = pcap_get_selectable_fd(pcap_handle);
+    if (pcap_fd < 0) {
+        fprintf(stderr, "Unable to get a selectable fd from pcap in_device\n");
+        return 2;
+    }
+
 	libdnet_handle = eth_open(out_device);
     if (libdnet_handle == NULL) {
         fprintf(stderr, "Couldn't open device: %s\n", out_device);
@@ -94,8 +100,17 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     if (verbose)
         printf("Redirecting to MPLS label %i\n", out_label);
 
+    timeout.tv_sec = TIMEOUT_SEC;
+    timeout.tv_usec = TIMEOUT_USEC;
+
+    fm = pcap_fd + 1;
+    FD_ZERO(&fds);
+    FD_SET(pcap_fd, &fds);
+
     for(run = 1; run; run++)
     {
+        ret = select(fm, &fds, NULL, NULL, &timeout);
+        
         if (run % CHECK_FOR_LOCKFILE || !ret) {
             if(verbose)
                 printf("checking for lockfile\n");
@@ -103,35 +118,37 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
                 break;
             run = 1;
         }
+        
+        if( FD_ISSET(pcap_fd, &fds) ) {
+            if(pcap_next_ex(pcap_handle, &pcap_header, &pcap_packet) > 0) {
+                len = pcap_header->len > MAX_PACKET_LEN ? MAX_PACKET_LEN : pcap_header->len;
+                if (pcap_packet[12] != 0x88 || pcap_packet[13] != 0x47)
+                    continue;
+                memcpy(local_packet, pcap_packet, len);
 
-        if(pcap_next_ex(pcap_handle, &pcap_header, &pcap_packet) > 0) {
-            len = pcap_header->len > MAX_PACKET_LEN ? MAX_PACKET_LEN : pcap_header->len;
-            if (pcap_packet[12] != 0x88 || pcap_packet[13] != 0x47)
-                continue;
-            memcpy(local_packet, pcap_packet, len);
-
-            for (cur_label = 0; cur_label < num_label && cur_label >= 0; ++cur_label)
-                if (*((unsigned *) (local_packet + 14 + cur_label * 4)) & htonl(0x00000100))
-                    cur_label = -1;
-            if (cur_label == -1) {
+                for (cur_label = 0; cur_label < num_label && cur_label >= 0; ++cur_label)
+                    if (*((unsigned *) (local_packet + 14 + cur_label * 4)) & htonl(0x00000100))
+                        cur_label = -1;
+                if (cur_label == -1) {
+                    if (verbose)
+                        printf("#");
+                    continue;
+                }
+                label = ntohl(*((unsigned *) (local_packet + 14 + cur_label * 4)) & htonl(0xfffff000)) >> 12;
+                if (label != in_label) {
+                    if (verbose)
+                        printf(".");
+                    continue;
+                }
                 if (verbose)
-                    printf("#");
-                continue;
-            }
-            label = ntohl(*((unsigned *) (local_packet + 14 + cur_label * 4)) & htonl(0xfffff000)) >> 12;
-            if (label != in_label) {
-                if (verbose)
-                    printf(".");
-                continue;
-            }
-            if (verbose)
-                printf("*");
-            *((unsigned *) (local_packet + 14 + cur_label * 4)) &= htonl(0x00000fff);
-            *((unsigned *) (local_packet + 14 + cur_label * 4)) |= htonl(out_label << 12);
+                    printf("*");
+                *((unsigned *) (local_packet + 14 + cur_label * 4)) &= htonl(0x00000fff);
+                *((unsigned *) (local_packet + 14 + cur_label * 4)) |= htonl(out_label << 12);
 
-            if (eth_send(libdnet_handle, local_packet, len) < 0) {
-                fprintf(stderr, "Couldn't write packet\n");
-                return 2;
+                if (eth_send(libdnet_handle, local_packet, len) < 0) {
+                    fprintf(stderr, "Couldn't write packet\n");
+                    return 2;
+                }
             }
         }
     }

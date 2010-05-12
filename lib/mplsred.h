@@ -47,7 +47,8 @@
 
 #define MAX_PACKET_LEN 1500
 #define CHECK_FOR_LOCKFILE 100
-#define TIMEOUT_USEC 1000
+#define TIMEOUT_SEC 1
+#define TIMEOUT_USEC 0
 
 extern int mplsred(char*, char*, int, uint16_t, uint16_t, char*, char*);
 
