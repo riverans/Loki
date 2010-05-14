@@ -89,15 +89,15 @@ int tun_alloc(tun_mode mode, char *tun_device) {
 #ifdef USE_BSD_TUN
     int i;
     char tunname[128];
-    
-    for( i = 0; i < MAX_TUN_NR; i++ ) {
-        if( mode == L2_TUN )
-            sprintf(tunname, "/dev/tap%d", i);
-        else if( mode == L3_TUN )
-            sprintf(tunname, "/dev/tun%d", i);
-        else
-            return -1;
-        
+
+    if( mode == L2_TUN )
+        sprintf(tunname, "/dev/tap%d", i);
+    else if( mode == L3_TUN )
+        sprintf(tunname, "/dev/tun%d", i);
+    else
+        return -1;
+
+    for( i = 0; i < MAX_TUN_NR; i++ ) {        
         if( (fd = open(tunname, O_RDWR)) != -1 ) {
             
             break;
@@ -256,8 +256,6 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
                 start = in;
 
                 eheader = (struct ether_header *) start;
-                //if(eheader->ether_type != htons(0x8847))
-                //    continue;
                 start += sizeof(struct ether_header);
                 if(in_trans_label) {
                     if (read_label(start, NULL, NULL, NULL) != in_trans_label)
