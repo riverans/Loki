@@ -52,28 +52,65 @@ void write_label(void *pos, long label, int exp, int bos, int ttl) {
     *((unsigned *) pos) |= htonl(ttl & 0x000000ff);
 }
 
-int tun_alloc(char *dev, short flags) {
-#ifdef USE_LINUX_TUN
+int tun_alloc(tun_mode mode, char *tun_device) {
+    int fd = -1;
+    int err;
     struct ifreq ifr;
-    int fd, err;
 
+#ifdef USE_LINUX_TUN
+    char *dev;
     if( (fd = open("/dev/net/tun", O_RDWR)) < 0 )
         return -1;
 
     memset(&ifr, 0, sizeof(ifr));
 
-    ifr.ifr_flags = flags | IFF_NO_PI;
-    if( *dev )
+    if( mode == L2_TUN ) {
+        ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
+        dev = "tap%d";
         strncpy(ifr.ifr_name, dev, IFNAMSIZ);
-
+    } else if( mode == L3_TUN ) {
+        ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
+        dev = "tun%d";
+        strncpy(ifr.ifr_name, dev, IFNAMSIZ);
+    } else
+        return -1;
+    
     err = ioctl(fd, TUNSETIFF, (void *) &ifr);
     if( err < 0 ) {
          close(fd);
          return err;
     }
-    strncpy(dev, ifr.ifr_name, TUN_DEV_NAME_LENGTH);
-    return fd;
+    strncpy(tun_device, ifr.ifr_name, TUN_DEV_NAME_LENGTH);
+
+    if( mode == L3_TUN )
+        ioctl(fd, TUNSETNOCSUM, 1);
 #endif
+
+#ifdef USE_BSD_TUN
+    int i;
+    char tunname[128];
+    
+    for( i = 0; i < MAX_TUN_NR; i++ ) {
+        if( mode == L2_TUN )
+            sprintf(tunname, "/dev/tap%d", i);
+        else if( mode == L3_TUN )
+            sprintf(tunname, "/dev/tun%d", i);
+        else
+            return -1;
+        
+        if( (fd = open(tunname, O_RDWR)) != -1 ) {
+            
+            break;
+        }
+    }
+
+    if(fd < 0)
+        return -1;
+
+    strncpy(tun_device, tunname, TUN_DEV_NAME_LENGTH);
+#endif
+
+    return fd;
 }
 
 
@@ -112,26 +149,13 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
         return 2;
     }
 
-    if (mode == L3_TUN) {
-        strncpy(tun_device, "tun%d", TUN_DEV_NAME_LENGTH);
-        tun_fd = tun_alloc(tun_device, IFF_TUN);
-        ioctl(tun_fd, TUNSETNOCSUM, 1);
-    } else {
-        strncpy(tun_device, "tap%d", TUN_DEV_NAME_LENGTH);
-        tun_fd = tun_alloc(tun_device, IFF_TAP);
-    }
+    tun_fd = tun_alloc(mode, tun_device);
     if (tun_fd < 0) {
-        fprintf(stderr, "Couldnt't create tunnel device: %s\n", tun_device);
+        fprintf(stderr, "Couldnt't create tunnel device: %d\n", errno);
         return 2;
     }
     if (verbose)
         printf("Tunnel interface %s created\n", tun_device);
-
-    //~ pcap_handle = pcap_open_live(in_device, BUFSIZ, 1, 1000, pcap_errbuf);
-    //~ if (pcap_handle == NULL) {
-        //~ fprintf(stderr, "Couldn't open pcap in_device: %s\n", pcap_errbuf);
-        //~ return 2;
-    //~ }
 
     pcap_handle = pcap_create(in_device, pcap_errbuf);
     if (pcap_handle == NULL) {
@@ -196,8 +220,8 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
             start = out;
 
             eheader = (struct ether_header *) start;
-            memcpy(eheader->ether_dhost, ether_aton(out_mac)->ether_addr_octet, ETH_ALEN);
-            memcpy(eheader->ether_shost, ether_aton(in_mac)->ether_addr_octet, ETH_ALEN);
+            memcpy(eheader->ether_dhost, ETH_OCTET(ether_aton(out_mac)), ETH_ALEN);
+            memcpy(eheader->ether_shost, ETH_OCTET(ether_aton(in_mac)), ETH_ALEN);
             eheader->ether_type = htons(0x8847);
             start += sizeof(struct ether_header);
             l += sizeof(struct ether_header);

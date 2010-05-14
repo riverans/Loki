@@ -116,19 +116,19 @@ mplstun_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplstun.c', '@top_srcdir@/lib/
 mplstun_incdirs = [ '@top_srcdir@' ]
 mplstun_libdirs = []
 mplstun_libs = []
-mplstun_extargs = []
+mplstun_extargs = [ '@DNETINC@', '@PCAPINC@' ]
 mplstun_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplstun_extobj = []
-mplstun_extobj += '@LIBS@'.split()
+#mplstun_extobj += '@LIBS@'.split()
 
 mplsred_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplsred.c', '@top_srcdir@/lib/mplsred.c' ]
 mplsred_incdirs = [ '@top_srcdir@' ]
 mplsred_libdirs = []
 mplsred_libs = []
-mplsred_extargs = []
+mplsred_extargs = [ '@DNETINC@', '@PCAPINC@' ]
 mplsred_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplsred_extobj = []
-mplsred_extobj += '@LIBS@'.split()
+#mplsred_extobj += '@LIBS@'.split()
 
 asleap = Extension( 'loki_bindings.asleap.asleap',
                     asleap_srcs,

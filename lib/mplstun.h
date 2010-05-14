@@ -35,6 +35,7 @@
 #ifndef MPLSTUN_H
 #define MPLSTUN_H 1
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -44,21 +45,39 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <netinet/ether.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
+
+#ifdef HAVE_NETINET_ETHER_H
+ #include <netinet/ether.h>
+#else
+ #ifdef HAVE_NET_ETHERNET_H
+  #include <net/ethernet.h>
+ #else
+  #error ### no usable ethernet header file found ###
+ #endif
+#endif
 
 #ifdef HAVE_LINUX_IF_H
  #include <linux/if.h>
+ #ifdef HAVE_LINUX_IF_TUN_H
+  #include <linux/if_tun.h>
+  #define USE_LINUX_TUN 1
+  #define ETH_OCTET(x) ((x)->ether_addr_octet)
+ #else
+  #error ### linux/if_tun.h missing ###
+ #endif
 #else
- #error ### currently only supports linux ###
+ #ifdef HAVE_NET_IF_H
+  #include <net/if.h>
+  #define USE_BSD_TUN 1
+  #define ETH_OCTET(x) ((x)->octet)
+  #ifndef ETH_ALEN
+   #define ETH_ALEN ETHER_ADDR_LEN
+  #endif
+ #endif
 #endif
 
-#ifdef HAVE_LINUX_IF_TUN_H
- #include <linux/if_tun.h>
- #define USE_LINUX_TUN 1
-#else
- #error ### currently only supports linux ###
-#endif
 
 #include <dnet.h>
 #include <pcap.h>
@@ -66,7 +85,8 @@
 #define READ_BUFFER_SIZE 1600
 #define WRITE_BUFFER_SIZE 1600
 #define PCAP_FILTER_LENGTH 1024
-#define TUN_DEV_NAME_LENGTH 8
+#define TUN_DEV_NAME_LENGTH 32
+#define MAX_TUN_NR 100
 
 #define CHECK_FOR_LOCKFILE 1000
 #define TIMEOUT_SEC 1

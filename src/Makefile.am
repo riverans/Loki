@@ -1,14 +1,16 @@
 # src/Makefile.am
 # Copyright 2010 Daniel Mende <dmende@ernw.de> 
 
-INCLUDES =   -I$(top_srcdir)/
+INCLUDES = -I$(top_srcdir) @DNETINC@ @PCAPINC@
 instdir = $(pkgdatadir)
 
-AM_CPPFLAGS= -fpic
+AM_CPPFLAGS = -fpic
 
 bin_SCRIPTS = loki.py
 bin_PROGRAMS =   mpls_tunnel
+
 mpls_tunnel_SOURCES = mpls-tunnel.c ../lib/mplstun.c
+mpls_tunnel_LDADD = @DNETLIB@ @PCAPLIB@
 
 noinst_SCRIPTS = loki-build
 
