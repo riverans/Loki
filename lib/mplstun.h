@@ -50,9 +50,14 @@
 
 #ifdef HAVE_NETINET_ETHER_H
  #include <netinet/ether.h>
+ #define ETH_OCTET(x) ((x)->ether_addr_octet)
 #else
  #ifdef HAVE_NET_ETHERNET_H
   #include <net/ethernet.h>
+  #define ETH_OCTET(x) ((x)->octet)
+  #ifndef ETH_ALEN
+   #define ETH_ALEN ETHER_ADDR_LEN
+  #endif
  #else
   #error ### no usable ethernet header file found ###
  #endif
@@ -63,7 +68,6 @@
  #ifdef HAVE_LINUX_IF_TUN_H
   #include <linux/if_tun.h>
   #define USE_LINUX_TUN 1
-  #define ETH_OCTET(x) ((x)->ether_addr_octet)
  #else
   #error ### linux/if_tun.h missing ###
  #endif
@@ -71,10 +75,6 @@
  #ifdef HAVE_NET_IF_H
   #include <net/if.h>
   #define USE_BSD_TUN 1
-  #define ETH_OCTET(x) ((x)->octet)
-  #ifndef ETH_ALEN
-   #define ETH_ALEN ETHER_ADDR_LEN
-  #endif
  #endif
 #endif
 

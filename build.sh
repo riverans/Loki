@@ -16,8 +16,8 @@ read
 
 #Build Lib
 gcc -c -o lib/md5.o lib/md5.c -fpic -Wall
-gcc -c -o lib/mplstun.o lib/mplstun.c -fpic -Wall -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -I.
-gcc -c -o lib/mplsred.o lib/mplsred.c -fpic -Wall -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -I.
+gcc -c -o lib/mplstun.o lib/mplstun.c -fpic -Wall -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H -I.
+gcc -c -o lib/mplsred.o lib/mplsred.c -fpic -Wall -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H -I.
 
 #Build ASLEAP
 #cd lib/asleap
@@ -43,13 +43,13 @@ gcc -c -o loki_bindings/asleap/asleap.o loki_bindings/asleap/asleap.c `python-co
 ld -shared -soname asleap.so loki_bindings/asleap/asleap.o loki_bindings/asleap/common.o loki_bindings/asleap/utils.o loki_bindings/asleap/sha1.o loki_bindings/asleap/bin_asleap.o -o loki_bindings/asleap/asleap.so -lc -lpcap -lcrypt -lcrypto -lssl
 
 #Build MPLS Module
-gcc -c -o loki_bindings/mpls/mplstun.o loki_bindings/mpls/mplstun.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
-gcc -c -o loki_bindings/mpls/mplsred.o loki_bindings/mpls/mplsred.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
+gcc -c -o loki_bindings/mpls/mplstun.o loki_bindings/mpls/mplstun.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H
+gcc -c -o loki_bindings/mpls/mplsred.o loki_bindings/mpls/mplsred.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H
 ld -shared -soname mplsred.so loki_bindings/mpls/mplsred.o lib/mplsred.o -o loki_bindings/mpls/mplsred.so -lc -lpcap -ldnet
 ld -shared -soname mplstun.so loki_bindings/mpls/mplstun.o lib/mplstun.o -o loki_bindings/mpls/mplstun.so -lc -lpcap -ldnet
 
 #Bulding mpls-tunnel
-gcc -o src/mpls_tunnel.o -fpic -g -c src/mpls-tunnel.c -DVERSION=\"DEVEL\" -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H
+gcc -o src/mpls_tunnel.o -fpic -g -c src/mpls-tunnel.c -DVERSION=\"DEVEL\" -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H
 gcc -g -O2 -o src/mpls_tunnel src/mpls_tunnel.o lib/mplstun.o -ldnet -lpcap
 
 cat > loki << EOF
