@@ -92,6 +92,7 @@ class mod_class(object):
         self.upper_add_liststore = gtk.ListStore(str, str)
         self.lower_add_liststore = gtk.ListStore(str, str)
         self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str)
+        self.mappings_liststore = gtk.ListStore(str, str)
         self.dnet = None
         self.spoof_thread = None
         self.macs = None
@@ -113,6 +114,7 @@ class mod_class(object):
         self.upper_add_liststore.clear()
         self.lower_add_liststore.clear()
         self.spoof_treestore.clear()
+        self.mappings_liststore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -210,6 +212,23 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', 3)
         self.spoof_treeview.append_column(column)
 
+        self.mappings_treeview = self.glade_xml.get_widget("mappings_treeview")
+        self.mappings_treeview.set_model(self.mappings_liststore)
+        self.mappings_treeview.set_headers_visible(True)
+        
+        column = gtk.TreeViewColumn()
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=False)
+        column.add_attribute(render_text, 'text', 0)
+        column.set_title("Real MAC")
+        self.mappings_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 1)
+        column.set_title("Random MAC")
+        self.mappings_treeview.append_column(column)
+
         self.scan_network_entry = self.glade_xml.get_widget("scan_network_entry")
 
         self.offline = self.hosts_treeview.render_icon(gtk.STOCK_NO, 1)
@@ -280,6 +299,7 @@ class mod_class(object):
         rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
         iter = self.hosts_liststore.append([mac, ip, self.mac_to_vendor(mac)])
         self.hosts[mac] = (ip, rand_mac, iter, False)
+        self.mappings_liststore.append([mac, rand_mac])
 
     def get_ip_checks(self):
         return (self.check_ip, self.input_ip)
