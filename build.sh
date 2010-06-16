@@ -27,12 +27,12 @@ gcc -c -o lib/mplsred.o lib/mplsred.c -fpic -Wall -DHAVE_LINUX_IF_H -DHAVE_LINUX
 #Build TCPMD5 Modules
 gcc -c -o loki_bindings/tcpmd5/tcpmd5.o loki_bindings/tcpmd5/tcpmd5.c `python-config --cflags` -fpic -Wall
 gcc -c -o loki_bindings/tcpmd5/tcpmd5bf.o loki_bindings/tcpmd5/tcpmd5bf.c `python-config --cflags` -fpic -Wall -I.
-ld -shared -soname tcpmd5.so loki_bindings/tcpmd5/tcpmd5.o -o loki_bindings/tcpmd5/tcpmd5.so -lc
-ld -shared -soname tcpmd5bf.so loki_bindings/tcpmd5/tcpmd5bf.o lib/md5.o -o loki_bindings/tcpmd5/tcpmd5bf.so -lc
+ld -shared -soname tcpmd5.so loki_bindings/tcpmd5/tcpmd5.o -o loki_bindings/tcpmd5/tcpmd5.so -lc `python-config --ldflags`
+ld -shared -soname tcpmd5bf.so loki_bindings/tcpmd5/tcpmd5bf.o lib/md5.o -o loki_bindings/tcpmd5/tcpmd5bf.so -lc `python-config --ldflags`
 
 #Build OSPF BF Module
 gcc -c -o loki_bindings/ospfmd5/ospfmd5bf.o loki_bindings/ospfmd5/ospfmd5bf.c `python-config --cflags` -fpic -Wall -I.
-ld -shared -soname ospfmd5bf.so loki_bindings/ospfmd5/ospfmd5bf.o lib/md5.o -o loki_bindings/ospfmd5/ospfmd5bf.so -lc
+ld -shared -soname ospfmd5bf.so loki_bindings/ospfmd5/ospfmd5bf.o lib/md5.o -o loki_bindings/ospfmd5/ospfmd5bf.so -lc `python-config --ldflags`
 
 #Build ASLEAP Module
 gcc -c -o loki_bindings/asleap/common.o lib/asleap/common.c -I./lib/asleap -fpic -DHAVE_OPENSSL_MD4_H -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
@@ -40,13 +40,13 @@ gcc -c -o loki_bindings/asleap/utils.o lib/asleap/utils.c -I./lib/asleap -fpic -
 gcc -c -o loki_bindings/asleap/sha1.o lib/asleap/sha1.c -I./lib/asleap -fpic -DHAVE_ENDIAN_H -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 gcc -c -o loki_bindings/asleap/bin_asleap.o lib/asleap/asleap.c -I./lib/asleap -fpic -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE
 gcc -c -o loki_bindings/asleap/asleap.o loki_bindings/asleap/asleap.c `python-config --cflags` -fpic -Wall -I.
-ld -shared -soname asleap.so loki_bindings/asleap/asleap.o loki_bindings/asleap/common.o loki_bindings/asleap/utils.o loki_bindings/asleap/sha1.o loki_bindings/asleap/bin_asleap.o -o loki_bindings/asleap/asleap.so -lc -lpcap -lcrypt -lcrypto -lssl
+ld -shared -soname asleap.so loki_bindings/asleap/asleap.o loki_bindings/asleap/common.o loki_bindings/asleap/utils.o loki_bindings/asleap/sha1.o loki_bindings/asleap/bin_asleap.o -o loki_bindings/asleap/asleap.so -lc -lpcap -lcrypt -lcrypto -lssl `python-config --ldflags`
 
 #Build MPLS Module
 gcc -c -o loki_bindings/mpls/mplstun.o loki_bindings/mpls/mplstun.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H
 gcc -c -o loki_bindings/mpls/mplsred.o loki_bindings/mpls/mplsred.c `python-config --cflags` -fpic -Wall -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H
-ld -shared -soname mplsred.so loki_bindings/mpls/mplsred.o lib/mplsred.o -o loki_bindings/mpls/mplsred.so -lc -lpcap -ldnet
-ld -shared -soname mplstun.so loki_bindings/mpls/mplstun.o lib/mplstun.o -o loki_bindings/mpls/mplstun.so -lc -lpcap -ldnet
+ld -shared -soname mplsred.so loki_bindings/mpls/mplsred.o lib/mplsred.o -o loki_bindings/mpls/mplsred.so -lc -lpcap -ldnet `python-config --ldflags`
+ld -shared -soname mplstun.so loki_bindings/mpls/mplstun.o lib/mplstun.o -o loki_bindings/mpls/mplstun.so -lc -lpcap -ldnet `python-config --ldflags`
 
 #Bulding mpls-tunnel
 gcc -o src/mpls_tunnel.o -fpic -g -c src/mpls-tunnel.c -DVERSION=\"DEVEL\" -I. -DHAVE_LINUX_IF_H -DHAVE_LINUX_IF_TUN_H -DHAVE_NETINET_ETHER_H

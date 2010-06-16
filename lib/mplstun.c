@@ -279,7 +279,7 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
 
                 write(tun_fd, out, l);
             } else {
-                fprintf(stderr, "Error on reading from pcap interface\n");
+                fprintf(stderr, "Error on reading from pcap interface  %s\n", pcap_geterr(pcap_handle));
                 return 2;
             }
         }

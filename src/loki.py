@@ -599,10 +599,9 @@ class codename_loki(object):
             response = dialog.run()
             if response == gtk.RESPONSE_OK:
                 self.pcap_thread = pcap_thread_offline(self, dialog.get_filename())
-                if not self.configured:
-                    self.interface = "null"
-                    self.ip = "0.0.0.0"
-                    self.mask = "0.0.0.0"
+                self.interface = "null"
+                self.ip = "0.0.0.0"
+                self.mask = "0.0.0.0"
                 for i in self.modules:
                     self.start_module(i)
                 for i in self.notebook:
