@@ -424,6 +424,10 @@ class mod_class(object):
     
     def add_peer(self, sock, (addr, port)):
         self.log("LDP: Got new connection from peer %s" % (addr))
+        if addr not in self.peers:
+            iter = self.liststore.append([addr, addr])
+            self.peers[addr] = (iter, None)
+            self.log("LDP: Got new peer %s" % (addr))
         (iter, peer) = self.peers[addr]
         peer = ldp_peer(addr, sock, self.ip)
         self.peers[addr] = (iter, peer)
