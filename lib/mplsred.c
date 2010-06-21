@@ -34,10 +34,8 @@
 
 #include "lib/mplsred.h"
 
-int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label, uint16_t out_label, char *filter, char *lock_file)
+int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label, uint16_t out_label, char *filter, char *lock_file, int verbose)
 {
-    int verbose = 0;
-
     int run, ret;
     int len;
     int cur_label;
@@ -100,15 +98,14 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     if (verbose)
         printf("Redirecting to MPLS label %i\n", out_label);
 
-    timeout.tv_sec = TIMEOUT_SEC;
-    timeout.tv_usec = TIMEOUT_USEC;
-
     fm = pcap_fd + 1;
     FD_ZERO(&fds);
     FD_SET(pcap_fd, &fds);
 
     for(run = 1; run; run++)
     {
+        timeout.tv_sec = TIMEOUT_SEC;
+        timeout.tv_usec = TIMEOUT_USEC;
         ret = select(fm, &fds, NULL, NULL, &timeout);
         
         if (run % CHECK_FOR_LOCKFILE || !ret) {

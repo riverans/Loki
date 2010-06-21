@@ -46,12 +46,13 @@ mpls_red(PyObject *self, PyObject *args)
     int in_label, out_label;
     char *filter;
     char *lock_file;
+    int verbose;
     
-    if(!PyArg_ParseTuple(args, "ssiiiss", &in_device, &out_device, &num_label, &in_label, &out_label, &filter, &lock_file))
+    if(!PyArg_ParseTuple(args, "ssiiissi", &in_device, &out_device, &num_label, &in_label, &out_label, &filter, &lock_file, &verbose))
         return NULL;
 
     Py_BEGIN_ALLOW_THREADS
-    mplsred(in_device, out_device, num_label, in_label, out_label, filter, lock_file);
+    mplsred(in_device, out_device, num_label, in_label, out_label, filter, lock_file, verbose);
     Py_END_ALLOW_THREADS
 
     Py_INCREF(Py_None);

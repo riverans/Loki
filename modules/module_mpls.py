@@ -61,7 +61,7 @@ class redirect_thread(threading.Thread):
         os.close(handle)
         self.parent.log("MPLS: Redirection thread started")
         
-        loki_bindings.mpls.mplsred.mplsred(self.parent.interface, self.parent.interface, self.num_label, self.from_label, self.to_label, self.filter, self.tmpfile)
+        loki_bindings.mpls.mplsred.mplsred(self.parent.interface, self.parent.interface, self.num_label, self.from_label, self.to_label, self.filter, self.tmpfile, 0)
 
         self.parent.log("MPLS: Redirection thread terminated")
         if os.path.exists(self.tmpfile):

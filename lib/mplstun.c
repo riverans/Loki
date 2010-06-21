@@ -196,9 +196,6 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
     if (verbose)
         printf("Sending to MAC %s on interface %s\n", out_mac, out_device);
 
-    timeout.tv_sec = TIMEOUT_SEC;
-    timeout.tv_usec = TIMEOUT_USEC;
-
     fm = max(tun_fd, pcap_fd) + 1;
     FD_ZERO(&fds);
     FD_SET(tun_fd, &fds);
@@ -206,6 +203,9 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
 
     for(run = 1; run; run++)
     {
+        timeout.tv_sec = TIMEOUT_SEC;
+        timeout.tv_usec = TIMEOUT_USEC;
+
         ret = select(fm, &fds, NULL, NULL, &timeout);
         bzero(out, WRITE_BUFFER_SIZE);
 
