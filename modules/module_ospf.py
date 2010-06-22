@@ -386,7 +386,6 @@ class ospf_link_state_update(ospf_header):
             ret += i.render()
         return ospf_header.render(self, ret)
 
-
     def parse(self, data):
         update = ospf_header.parse(self, data)
         (num,) = struct.unpack("!L", update[:4])
@@ -1086,6 +1085,7 @@ class mod_class(object):
     NEIGH_STATE_ROW = 3
     NEIGH_AUTH_ROW = 4
     NEIGH_CRACK_ROW = 5
+    NEIGH_MASTER_ROW = 6
 
     NET_NET_ROW = 0
     NET_MASK_ROW = 1
@@ -1096,7 +1096,7 @@ class mod_class(object):
         self.platform = platform
         self.name = "ospf"
         self.gladefile = "/modules/module_ospf.glade"
-        self.neighbor_liststore = gtk.TreeStore(str, str, int, str, str, str)
+        self.neighbor_liststore = gtk.TreeStore(str, str, str, str, str, str, bool)
         self.network_liststore = gtk.ListStore(str, str, str)
         self.auth_type_liststore = gtk.ListStore(str, int)
         for i in dir(ospf_header):
@@ -1141,7 +1141,7 @@ class mod_class(object):
                 self.bf[i].quit()
         self.neighbor_liststore.clear()
         self.network_liststore.clear()
-        self.auth_type_liststore.clear()
+        #self.auth_type_liststore.clear()
         
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -1193,6 +1193,14 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.NEIGH_CRACK_ROW)
         self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("MASTER")
+        render_toggle = gtk.CellRendererToggle()
+        render_toggle.set_property('activatable', True)
+        render_toggle.connect('toggled', self.master_toggle_callback, self.neighbor_liststore)
+        column.pack_start(render_toggle, expand=False)
+        column.add_attribute(render_toggle, "active", self.NEIGH_MASTER_ROW)
+        self.neighbor_treeview.append_column(column)
 
         self.network_treeview = self.glade_xml.get_widget("network_treeview")
         self.network_treeview.set_model(self.network_liststore)
@@ -1236,6 +1244,12 @@ class mod_class(object):
         self.net_type_combobox.set_active(0)
 
         return self.glade_xml.get_widget("root")
+
+    def master_toggle_callback(self, cell, path, model):
+        model[path][self.NEIGH_MASTER_ROW] = not model[path][self.NEIGH_MASTER_ROW]
+        id = model[path][self.NEIGH_ID_ROW]
+        (iter, mac, src, dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
+        self.neighbors[id] = (iter, mac, src, dbd, lsa, state, model[path][self.NEIGH_MASTER_ROW], seq, last_packet)
 
     def log(self, msg):
         self.__log(msg, self.name)
@@ -1292,7 +1306,7 @@ class mod_class(object):
                         else:
                             master = False
                         #print "Local %s (%i) - Peer %s (%i) => Master " % (dnet.ip_ntoa(self.ip), socket.ntohl(ip_int), id, socket.ntohl(header.id)) + str(master)
-                        iter = self.neighbor_liststore.append(None, [dnet.ip_ntoa(ip.src), id, header.area, "HELLO", header.auth_to_string(), ""])
+                        iter = self.neighbor_liststore.append(None, [dnet.ip_ntoa(ip.src), id, str(header.area), "HELLO", header.auth_to_string(), "", master])
                         #                    (iter, mac,     src,    dbd, lsa, state,                 master, seq)
                         self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337, ip.data)
                         self.log("OSPF: Got new peer %s" % (dnet.ip_ntoa(ip.src)))
@@ -1361,9 +1375,9 @@ class mod_class(object):
                             
                             ### ADD LSA'S TO NEIGH-STORE ###
                             for lsa in update.advertisements:
-                                if lsa.type == ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS:
+                                if lsa.ls_type == ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS:
                                     for link in lsa.links:
-                                        self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", dnet.ip_ntoa(link.id), dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", ""])
+                                        self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", dnet.ip_ntoa(link.id), dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
 
                             self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq, ip.data)
 
