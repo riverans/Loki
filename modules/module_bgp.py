@@ -404,8 +404,6 @@ class bgp_session(threading.Thread):
 
     def shutdown(self):
         self.active = False
-        if self.isAlive():
-            self.join()
     
     def run(self):
         iter = self.liststore.append([self.host, self.host])
@@ -413,7 +411,8 @@ class bgp_session(threading.Thread):
         self.keepalive()
         self.log("BGP: Keepalive thread terminated for %s" % (self.host))
 
-        self.liststore.remove(iter)
+        if self.liststore.iter_is_valid(iter):
+            self.liststore.remove(iter)
         
         del self.parent.sessions[self.host]
 
@@ -446,7 +445,6 @@ class mod_class(object):
         self.name = "bgp"
         self.gladefile = "/modules/module_bgp.glade"
         self.liststore = gtk.ListStore(str, str)
-        self.session = None
 
     def start_mod(self):
         self.sessions = {}
@@ -455,9 +453,8 @@ class mod_class(object):
         self.parameters = []
 
     def shut_mod(self):
-        if self.session:
-            for i in self.sessions.keys():
-                self.sessions[i].shutdown()
+        for i in self.sessions:
+            self.sessions[i].shutdown()
         self.liststore.clear()
 
     def get_root(self):
