@@ -420,6 +420,8 @@ class eigrp_peer(threading.Thread):
                     self.msg = None
                 self.sem.release()
                 time.sleep(0.1)
+            else:
+                time.sleep(1)
 
     def input(self, data):
         packet = eigrp_packet()
