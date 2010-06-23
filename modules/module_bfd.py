@@ -344,8 +344,8 @@ class mod_class(object):
                 tmp = packet.your_discrim
                 packet.your_discrim = packet.my_discrim
                 packet.my_discrim = tmp
-                udp_hdr = dpkt.udp.UDP( dport=udp.sport,
-                                        sport=udp.dport,
+                udp_hdr = dpkt.udp.UDP( dport=udp.dport,
+                                        sport=udp.sport,
                                         data=packet.render()
                                         )
                 udp_hdr.ulen += len(udp_hdr.data)
