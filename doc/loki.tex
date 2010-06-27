@@ -1,0 +1,171 @@
+\documentclass[a4paper, 11pt]{article}
+\usepackage{setspace}
+\usepackage{threeparttable}
+
+\begin{document}
+    \tableofcontents
+    \newpage
+
+    \section{Why LOKI}
+
+    At the beginning LOKI was made to combine some stand-alone command line tools, like the $bgp\_cli$, the $ospf\_cli$ or the $ldp\_cli$ and to give them a user friendly, graphical interface. In the meantime LOKI is more than just the combination of the single tools, it gave its modules the opportunity to base upon each other (like combining ARP-spoofing from the ARP module with some man-in-the-middle actions, rewriting MPLS-labels for example) and even inter operate with each other.
+
+    \section{Architecture}
+
+        The LOKI architecture is based the following components, which are described in detail later on:
+    
+        \begin{itemize}
+            \item The main program
+            \item The module API
+            \item Library extensions
+        \end{itemize}
+
+        \subsection{The main program}
+        This section describes the software architecture of the main LOKI program.
+        
+        \begin{description}
+            \item[GUI:] LOKI is based upon the $GTK-library$. The base program creates the main window with the general command-buttons and a few sub-windows, like the log-, the preference- or the about-window and a status bar. In the center of the main window, it creates an notebook, with one tab for each module. The tabs are filled with GTK-widgets from the module code. This widgets are fully under control of the module code, so the main program don't need to worry about.
+            \item[Traffic capturing:] For capturing the network data, $libpcap$ is used. The main program enumerates all network interfaces and gives the user a graphical interface to select the interface to use. Instead of capturing data live data from an interface, also a capture file can be opened. Once the interface, or input file, is selected, a new thread is created in the main program, which permanently captures the input data and demultiplex it to the single modules (see \ref{module-api-add}).
+            \item[Traffic injection:] Traffic injection is done via the $dnet$ library. The LOKI main program creates a dnet instance for the selected interface and passes it directly to the modules (see \ref{module-api-add}).
+            \item[Firewalling:] Firewalling is also done via the $dnet$ library. The main program creates a global dnet-firewall object and passes it to the modules (see \ref{module-api-add}).
+        \end{description}
+
+        \subsection{The module API}
+        This section describes the assumed API each module needs to implement as well as the optional functions called by the LOKI main program.
+
+            \subsubsection{Minimal module API}
+
+            \begin{description}
+                \item[The Python class:] Each module needs to implement a Python class, called $mod\_class$. This class gets instantiated by the main program an will remain alive and in memory until the main program exits or the module is disabled via the preference window.
+                \item[The $\_\_init\_\_$ function:] Each $mod\_class$ needs to implement a constructor (in Python classes the $\_\_init\_\_$ function) which takes the following arguments:
+                    \begin{itemize}
+                        \item $parent$ - A reference to the main programs base class
+                        \item $platform$ - A string describing the platform, the code is running on (the string is taken by the Python $platform.system()$ function).
+                    \end{itemize}
+                \item[The $get\_root$ function:] In the $mod\_class$ there needs to be a $get\_root$ function, which builds up all the GTK-widgets, that should be included in the module's tab in the main program window. The function must return a reference to the module's root widget.
+                \item[The $start\_mod$ function:] The $start\_mod$ function is called every time the application starts listening or when a module is activated, while listening. It should set the module's internal variables to a defined state, apply firewall rules and create, maybe launch up, additional threads.
+                \item[The $shut\_mod$ function:] The $shut\_mod$ function is called every time the application stops listening or when a module is deactivated or reseted while listening. It should terminate all of the module's threads as well as remove firewall rules and terminate external dependencies.
+            \end{description}
+
+            \subsubsection{Additional module API}
+            \label{module-api-add}
+
+                In addition to the assumed functions a module needs to implement, there are a hand full of functions which may be implemented, depending on the functionality of the module.
+
+                The following functions are related to packet capturing and the demultiplexing process, the main LOKI program uses:
+                
+                \begin{description}
+                    \item[The $get\_eth\_checks$ function:] The module needs to implement this function if it wants to receive Ethernet packets, captured by the dnet library. The function needs to return a tuple, containing a check function and an input function (see \ref{check-input-func}).
+                    \item[The $get\_ip\_checks$ function:] The module needs to implement this function if it wants to receive IP packets, captured by the dnet library. The function needs to return a tuple, containing a check function and an input function (see \ref{check-input-func}).
+                    \item[The $get\_tcp\_checks$ function:] The module needs to implement this function if it wants to receive TCP packets, captured by the dnet library. The function needs to return a tuple, containing a check function and an input function (see \ref{check-input-func}).
+                    \item[The $get\_udp\_checks$ function:] The module needs to implement this function if it wants to receive UDP packets, captured by the dnet library. The function needs to return a tuple, containing a check function and an input function (see \ref{check-input-func}).
+                \end{description}
+
+                \begin{description}
+                    \item[The $set\_dnet$ function:] If a module wants to inject traffic to the network it needs to have a $set\_dnet$ function, will be called by the main LOKI program during the module initialization. The function need to take the following arguments:
+                        \begin{itemize}
+                            \item $dnet$ - A reference to the global $libdnet$ injection thread.
+                        \end{itemize}
+                    \item[The $set\_fw$ function:] This function must be implemented, if a module wants to modify the firewall rule set. It will be called by the main LOKI program during the module initialization and needs to take the following arguments:
+                        \begin{itemize}
+                            \item $fw$ - A reference to the global $libdnet$ firewall object.
+                        \end{itemize}
+                    \item[The $set\_ip$ function:] If a module needs to know the IP address and network mask of the interface, LOKI is listening on, the $set\_ip$ function must be present and needs to take the following arguments:
+                        \begin{itemize}
+                            \item $ip$ - The IP address of the interface as a string.
+                            \item $mask$ - The network mask of the interface as a string.
+                        \end{itemize}
+                    \item[The $set\_int$ function:] This function needs to be present, if a module needs to know the name of the interface, LOKI is currently listening on. The function need to take the following arguments:
+                        \begin{itemize}
+                            \item $interface$ - The name of the interface as a string.
+                        \end{itemize}
+                \end{description}
+                
+            \subsubsection{Check and Input functions}
+            \label{check-input-func}
+
+                The $get\_\{eth,ip,tcp,udp\}\_checks$ functions needs to return a tuple of the reference to a checking function and the reference to an input function. The checking functions needs to take one argument, which is the reference to an $dpkt$ object of the appropriate type:
+                \\
+                
+                \begin{tabular}{|l|r|}
+                    \hline
+                    Function & Object type\\
+                    \hline
+                    \hline
+                    check\_eth & dpkt.ethernet\\
+                    check\_ip & dpkt.ip\\
+                    check\_tcp & dpkt.tcp\\
+                    check\_udp & dpkt.udp\\
+                    \hline
+                \end{tabular}
+                \\
+                
+                These check functions needs also to return a tuple, containing two boolean values, representing the result of the check. The first boolean signals if the packet is designated to the module (and should be inputed into the input function), the second value signals if check functions of other modules should be called for this packet or if the check execution for that packet should terminate.
+                \textbf{The check functions should be as fast as possible as they are called for every single network packet.}
+                
+                If the check function returns, that a packet is designated to the module, the given input function will be called. This input function must take some parameters regarding to their type:
+                \\
+                
+                \begin{tabular}{|l|p{0.8\textwidth}|}
+                    \hline
+                    Function & Parameters\\
+                    \hline
+                    \hline
+                    check\_eth &    \begin{itemize}
+                                        \item $eth$ - The Ethernet data as a dpkt.ethernet object
+                                        \item $timestamp$ - The time of the packet's arriving
+                                    \end{itemize}\\
+                    \hline
+                    check\_ip &     \begin{itemize}
+                                        \item $eth$ - The Ethernet data as a dpkt.ethernet object
+                                        \item $ip$ - The IP data as a dpkt.ip object
+                                        \item $timestamp$ - The time of the packet's arriving
+                                    \end{itemize}\\
+                    \hline
+                    check\_tcp &    \begin{itemize}
+                                        \item $eth$ - The Ethernet data as a dpkt.ethernet object
+                                        \item $ip$ - The IP data as a dpkt.ip object
+                                        \item $tcp$ - The TCP data as a dpkt.tcp object
+                                        \item $timestamp$ - The time of the packet's arriving
+                                    \end{itemize}\\
+                    \hline
+                    check\_udp &    \begin{itemize}
+                                        \item $eth$ - The Ethernet data as a dpkt.ethernet object
+                                        \item $ip$ - The IP data as a dpkt.ip object
+                                        \item $udp$ - The UDP data as a dpkt.udp object
+                                        \item $timestamp$ - The time of the packet's arriving
+                                    \end{itemize}\\
+                    \hline
+                \end{tabular}
+                
+        \subsection{Library extensions}
+
+        While developing LOKI it was necessary to extend the $dnet$ library. It is unmaintained till 2005, so there were some incompatibilities with Python 2.6. No exceptions were returned from the $libdnet$ Python bindings, as the $raise$ syntax changed from Python 2.5 to 2.6. A patch for $libdnet-1.11$ is available.
+
+        The $dnet$ library only had a $ipchains$ module for firewalling on Linux, which isn't state of the art since Linux 2.4. To actual use firewalling via $libdnet$ on modern Linux systems, it was required to extend $libdnet$ with an $iptables$ firewalling module.
+
+        \subsubsection{$libdnet$ iptables module}
+        
+            To communicate with the kernel's $xtables$ interface $libiptc$ and $libxtables$ from the $iptables$ package were used. In the meantime the $iptables$ package and also the included libraries were updated and broke the API. The current $libnet$ iptables module only works with $iptables$-1.4.3.2. Also not all functions are fully implemented. The following table shows the current state of implementation:
+            \\
+            
+            \begin{threeparttable}
+                \begin{tabular}{|l|r|}
+                    \hline
+                    Function & Implementation state\\
+                    \hline
+                    \hline
+                    fw\_open & working\\
+                    fw\_add & working\tnote{1}\\
+                    fw\_delete & working\\
+                    fw\_loop & not implemented\\
+                    fw\_close & working\\
+                    \hline
+                \end{tabular}
+                \begin{tablenotes}\footnotesize 
+                    \item[1] No support for filtering ICMP on message type, yet.
+                \end{tablenotes}
+            \end{threeparttable}
+            \\
+                
+\end{document}
