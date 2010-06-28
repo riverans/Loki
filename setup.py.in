@@ -116,7 +116,7 @@ mplstun_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplstun.c', '@top_srcdir@/lib/
 mplstun_incdirs = [ '@top_srcdir@' ]
 mplstun_libdirs = []
 mplstun_libs = []
-mplstun_extargs = [ '@DNETINC@', '@PCAPINC@' ]
+mplstun_extargs = [ '@PCAPINC@' ]
 mplstun_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplstun_extobj = [ '@DNETLIB@', '@PCAPLIB@' ]
 
@@ -124,7 +124,7 @@ mplsred_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplsred.c', '@top_srcdir@/lib/
 mplsred_incdirs = [ '@top_srcdir@' ]
 mplsred_libdirs = []
 mplsred_libs = []
-mplsred_extargs = [ '@DNETINC@', '@PCAPINC@' ]
+mplsred_extargs = [ '@PCAPINC@' ]
 mplsred_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplsred_extobj = [ '@DNETLIB@', '@PCAPLIB@' ]
 
