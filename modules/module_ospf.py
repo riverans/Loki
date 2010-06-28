@@ -848,7 +848,7 @@ class ospf_thread(threading.Thread):
                         self.hello_count += 1
                    
                     for id in self.parent.neighbors:
-                        (iter, mac, ip, dbd, lsa, state, master, seq, last_packet) = self.parent.neighbors[id]
+                        (iter, mac, ip, dbd, lsa, state, master, seq, last_packet, adverts) = self.parent.neighbors[id]
 
                         if state == self.STATE_HELLO:
                             #Unicast hello
@@ -879,7 +879,7 @@ class ospf_thread(threading.Thread):
                                                                         seq
                                                                         )
                                     self.send_unicast(mac, ip, packet.render(""))
-                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet)
+                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet, adverts)
                                 else:
                                     #Learned DBD
                                     packet = ospf_database_description( self.parent.area,
@@ -904,7 +904,7 @@ class ospf_thread(threading.Thread):
                                                                     ospf_database_description.FLAGS_MASTER_SLAVE,
                                                                     seq
                                                                     )
-                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet)
+                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet, adverts)
                             else:
                                 packet = ospf_database_description( self.parent.area,
                                                                     self.parent.auth_type,
@@ -937,7 +937,7 @@ class ospf_thread(threading.Thread):
                                                                     seq
                                                                     )
                                 self.send_unicast(mac, ip, packet.render(""))
-                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet)
+                                self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet, adverts)
                             else:
                                 #Ack DBD
                                 packet = ospf_database_description( self.parent.area,
@@ -963,7 +963,7 @@ class ospf_thread(threading.Thread):
                                                                         )
                                     data = packet.render()
                                     self.send_unicast(mac, ip, data)
-                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, False, seq, last_packet)
+                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, False, seq, last_packet, adverts)
                             else:
                                 #LSUpdate
                                 ipy = IPy.IP("%s/%s" % (dnet.ip_ntoa(self.parent.ip), dnet.ip_ntoa(self.parent.mask)), make_net=True)
@@ -992,7 +992,7 @@ class ospf_thread(threading.Thread):
                             if len(lsa):
                                 ack = ospf_link_state_acknowledgment(self.parent.area, self.parent.auth_type, self.parent.auth_data, self.parent.ip, lsa)
                                 self.send_unicast(mac, ip, ack.render())
-                                self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, master, seq, last_packet)
+                                self.parent.neighbors[id] = (iter, mac, ip, dbd, [], state, master, seq, last_packet, adverts)
                             for i in self.parent.nets:
                                 (net, mask, type, active, removed) = self.parent.nets[i]
                                 if active:
@@ -1007,7 +1007,7 @@ class ospf_thread(threading.Thread):
                                                                                             ospf_router_link_advertisement_link.TYPE_TRANSIT_NET,
                                                                                             1
                                                                                             ) ]
-                                        adverts = [ ospf_router_link_advertisement( 92,
+                                        advert = [ ospf_router_link_advertisement( 92,
                                                                                     ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY | ospf_hello.OPTION_DEMAND_CIRCUITS,
                                                                                     ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS,
                                                                                     self.parent.ip,
@@ -1020,7 +1020,7 @@ class ospf_thread(threading.Thread):
                                                                             self.parent.auth_type,
                                                                             self.parent.auth_data,
                                                                             self.parent.ip,
-                                                                            adverts,
+                                                                            advert,
                                                                             )
                                         self.send_unicast(mac, ip, packet.render())
                                         self.parent.log("OSPF: Sending ROUTER_LINKS LSU to %s" % (dnet.ip_ntoa(ip)))
@@ -1193,14 +1193,14 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.NEIGH_CRACK_ROW)
         self.neighbor_treeview.append_column(column)
-        column = gtk.TreeViewColumn()
-        column.set_title("MASTER")
-        render_toggle = gtk.CellRendererToggle()
-        render_toggle.set_property('activatable', True)
-        render_toggle.connect('toggled', self.master_toggle_callback, self.neighbor_liststore)
-        column.pack_start(render_toggle, expand=False)
-        column.add_attribute(render_toggle, "active", self.NEIGH_MASTER_ROW)
-        self.neighbor_treeview.append_column(column)
+        #~ column = gtk.TreeViewColumn()
+        #~ column.set_title("MASTER")
+        #~ render_toggle = gtk.CellRendererToggle()
+        #~ render_toggle.set_property('activatable', True)
+        #~ render_toggle.connect('toggled', self.master_toggle_callback, self.neighbor_liststore)
+        #~ column.pack_start(render_toggle, expand=False)
+        #~ column.add_attribute(render_toggle, "active", self.NEIGH_MASTER_ROW)
+        #~ self.neighbor_treeview.append_column(column)
 
         self.network_treeview = self.glade_xml.get_widget("network_treeview")
         self.network_treeview.set_model(self.network_liststore)
@@ -1248,8 +1248,8 @@ class mod_class(object):
     def master_toggle_callback(self, cell, path, model):
         model[path][self.NEIGH_MASTER_ROW] = not model[path][self.NEIGH_MASTER_ROW]
         id = model[path][self.NEIGH_ID_ROW]
-        (iter, mac, src, dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
-        self.neighbors[id] = (iter, mac, src, dbd, lsa, state, model[path][self.NEIGH_MASTER_ROW], seq, last_packet)
+        (iter, mac, src, dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
+        self.neighbors[id] = (iter, mac, src, dbd, lsa, state, model[path][self.NEIGH_MASTER_ROW], seq, last_packet, adverts)
 
     def log(self, msg):
         self.__log(msg, self.name)
@@ -1307,13 +1307,13 @@ class mod_class(object):
                             master = False
                         #print "Local %s (%i) - Peer %s (%i) => Master " % (dnet.ip_ntoa(self.ip), socket.ntohl(ip_int), id, socket.ntohl(header.id)) + str(master)
                         iter = self.neighbor_liststore.append(None, [dnet.ip_ntoa(ip.src), id, str(header.area), "HELLO", header.auth_to_string(), "", master])
-                        #                    (iter, mac,     src,    dbd, lsa, state,                 master, seq)
-                        self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337, ip.data)
+                        #                    (iter, mac,     src,    dbd, lsa, state,                   master, seq,  last_packet, adverts)
+                        self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337, ip.data, {})
                         self.log("OSPF: Got new peer %s" % (dnet.ip_ntoa(ip.src)))
                     elif self.thread.hello:
-                        (iter, mac, src, dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
+                        (iter, mac, src, dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
-                            self.neighbors[id] = (iter, src, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data)
+                            self.neighbors[id] = (iter, src, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data, adverts)
                             self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
                     self.dr = hello.designated_router
                     self.bdr = hello.backup_designated_router
@@ -1325,12 +1325,12 @@ class mod_class(object):
                 header.parse(data[:24])
                 id = dnet.ip_ntoa(header.id)
                 if id in self.neighbors:
-                    (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
+                    (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
                     if header.type == ospf_header.TYPE_HELLO:
                         hello = ospf_hello()
                         hello.parse(data)
                         if state == ospf_thread.STATE_HELLO:
-                            self.neighbors[id] = (iter, eth.src, ip.src, org_dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data)
+                            self.neighbors[id] = (iter, eth.src, ip.src, org_dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data, adverts)
                             self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
                     elif header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
                         dbd = ospf_database_description()
@@ -1341,27 +1341,27 @@ class mod_class(object):
                                     #parse lsa header and store for master role in loading state
                                     dbd.parse(data, parse_lsa=True)
                                     if dbd.lsa_db != []:
-                                        self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data)
+                                        self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data, adverts)
                                         self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
                                 else:
-                                    self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data)
+                                    self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data, adverts)
                                     self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
                             else:
-                                self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, seq, ip.data)
+                                self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, seq, ip.data, adverts)
                         elif state == ospf_thread.STATE_EXSTART:
                             if not dbd.flags & ospf_database_description.FLAGS_MORE and not master:
-                                self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE, master, seq, ip.data)
+                                self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE, master, seq, ip.data, adverts)
                                 self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXCHANGE")
                             elif not dbd.flags and master:
-                                self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data)
+                                self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data, adverts)
                                 self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")      
                     elif header.type == ospf_header.TYPE_LINK_STATE_REQUEST:
                         if state == ospf_thread.STATE_EXCHANGE:
-                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data)
+                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data, adverts)
                             self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")
                     elif header.type == ospf_header.TYPE_LINK_STATE_ACK:
                         if state == ospf_thread.STATE_LOADING:
-                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_FULL, master, seq, ip.data)
+                            self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_FULL, master, seq, ip.data, adverts)
                             self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "FULL")
                             self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                     elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
@@ -1377,9 +1377,16 @@ class mod_class(object):
                             for lsa in update.advertisements:
                                 if lsa.ls_type == ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS:
                                     for link in lsa.links:
-                                        self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", dnet.ip_ntoa(link.id), dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
+                                        link_id = dnet.ip_ntoa(link.id)
+                                        if link_id not in adverts:
+                                            iter2 = self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", link_id, dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
+                                            adverts[link_id] = (iter2, link)
+                                        else:
+                                            (iter2, old_link) = adverts[link_id]
+                                            self.neighbor_liststore.set(iter2, self.NEIGH_AREA_ROW, dnet.ip_ntoa(link.data), self.NEIGH_STATE_ROW, ospf_router_link_advertisement_link.TYPES[link.type])
+                                            adverts[link_id] = (iter2, link)
 
-                            self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq, ip.data)
+                            self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq, ip.data, adverts)
 
     # SIGNALS #
 
@@ -1430,9 +1437,9 @@ class mod_class(object):
                 self.filter = False
             self.log("OSPF: Hello thread deactivated")
             for id in self.neighbors:
-                (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
+                (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
                 self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "HELLO")
-                self.neighbors[id] = (iter, mac, src, None, [], ospf_thread.STATE_HELLO, master, 1337, last_packet)
+                self.neighbors[id] = (iter, mac, src, None, [], ospf_thread.STATE_HELLO, master, 1337, last_packet, adverts)
         self.thread.hello = btn.get_active()
 
     def on_bf_button_clicked(self, btn):
@@ -1448,7 +1455,7 @@ class mod_class(object):
             if ident in self.bf:
                 if self.bf[ident].is_alive():
                     return
-            (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet) = self.neighbors[id]
+            (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
             type = self.neighbor_liststore.get_value(iter, self.NEIGH_AUTH_ROW)
             if not type == "DIGEST":
                 self.log("OSPF: Cant crack %s, doesnt use DIGEST authentication")
