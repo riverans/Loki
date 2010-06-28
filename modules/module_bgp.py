@@ -445,6 +445,7 @@ class mod_class(object):
         self.name = "bgp"
         self.gladefile = "/modules/module_bgp.glade"
         self.liststore = gtk.ListStore(str, str)
+        self.sessions = {}
 
     def start_mod(self):
         self.sessions = {}
