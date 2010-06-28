@@ -31,7 +31,6 @@
 
 import random
 import struct
-import threading
 
 import dnet
 import dpkt
