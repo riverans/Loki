@@ -256,7 +256,7 @@ class mod_class(object):
                 return (True, True)
         return (False, False)
 
-    def input_udp(self, eth, ip, udp, timestamo):
+    def input_udp(self, eth, ip, udp, timestamp):
         if ip.src != self.ip:
             if ip.src not in self.peers:
                 pkg = hsrp_packet()
@@ -273,7 +273,7 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            peer = dnet.ip_aton(model.get_value(iter, Sself.TORE_SRC_ROW))
+            peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
             (iter, pkg, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
                 arp = 3
