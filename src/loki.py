@@ -613,7 +613,6 @@ class codename_loki(object):
                 btn.set_active(False)
                 return
             self.pcap_thread = pcap_thread(self, self.interface)
-            self.pcap_thread.start()
             self.dnet_thread = dnet_thread(self.interface)
             self.log("Listening on %s" % (self.interface))
             self.fw = dnet.fw()
@@ -628,6 +627,7 @@ class codename_loki(object):
             self.network_button.set_property("sensitive", False)
             self.open_togglebutton.set_property("sensitive", False)
             self.dnet_thread.start()
+            self.pcap_thread.start()
         else:
             for i in self.modules:
                 (mod, en) = self.modules[i]
@@ -675,10 +675,10 @@ class codename_loki(object):
                             j.set_property("sensitive", True)
                     i.set_property("sensitive", True)
                 self.run_togglebutton.set_property("sensitive", False)
-                self.pcap_thread.start()
             else:
                 btn.set_active(False)
             dialog.destroy()
+            self.pcap_thread.start()
         else:
             for i in self.modules:
                 (mod, en) = self.modules[i]
