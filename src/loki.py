@@ -97,18 +97,126 @@ class log_window(gtk.Window):
         vbox.pack_start(buttonbox, False, False, 0)
         self.add(vbox)
 
+class module_preferences_window(gtk.Window):
+    NAME_ROW = 0
+    VALUE_ROW = 1
+    TYPE_ROW = 2
+    MIN_ROW = 3
+    MAX_ROW = 4
+    
+    def __init__(self, parent, mod_name, dict):
+        self.par = parent
+        self.mod_name = mod_name
+        self.dict = dict
+        gtk.Window.__init__(self)
+        self.set_title("%s Preferences" % mod_name.upper())
+        self.set_default_size(250, 350)
+        self.module_liststore = gtk.ListStore(str, str, str, int, int)
+        notebook = gtk.Notebook()
+        module_treeview = gtk.TreeView()
+        module_treeview.set_model(self.module_liststore)
+        module_treeview.set_headers_visible(True)
+
+        column = gtk.TreeViewColumn()
+        column.set_title("Name")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.NAME_ROW)
+        module_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Value")
+        render_text = gtk.CellRendererText()
+        render_text.set_property('editable', True)
+        render_text.connect('edited', self.edited_callback, self.module_liststore)
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.VALUE_ROW)
+        module_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Type")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.TYPE_ROW)
+        module_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Min")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.MIN_ROW)
+        module_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Max")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.MAX_ROW)
+        module_treeview.append_column(column)
+        
+        scrolledwindow = gtk.ScrolledWindow()
+        scrolledwindow.set_property("vscrollbar-policy", gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
+        scrolledwindow.add_with_viewport(module_treeview)
+        vbox = gtk.VBox(False, 0)
+        vbox.pack_start(scrolledwindow, True, True, 0)
+        buttonbox = gtk.HButtonBox()
+        close = gtk.Button(gtk.STOCK_CLOSE)
+        close.set_use_stock(True)
+        close.connect_object("clicked", self.close_button_clicked, None)
+        buttonbox.pack_start(close)
+        close = gtk.Button(gtk.STOCK_SAVE)
+        close.set_use_stock(True)
+        close.connect_object("clicked", self.save_button_clicked, None)
+        buttonbox.pack_start(close)
+        vbox.pack_start(buttonbox, False, False, 0)
+        self.add(vbox)
+
+        for name in dict:
+            (value, val_type, val_min, val_max) = dict[name]
+            self.module_liststore.append([name, str(value), val_type, val_min, val_max])
+
+    def edited_callback(self, cell, path, new_text, model):
+        def int_(self, cell, path, new_text, model):
+            try:
+                val = int(new_text)
+                assert(val >= model[path][self.MIN_ROW])
+                assert(val <= model[path][self.MAX_ROW])
+            except:
+                pass
+            else:
+                model[path][self.VALUE_ROW] = new_text
+                self.dict[model[path][self.NAME_ROW]] = val
+
+        def str_(self, cell, path, new_text, model):
+            try:
+                assert(len(new_text) >= model[path][self.MIN_ROW])
+                assert(len(new_text) <= model[path][self.MAX_ROW])
+            except:
+                pass
+            else:
+                model[path][self.VALUE_ROW] = new_text
+                self.dict[model[path][self.NAME_ROW]] = new_text
+
+        {   "str" : str_,
+            "int" : int_    }[model[path][self.TYPE_ROW]](self, cell, path, new_text, model)
+
+    def close_button_clicked(self, btn):
+        gtk.Widget.destroy(self)
+
+    def save_button_clicked(self, btn):
+        (module, enabled) = self.par.par.modules[self.mod_name]
+        module.set_config_dict(self.dict)
+
 class preference_window(gtk.Window):
     MOD_NAME_ROW = 0
     MOD_ENABLE_ROW = 1
     MOD_RESET_ROW = 2
+    MOD_CONFIG_ROW = 3
     
     def __init__(self, parent):
         self.par = parent
         gtk.Window.__init__(self)
         self.set_title("Preferences")
-        self.set_default_size(150, 70)
+        self.set_default_size(300, 400)
         #self.set_property("modal", True)
-        self.module_liststore = gtk.ListStore(str, bool, bool)
+        self.module_liststore = gtk.ListStore(str, bool, bool, bool)
         notebook = gtk.Notebook()
         module_treeview = gtk.TreeView()
         module_treeview.set_model(self.module_liststore)
@@ -137,6 +245,15 @@ class preference_window(gtk.Window):
         column.pack_start(render_toggle, expand=False)
         column.add_attribute(render_toggle, 'active', self.MOD_RESET_ROW)
         module_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Config")
+        render_toggle = gtk.CellRendererToggle()
+        render_toggle.set_property('activatable', True)
+        render_toggle.set_property('radio', True)
+        render_toggle.connect('toggled', self.config_callback, self.module_liststore)
+        column.pack_start(render_toggle, expand=False)
+        column.add_attribute(render_toggle, 'active', self.MOD_CONFIG_ROW)
+        module_treeview.append_column(column)
 
         scrolledwindow = gtk.ScrolledWindow()
         scrolledwindow.set_property("vscrollbar-policy", gtk.POLICY_AUTOMATIC)
@@ -152,13 +269,15 @@ class preference_window(gtk.Window):
         buttonbox.pack_start(close)
         vbox.pack_start(buttonbox, False, False, 0)
         self.add(vbox)
-        self.resize(250, 400)
 
         modlist = self.par.modules.keys()
         modlist.sort()
         for i in modlist:
             (module, enabled) = self.par.modules[i]
-            self.module_liststore.append([i, enabled, False])
+            if "get_config_dict" in dir(module):
+                self.module_liststore.append([i, enabled, False, False])
+            else:
+                self.module_liststore.append([i, enabled, False, True])
 
     def toggle_callback(self, cell, path, model):
         model[path][self.MOD_ENABLE_ROW] = not model[path][self.MOD_ENABLE_ROW]
@@ -180,6 +299,14 @@ class preference_window(gtk.Window):
                 if old_pos == cur:
                     self.par.notebook.set_current_page(cur)
             return False
+
+    def config_callback(self, cell, path, model):
+        if not model[path][self.MOD_CONFIG_ROW]:
+            name = model[path][self.MOD_NAME_ROW]
+            (module, enabled) = self.par.modules[name]
+            dict = module.get_config_dict()
+            wnd = module_preferences_window(self, name, dict)
+            wnd.show_all()
         
     def close_button_clicked(self, arg):
         gtk.Widget.destroy(self)
