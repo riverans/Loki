@@ -163,12 +163,18 @@ class hsrp_thread(threading.Thread):
         self.running = False
 
 class mod_class(object):
+    STORE_SRC_ROW = 0
+    STORE_IP_ROW = 1
+    STORE_PRIO_ROW = 2
+    STORE_STATE_ROW = 3
+    STORE_AUTH_ROW = 4
+    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
         self.name = "hsrp"
         self.gladefile = "/modules/module_hsrp.glade"
-        self.liststore = gtk.ListStore(str, str, int, str)
+        self.liststore = gtk.ListStore(str, str, int, str, str)
         self.thread = None
 
     def start_mod(self):
@@ -196,25 +202,31 @@ class mod_class(object):
         column.set_title("Source")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 0)
+        column.add_attribute(render_text, 'text', self.STORE_SRC_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("IP")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 1)
+        column.add_attribute(render_text, 'text', self.STORE_IP_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Priority")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 2)
+        column.add_attribute(render_text, 'text', self.STORE_PRIO_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Status")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 3)
+        column.add_attribute(render_text, 'text', self.STORE_STATE_ROW)
+        self.treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Auth")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.STORE_AUTH_ROW)
         self.treeview.append_column(column)
 
         self.arp_checkbutton = self.glade_xml.get_widget("arp_checkbutton")
@@ -239,7 +251,9 @@ class mod_class(object):
 
     def check_udp(self, udp):
         if udp.dport == HSRP_PORT:
-            return (True, True)
+            (ver, ) = struct.unpack("!B", str(udp.data)[0])
+            if ver == HSRP_VERSION:
+                return (True, True)
         return (False, False)
 
     def input_udp(self, eth, ip, udp, timestamo):
@@ -248,7 +262,7 @@ class mod_class(object):
                 pkg = hsrp_packet()
                 pkg.parse(str(udp.data))
                 src = dnet.ip_ntoa(ip.src)
-                iter = self.liststore.append([src, dnet.ip_ntoa(pkg.ip), pkg.prio, "Seen"])
+                iter = self.liststore.append([src, dnet.ip_ntoa(pkg.ip), pkg.prio, "Seen", pkg.auth_data])
                 self.peers[ip.src] = (iter, pkg, False, False)
                 self.log("HSRP: Got new peer %s" % (src))
 
@@ -259,14 +273,14 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            peer = dnet.ip_aton(model.get_value(iter, 0))
+            peer = dnet.ip_aton(model.get_value(iter, Sself.TORE_SRC_ROW))
             (iter, pkg, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
                 arp = 3
             else:
                 arp = 0
             self.peers[peer] = (iter, pkg, True, arp)
-            model.set_value(iter, 3, "Taken")
+            model.set_value(iter, self.STORE_STATE_ROW, "Taken")
         if not self.thread.is_alive():
             self.thread.start()
 
@@ -275,9 +289,9 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            peer = dnet.ip_aton(model.get_value(iter, 0))
+            peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
             (iter, pkg, run, arp) = self.peers[peer]
             self.peers[peer] = (iter, pkg, False, arp)
-            model.set_value(iter, 3, "Released")
+            model.set_value(iter, self.STORE_STATE_ROW, "Released")
 
 
