@@ -261,7 +261,7 @@ class hsrp2_thread(threading.Thread):
                                                         )
                     self.parent.dnet.send(str(eth_hdr))
                     if arp:
-                        src_mac = dnet.eth_aton("00:00:0c:07:ac:%02x" % (pkg["hsrp2_group_state_tlv"].group))
+                        src_mac = dnet.eth_aton("00:00:0c:9f:f0:%02x" % (pkg["hsrp2_group_state_tlv"].group))
                         brdc_mac = dnet.eth_aton("ff:ff:ff:ff:ff:ff")
                         stp_uplf_mac = dnet.eth_aton("01:00:0c:cd:cd:cd")
                         ip = pkg["hsrp2_group_state_tlv"].ip
