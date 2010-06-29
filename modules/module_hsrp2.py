@@ -313,6 +313,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "hsrp-v2"
+        self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_hsrp2.glade"
         self.liststore = gtk.ListStore(str, str, int, str, str)
         self.thread = None

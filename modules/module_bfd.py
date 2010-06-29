@@ -167,6 +167,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "bfd"
+        self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_bfd.glade"
         self.neighbor_treestore = gtk.TreeStore(str, str, str, str, bool, bool)
         self.neighbors = {}

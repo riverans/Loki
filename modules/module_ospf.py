@@ -1095,6 +1095,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "ospf"
+        self.group = "ROUTING"
         self.gladefile = "/modules/module_ospf.glade"
         self.neighbor_liststore = gtk.TreeStore(str, str, str, str, str, str, bool)
         self.network_liststore = gtk.ListStore(str, str, str)

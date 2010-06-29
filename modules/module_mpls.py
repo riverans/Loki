@@ -91,6 +91,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "mpls"
+        self.group = "MPLS"
         self.gladefile = "/modules/module_mpls.glade"
         self.peer_treestore = gtk.TreeStore(str, str, str, str, str, int)
         self.redirect_treestore = gtk.TreeStore(str, str, str)

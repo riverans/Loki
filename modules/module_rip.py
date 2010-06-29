@@ -188,6 +188,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "rip"
+        self.group = "ROUTING"
         self.gladefile = "/modules/module_rip.glade"
         self.host_treestore = gtk.TreeStore(str)
         self.route_liststore = gtk.ListStore(str, str, str, str)

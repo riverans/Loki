@@ -443,6 +443,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "bgp"
+        self.group = "ROUTING"
         self.gladefile = "/modules/module_bgp.glade"
         self.liststore = gtk.ListStore(str, str)
         self.sessions = {}

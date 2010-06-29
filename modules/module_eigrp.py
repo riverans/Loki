@@ -507,6 +507,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "eigrp"
+        self.group = "ROUTING"
         self.gladefile = "/modules/module_eigrp.glade"
         self.treestore = gtk.TreeStore(str, str)
         self.filter = False

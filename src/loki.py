@@ -289,6 +289,7 @@ class dnet_thread(threading.Thread):
 class codename_loki(object):
     def __init__(self):
         self.modules = {}
+        self.groups = {}
         self.msg_id = 0
         self.configured = False
         self.pcap_thread = None
@@ -409,13 +410,28 @@ class codename_loki(object):
         root = mod.get_root()
         if not root:
             root = gtk.Label(mod.name)
-        if root.get_parent():
-            root.reparent(self.notebook)
-            self.notebook.set_tab_label(root, gtk.Label(mod.name))
-            self.notebook.reorder_child(root, pos)
-        else:
-            self.notebook.insert_page(root, gtk.Label(mod.name), pos)
-        root.set_property("sensitive", False)
+        group = getattr(mod, "group", "")
+        if group != "":
+            if group in self.groups:
+                ntb = self.groups[group]
+            else:
+                ntb = gtk.Notebook()
+                self.groups[group] = ntb
+                self.notebook.insert_page(ntb, gtk.Label(group), 0)
+            if root.get_parent():
+                root.reparent(ntb)
+                ntb.set_tab_label(root, gtk.Label(mod.name))
+                ntb.reorder_child(root, pos)
+            else:
+                ntb.insert_page(root, gtk.Label(mod.name), pos)
+            ntb.show_all()
+        else:                
+            if root.get_parent():
+                root.reparent(self.notebook)
+                self.notebook.set_tab_label(root, gtk.Label(mod.name))
+                self.notebook.reorder_child(root, pos)
+            else:
+                self.notebook.insert_page(root, gtk.Label(mod.name), pos)
         if "get_eth_checks" in dir(mod):
             (check, call) = mod.get_eth_checks()
             self.eth_checks.append((check, call, mod.name))
@@ -482,6 +498,21 @@ class codename_loki(object):
             print "shut %s" % module
         (mod, enabled) = self.modules[module]
         mod.shut_mod()
+        for i in self.groups:
+            ntb = self.groups[i]
+            for j in ntb:
+                if ntb.get_tab_label_text(j) == mod.name:
+                    pos = ntb.page_num(j)
+                    ntb.remove_page(pos)
+                    #~ if ntb.get_n_pages() == 0:
+                        #~ pos = self.notebook.page_num(ntb)
+                        #~ self.notebook.remove_page(pos)
+                        #~ del self.groups[i]
+                        #~ print self.groups
+                    break
+            else:
+                continue
+            break
         for i in self.notebook:
             if self.notebook.get_tab_label_text(i) == mod.name:
                 pos = self.notebook.page_num(i)
@@ -528,6 +559,20 @@ class codename_loki(object):
                         self.module_active.append(module)
                         self.flash_label(module, self.notebook.get_tab_label(i), 5)
                         break
+                for i in self.groups:
+                    ntb = self.groups[i]
+                    for j in ntb:
+                        if ntb.get_tab_label_text(j) == module:
+                            if self.notebook.page_num(ntb) == self.notebook.get_current_page() and ntb.page_num(j) == ntb.get_current_page():
+                                break
+                            self.module_active.append(module)
+                            self.flash_label(module, self.notebook.get_tab_label(ntb), 5)
+                            self.module_active.append(self.notebook.get_tab_label_text(ntb))
+                            self.flash_label(self.notebook.get_tab_label_text(ntb), ntb.get_tab_label(j), 5)
+                            break
+                    else:
+                        continue
+                    break
 
     def flash_label(self, module, label, times):
         if times > 0:
@@ -564,6 +609,10 @@ class codename_loki(object):
             for i in self.modules:
                 self.start_module(i)
             for i in self.notebook:
+                if self.notebook.get_tab_label_text(i) in self.groups:
+                    ntb = self.groups[self.notebook.get_tab_label_text(i)]
+                    for j in ntb:
+                        j.set_property("sensitive", True)
                 i.set_property("sensitive", True)
             self.network_button.set_property("sensitive", False)
             self.open_togglebutton.set_property("sensitive", False)
@@ -573,6 +622,10 @@ class codename_loki(object):
                 (mod, en) = self.modules[i]
                 mod.shut_mod()
             for i in self.notebook:
+                if self.notebook.get_tab_label_text(i) in self.groups:
+                    ntb = self.groups[self.notebook.get_tab_label_text(i)]
+                    for j in ntb:
+                        j.set_property("sensitive", False)
                 i.set_property("sensitive", False)
             if self.pcap_thread:
                 self.pcap_thread.quit()
@@ -605,6 +658,10 @@ class codename_loki(object):
                 for i in self.modules:
                     self.start_module(i)
                 for i in self.notebook:
+                    if self.notebook.get_tab_label_text(i) in self.groups:
+                        ntb = self.groups[self.notebook.get_tab_label_text(i)]
+                        for j in ntb:
+                            j.set_property("sensitive", True)
                     i.set_property("sensitive", True)
                 self.run_togglebutton.set_property("sensitive", False)
                 self.pcap_thread.start()
@@ -616,6 +673,10 @@ class codename_loki(object):
                 (mod, en) = self.modules[i]
                 mod.shut_mod()
             for i in self.notebook:
+                if self.notebook.get_tab_label_text(i) in self.groups:
+                    ntb = self.groups[self.notebook.get_tab_label_text(i)]
+                    for j in ntb:
+                        j.set_property("sensitive", False)
                 i.set_property("sensitive", False)
             if self.pcap_thread:
                 self.pcap_thread.quit()

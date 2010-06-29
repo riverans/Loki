@@ -200,6 +200,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "vrrp-v3"
+        self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_vrrp3.glade"
         self.liststore = gtk.ListStore(str, str, int, str)
         self.thread = None

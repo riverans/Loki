@@ -338,6 +338,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "ldp"
+        self.group = "MPLS"
         self.gladefile = "/modules/module_ldp.glade"
         self.liststore = gtk.ListStore(str, str)
         self.hello_thread = None
