@@ -1,7 +1,7 @@
 # src/Makefile.am
 # Copyright 2010 Daniel Mende <dmende@ernw.de> 
 
-INCLUDES = -I$(top_srcdir) @DNETINC@ @PCAPINC@
+INCLUDES = -I$(top_srcdir) @PCAPINC@
 instdir = $(pkgdatadir)
 
 AM_CPPFLAGS = -fpic

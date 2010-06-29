@@ -105,8 +105,8 @@ AC_SUBST(PCAPLIB)
 #~ )
 
 DNETLIB="-ldnet"
-AC_SUBST(DNETINC)
-#~ AC_SUBST(DNETLIB)
+#AC_SUBST(DNETINC)
+~ AC_SUBST(DNETLIB)
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_OFF_T
