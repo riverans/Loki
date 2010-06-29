@@ -54,7 +54,7 @@ import dnet
 
 DEBUG = True
 
-VERSION = "v0.2.1"
+VERSION = "v0.2.2"
 PLATFORM = platform.system()
 
 MODULE_PATH="/modules"
@@ -133,8 +133,12 @@ class preference_window(gtk.Window):
         column.pack_start(render_toggle, expand=False)
         column.add_attribute(render_toggle, 'active', 2)
         module_treeview.append_column(column)
-        
-        notebook.append_page(module_treeview, tab_label=gtk.Label("Modules"))
+
+        scrolledwindow = gtk.ScrolledWindow()
+        scrolledwindow.set_property("vscrollbar-policy", gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
+        scrolledwindow.add_with_viewport(module_treeview)
+        notebook.append_page(scrolledwindow, tab_label=gtk.Label("Modules"))
         vbox = gtk.VBox(False, 0)
         vbox.pack_start(notebook, True, True, 0)
         buttonbox = gtk.HButtonBox()
@@ -144,6 +148,7 @@ class preference_window(gtk.Window):
         buttonbox.pack_start(close)
         vbox.pack_start(buttonbox, False, False, 0)
         self.add(vbox)
+        self.resize(250, 400)
 
         for i in self.par.modules.keys():
             (module, enabled) = self.par.modules[i]
