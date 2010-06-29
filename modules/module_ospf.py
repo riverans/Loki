@@ -168,7 +168,7 @@ class ospf_header(object):
         elif type == self.AUTH_SIMPLE:
             return "PLAIN"
         elif type == self.AUTH_CRYPT:
-            return "DIGEST"
+            return "CRYPT"
 
     def render(self, data):
         if self.auth_type == self.AUTH_CRYPT:
@@ -322,12 +322,15 @@ class ospf_database_description(ospf_header):
         descr = ospf_header.parse(self, data)
         (self.mtu, self.options, self.flags, self.sequence_number) = struct.unpack("!HBBL", descr[:8])
         left = descr[8:]
+        gone = 32
         if parse_lsa:
-            while left and len(left) >= 20:
+            while left and gone < self.len and len(left) >= 20:
                 lsa = ospf_link_state_advertisement_header()
                 lsa.parse(left[:20])
+                #print "%i:%i parsed lsa %s type %s %s" % (self.len, gone, left[:20].encode("hex"), lsa.ls_type, lsa)
                 self.lsa_db.append(lsa)
                 left = left[20:]
+                gone += 20
         else:
             return left
 
@@ -1061,8 +1064,8 @@ class ospf_md5bf(threading.Thread):
         #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest, self.data)
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
         os.close(handle)
-        pw = loki_bindings.ospfmd5bf.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
-        src = self.parent.neighbor_liststore.get_value(self.iter, parent.NEIGH_IP_ROW)
+        pw = loki_bindings.ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        src = self.parent.neighbor_liststore.get_value(self.iter, self.parent.NEIGH_IP_ROW)
         if pw:
             self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
             self.parent.log("OSPF: Found password '%s' for host %s" % (pw, src))
@@ -1336,7 +1339,7 @@ class mod_class(object):
                     elif header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
                         dbd = ospf_database_description()
                         dbd.parse(data)
-                        if state == ospf_thread.STATE_2WAY:                            
+                        if state == ospf_thread.STATE_2WAY:
                             if not dbd.flags & ospf_database_description.FLAGS_INIT:
                                 if master:
                                     #parse lsa header and store for master role in loading state
@@ -1451,15 +1454,15 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            id = model.get_value(iter, self.parent.NEIGH_IP_ROW)
+            id = model.get_value(iter, self.NEIGH_IP_ROW)
             ident = "%s" % (id)
             if ident in self.bf:
                 if self.bf[ident].is_alive():
                     return
             (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
             type = self.neighbor_liststore.get_value(iter, self.NEIGH_AUTH_ROW)
-            if not type == "DIGEST":
-                self.log("OSPF: Cant crack %s, doesnt use DIGEST authentication")
+            if not type == "CRYPT":
+                self.log("OSPF: Cant crack %s, doesnt use CRYPT authentication")
                 return
             packet_str = str(last_packet)
             hdr = ospf_header()
