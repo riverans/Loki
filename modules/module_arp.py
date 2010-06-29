@@ -126,7 +126,8 @@ class mod_class(object):
                 "on_remove_spoof_button_clicked" : self.on_remove_spoof_button_clicked,
                 "on_stop_spoof_button_clicked" : self.on_stop_spoof_button_clicked,
                 "on_start_spoof_button_clicked" : self.on_start_spoof_button_clicked,
-                "on_scan_start_button_clicked" : self.on_scan_start_button_clicked
+                "on_scan_start_button_clicked" : self.on_scan_start_button_clicked,
+                "on_flood_togglebutton_toggled" : self.on_flood_togglebutton_toggled
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -534,3 +535,5 @@ class mod_class(object):
                                             )
             self.dnet.eth.send(str(eth))
 
+    def on_flood_togglebutton_toggled(self, btn):
+        pass

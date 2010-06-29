@@ -60,6 +60,7 @@
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
+                    <property name="tooltip" translatable="yes">Start sending OSPF Hello packages</property>
                     <signal name="toggled" handler="on_hello_togglebutton_toggled"/>
                   </widget>
                   <packing>
@@ -85,6 +86,7 @@
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
+                    <property name="tooltip" translatable="yes">Crack password</property>
                     <signal name="clicked" handler="on_bf_button_clicked"/>
                   </widget>
                   <packing>
@@ -508,6 +510,7 @@
                                     <property name="visible">True</property>
                                     <property name="can_focus">True</property>
                                     <property name="receives_default">True</property>
+                                    <property name="tooltip" translatable="yes">Add route</property>
                                     <signal name="clicked" handler="on_add_button_clicked"/>
                                   </widget>
                                   <packing>
@@ -613,11 +616,18 @@
                 </child>
                 <child>
                   <widget class="GtkButton" id="remove_button">
-                    <property name="label" translatable="yes">Remove</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">True</property>
+                    <property name="tooltip" translatable="yes">Delete route</property>
                     <signal name="clicked" handler="on_remove_button_clicked"/>
+                    <child>
+                      <widget class="GtkImage" id="image1">
+                        <property name="visible">True</property>
+                        <property name="stock">gtk-remove</property>
+                        <property name="icon-size">1</property>
+                      </widget>
+                    </child>
                   </widget>
                   <packing>
                     <property name="expand">False</property>

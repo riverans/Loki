@@ -1503,3 +1503,12 @@ class mod_class(object):
             (net, mask, type, active, removed) = self.nets[model.get_string_from_iter(iter)]
             self.nets[model.get_string_from_iter(iter)] = (net, mask, type, False, True)
             self.network_liststore.set_value(iter, self.NET_TYPE_ROW, "REMOVED")
+
+    def get_config_dict(self):
+        return {    "delay" : [10, "int", 1, 100],
+                    "mtu" : [1500, "int", 1, 10000]
+                    }
+
+    def set_config_dict(self, dict):
+        print dict
+        

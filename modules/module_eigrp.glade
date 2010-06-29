@@ -71,6 +71,7 @@
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
+                        <property name="tooltip" translatable="yes">Start sending EIGRP Hello packages</property>
                         <signal name="toggled" handler="on_hello_togglebutton_toggled"/>
                       </widget>
                       <packing>
@@ -146,6 +147,7 @@
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
+                            <property name="tooltip" translatable="yes">Start src addres spoofing</property>
                             <signal name="toggled" handler="on_spoof_togglebutton_toggled"/>
                           </widget>
                           <packing>
@@ -213,11 +215,18 @@
                         <property name="orientation">vertical</property>
                         <child>
                           <widget class="GtkButton" id="add_button">
-                            <property name="label" translatable="yes">Add</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
+                            <property name="tooltip" translatable="yes">Add host</property>
                             <signal name="clicked" handler="on_add_button_clicked"/>
+                            <child>
+                              <widget class="GtkImage" id="image1">
+                                <property name="visible">True</property>
+                                <property name="stock">gtk-add</property>
+                                <property name="icon-size">1</property>
+                              </widget>
+                            </child>
                           </widget>
                           <packing>
                             <property name="expand">False</property>
@@ -227,11 +236,18 @@
                         </child>
                         <child>
                           <widget class="GtkButton" id="del_button">
-                            <property name="label" translatable="yes">Del</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
+                            <property name="tooltip" translatable="yes">Delete host</property>
                             <signal name="clicked" handler="on_del_button_clicked"/>
+                            <child>
+                              <widget class="GtkImage" id="image2">
+                                <property name="visible">True</property>
+                                <property name="stock">gtk-remove</property>
+                                <property name="icon-size">1</property>
+                              </widget>
+                            </child>
                           </widget>
                           <packing>
                             <property name="expand">False</property>
@@ -241,11 +257,18 @@
                         </child>
                         <child>
                           <widget class="GtkButton" id="clear_button">
-                            <property name="label" translatable="yes">Clear</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
+                            <property name="tooltip" translatable="yes">Clear hostlist</property>
                             <signal name="clicked" handler="on_clear_button_clicked"/>
+                            <child>
+                              <widget class="GtkImage" id="image3">
+                                <property name="visible">True</property>
+                                <property name="stock">gtk-clear</property>
+                                <property name="icon-size">1</property>
+                              </widget>
+                            </child>
                           </widget>
                           <packing>
                             <property name="expand">False</property>
@@ -266,11 +289,18 @@
                         </child>
                         <child>
                           <widget class="GtkButton" id="goodbye_button">
-                            <property name="label" translatable="yes">Goodbye</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
+                            <property name="tooltip" translatable="yes">Send EIGRP-Goodby packages.</property>
                             <signal name="clicked" handler="on_goodbye_button_clicked"/>
+                            <child>
+                              <widget class="GtkImage" id="image4">
+                                <property name="visible">True</property>
+                                <property name="stock">gtk-disconnect</property>
+                                <property name="icon-size">1</property>
+                              </widget>
+                            </child>
                           </widget>
                           <packing>
                             <property name="expand">False</property>
@@ -331,6 +361,7 @@
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
+                        <property name="tooltip" translatable="yes">Send update</property>
                         <signal name="clicked" handler="on_update_button_clicked"/>
                       </widget>
                       <packing>

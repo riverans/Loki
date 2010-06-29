@@ -115,7 +115,8 @@ class mod_class(object):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_peer_treeview_row_activated" : self.on_peer_treeview_row_activated,
                 "on_add_button_clicked" : self.on_add_button_clicked,
-                "on_del_button_clicked" : self.on_del_button_clicked
+                "on_del_button_clicked" : self.on_del_button_clicked,
+                "on_clear_button_clicked" : self.on_clear_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -272,3 +273,11 @@ class mod_class(object):
             (iter, thread) = self.redirects[model.get_value(parent, self.REDIRECT_INDEX_ROW)]
             if thread and thread.is_alive():
                 thread.quit()
+
+    def on_clear_button_clicked(self, btn):
+        for i in self.redirects:
+            (iter, thread) = self.redirects[i]
+            if thread and thread.is_alive():
+                thread.quit()
+        self.redirect_treestore.clear()
+        self.redirects = {}

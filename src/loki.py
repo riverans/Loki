@@ -201,7 +201,7 @@ class module_preferences_window(gtk.Window):
         gtk.Widget.destroy(self)
 
     def save_button_clicked(self, btn):
-        (module, enabled) = self.par.par.modules[self.mod_name]
+        (module, enabled) = self.par.modules[self.mod_name]
         module.set_config_dict(self.dict)
 
 class preference_window(gtk.Window):
@@ -274,7 +274,7 @@ class preference_window(gtk.Window):
         modlist.sort()
         for i in modlist:
             (module, enabled) = self.par.modules[i]
-            if "get_config_dict" in dir(module):
+            if "get_config_dict" in dir(module) and "set_config_dict" in dir(module):
                 self.module_liststore.append([i, enabled, False, False])
             else:
                 self.module_liststore.append([i, enabled, False, True])
@@ -305,7 +305,7 @@ class preference_window(gtk.Window):
             name = model[path][self.MOD_NAME_ROW]
             (module, enabled) = self.par.modules[name]
             dict = module.get_config_dict()
-            wnd = module_preferences_window(self, name, dict)
+            wnd = module_preferences_window(self.par, name, dict)
             wnd.show_all()
         
     def close_button_clicked(self, arg):
@@ -446,7 +446,7 @@ class codename_loki(object):
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
 
         self.window.set_title(self.__class__.__name__)
-        self.window.set_default_size(640, 480)
+        self.window.set_default_size(800, 600)
 
         #connect signal handlers
         self.window.connect("delete_event", self.delete_event)

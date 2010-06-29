@@ -54,7 +54,7 @@ class mod_class(object):
                         \item $parent$ - A reference to the main programs base class.
                         \item $platform$ - A string describing the platform, the code is running on (the string is taken by the Python $platform.system()$ function).
                     \end{itemize}
-                To identify the class the attribute $name$ must be set during initiation.
+                To identify the class the attribute $name$ must be set during initiation. Optional a string called $group$ can be present, to add the module to a specific group.
 
                 \begin{lstlisting}[caption=Constructor]{base_class}
     def __init__(self, parent, platform):

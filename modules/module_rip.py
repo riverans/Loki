@@ -184,6 +184,13 @@ class rip_thread(threading.Thread):
         self.running = False
 
 class mod_class(object):
+    HOST_IP_ROW = 0
+
+    ROUTE_IP_ROW = 0
+    ROUTE_MASK_ROW = 1
+    ROUTE_NEXT_HOP_ROW = 2
+    ROUTE_METRIC_ROW = 3
+    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -209,7 +216,8 @@ class mod_class(object):
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_add_button_clicked" : self.on_add_button_clicked,
-                "on_del_button_clicked" : self.on_del_button_clicked
+                "on_del_button_clicked" : self.on_del_button_clicked,
+                "on_clear_button_clicked" : self.on_clear_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -221,7 +229,7 @@ class mod_class(object):
         column.set_title("Host")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 0)
+        column.add_attribute(render_text, 'text', self.HOST_IP_ROW)
         self.host_treeview.append_column(column)
 
         self.route_treeview = self.glade_xml.get_widget("route_treeview")
@@ -232,25 +240,25 @@ class mod_class(object):
         column.set_title("IP")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 0)
+        column.add_attribute(render_text, 'text', self.ROUTE_IP_ROW)
         self.route_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Mask")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 1)
+        column.add_attribute(render_text, 'text', self.ROUTE_MASK_ROW)
         self.route_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Next Hop")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 2)
+        column.add_attribute(render_text, 'text', self.ROUTE_NEXT_HOP_ROW)
         self.route_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Metric")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 3)
+        column.add_attribute(render_text, 'text', self.ROUTE_METRIC_ROW)
         self.route_treeview.append_column(column)
 
         self.ip_entry = self.glade_xml.get_widget("ip_entry")
@@ -314,8 +322,14 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            ip = model.get_value(iter, 0)
+            ip = model.get_value(iter, self.ROUTE_IP_ROW)
             del self.routes[ip]
             del model[iter]
             if not len(self.hosts):
                 self.thread.shutdown()
+                
+    def on_clear_button_clicked(self, btn):
+        self.routes = {}
+        self.route_liststore.clear()
+        if not len(self.hosts):
+            self.thread.shutdown()
