@@ -190,7 +190,7 @@ class vrrp3_thread(threading.Thread):
                             self.parent.dnet.send(str(eth_hdr))
                         self.parent.peers[i] = (iter, pkg, state, arp - 1)
             time.sleep(1)
-        self.parent.log("VRRP: Thread terminated")
+        self.parent.log("VRRP-3: Thread terminated")
 
     def shutdown(self):
         self.running = False
