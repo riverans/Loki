@@ -1,4 +1,4 @@
-#       module_vrrp.py
+#       module_vrrp3.py
 #       
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
@@ -40,9 +40,9 @@ import gobject
 import gtk
 import gtk.glade
 
-VRRP_VERSION = 2
-VRRP_MULTICAST_ADDRESS = "224.0.0.18"
-VRRP_MULTICAST_MAC = "01:00:5e:00:00:12"
+VRRP3_VERSION = 3
+VRRP3_MULTICAST_ADDRESS = "224.0.0.18"
+VRRP3_MULTICAST_MAC = "01:00:5e:00:00:12"
 
 ### HELPER_FUNKTIONS ###
 
@@ -71,67 +71,69 @@ def ichecksum_func(data, sum=0):
 
     return sum & 0xFFFF
 
-class vrrp_packet(object):
-   #~  0                   1                   2                   3
-   #~  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |Version| Type  | Virtual Rtr ID|   Priority    | Count IP Addrs|
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |   Auth Type   |   Adver Int   |          Checksum             |
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |                         IP Address (1)                        |
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |                            .                                  |
-   #~ |                            .                                  |
-   #~ |                            .                                  |
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |                         IP Address (n)                        |
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |                     Authentication Data (1)                   |
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |                     Authentication Data (2)                   |
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    
-    TYPE_ADVERTISEMENT = 1
+class vrrp3_packet(object):
+    #~ 0                   1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |Version| Type  | Virtual Rtr ID|   Priority    |Count IPvX Addr|
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |(rsvd) |     Max Adver Int     |          Checksum             |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |                                                               |
+    #~ +                                                               +
+    #~ |                       IPvX Address(es)                        |
+    #~ +                                                               +
+    #~ +                                                               +
+    #~ +                                                               +
+    #~ +                                                               +
+    #~ |                                                               |
+    #~ +                                                               +
+    #~ |                                                               |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-    AUTH_NONE = 0
-    AUTH_RES1 = 1
-    AUTH_RES2 = 2
+    TYPE_ADVERTISEMENT = 1
     
-    def __init__(self, id=None, prio=None, auth_type=AUTH_NONE, auth_data=None, interval=1, ips=[]):
+    def __init__(self, id=None, prio=None, max_advert_int=100, ips=[]):
         self.id = id
         self.prio = prio
-        self.auth_type = auth_type
-        self.auth_data = auth_data
-        self.interval = interval
+        self.max_advert_int = max_advert_int
         self.ips = ips
 
     def render(self):
-        data = struct.pack("!BBBBBBH", (VRRP_VERSION << 4) | self.TYPE_ADVERTISEMENT, self.id, self.prio, len(self.ips), self.auth_type, self.interval, 0)
+        data = struct.pack("!BBBBHH", (VRRP3_VERSION << 4) | self.TYPE_ADVERTISEMENT, self.id, self.prio, len(self.ips), (self.max_advert_int & 0xFFF), 0)
         for i in self.ips:
             data += i
-        if self.auth_data:
-            data += self.auth_data
-        else:
-            data += struct.pack("!8x")
-        return data[:6] + struct.pack("!H", ichecksum_func(data)) + data[8:]
+        return data
 
-    def parse(self, data):
-        (self.id, self.prio, num_ips, self.auth_type, self.interval) = struct.unpack("!xBBBBB", data[:6])
+    def build_checksum(self, vrrp_data, src, dst, version=4):
+        if version == 4:
+            #v4 pseudo header?
+            pass
+        elif version == 6:
+            input = src + dst + strcut.pack("!I3xB", len(vrrp_data), dpkt.ip.IP_PROTO_VRRP)
+            return vrrp_data[:6] + ichecksum_func(input + vrrp_data) + vrrp_data[8:] 
+    
+    def parse(self, data, version=4):
+        (ver_type, self.id, self.prio, num_ips, max_advert_int, sum) = struct.unpack("!BBBBH", data[:6])
+        self.max_advert_int = max_advert_int & 0xFFF
         left = data[8:]
-        for i in xrange(num_ips):
-            self.ips.append(left[:4])
-            left = left[4:]
-        self.auth_data = left
+        if version == 4:
+            for i in xrange(num_ips):
+                self.ips.append(left[:4])
+                left = left[4:]
+        elif version == 6:
+            for i in xrange(num_ips):
+                self.ips.append(left[:16])
+                left = left[16:]
 
-class vrrp_thread(threading.Thread):
+class vrrp3_thread(threading.Thread):
     def __init__(self, parent):
         threading.Thread.__init__(self)
         self.parent = parent
         self.running = True
 
     def run(self):
-        self.parent.log("VRRP: Thread started")
+        self.parent.log("VRRP-3: Thread started")
         while self.running:
             for i in self.parent.peers:
                 (iter, pkg, state, arp) = self.parent.peers[i]
@@ -142,11 +144,12 @@ class vrrp_thread(threading.Thread):
                     ip_hdr = dpkt.ip.IP(    ttl=255,
                                             p=dpkt.ip.IP_PROTO_VRRP,
                                             src=self.parent.ip,
-                                            dst=dnet.ip_aton(VRRP_MULTICAST_ADDRESS),
+                                            dst=dnet.ip_aton(VRRP3_MULTICAST_ADDRESS),
                                             data=data
                                             )
                     ip_hdr.len += len(ip_hdr.data)
-                    eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(VRRP_MULTICAST_MAC),
+                    ip_hdr.data = vrrp.build_checksum(ip_hdr.data, ip_hdr)
+                    eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(VRRP3_MULTICAST_MAC),
                                                         src=src_mac,
                                                         type=dpkt.ethernet.ETH_TYPE_IP,
                                                         data=str(ip_hdr)
@@ -196,14 +199,14 @@ class mod_class(object):
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
-        self.name = "vrrp"
-        self.gladefile = "/modules/module_vrrp.glade"
+        self.name = "vrrp-v3"
+        self.gladefile = "/modules/module_vrrp3.glade"
         self.liststore = gtk.ListStore(str, str, int, str)
         self.thread = None
 
     def start_mod(self):
         self.peers = {}
-        self.thread = vrrp_thread(self)
+        self.thread = vrrp3_thread(self)
 
     def shut_mod(self):
         if self.thread:
@@ -270,7 +273,7 @@ class mod_class(object):
     def check_ip(self, ip):
         if ip.p == dpkt.ip.IP_PROTO_VRRP:
             (ver_type,) = struct.unpack("!B", str(ip.data)[0])
-            if (ver_type >> 4) == VRRP_VERSION:
+            if (ver_type >> 4) == VRRP3_VERSION:
                 return (True, True)
         return (False, False)
 
@@ -285,7 +288,7 @@ class mod_class(object):
                     ips.append(dnet.ip_ntoa(i))
                 iter = self.liststore.append([src, " ".join(ips), pkg.prio, "Seen"])
                 self.peers[ip.src] = (iter, pkg, False, False)
-                self.log("VRRP: Got new peer %s" % (src))
+                self.log("VRRP-3: Got new peer %s" % (src))
 
     # SIGNALS #
 
@@ -314,5 +317,3 @@ class mod_class(object):
             (iter, pkg, run, arp) = self.peers[peer]
             self.peers[peer] = (iter, pkg, False, arp)
             model.set_value(iter, 3, "Released")
-
-
