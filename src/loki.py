@@ -98,6 +98,10 @@ class log_window(gtk.Window):
         self.add(vbox)
 
 class preference_window(gtk.Window):
+    MOD_NAME_ROW = 0
+    MOD_ENABLE_ROW = 1
+    MOD_RESET_ROW = 2
+    
     def __init__(self, parent):
         self.par = parent
         gtk.Window.__init__(self)
@@ -114,7 +118,7 @@ class preference_window(gtk.Window):
         column.set_title("Module")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 0)
+        column.add_attribute(render_text, 'text', self.MOD_NAME_ROW)
         module_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Enabled")
@@ -122,7 +126,7 @@ class preference_window(gtk.Window):
         render_toggle.set_property('activatable', True)
         render_toggle.connect('toggled', self.toggle_callback, self.module_liststore)
         column.pack_start(render_toggle, expand=False)
-        column.add_attribute(render_toggle, "active", 1)
+        column.add_attribute(render_toggle, "active", self.MOD_ENABLE_ROW)
         module_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Reset")
@@ -131,7 +135,7 @@ class preference_window(gtk.Window):
         render_toggle.set_property('radio', True)
         render_toggle.connect('toggled', self.reset_callback, self.module_liststore)
         column.pack_start(render_toggle, expand=False)
-        column.add_attribute(render_toggle, 'active', 2)
+        column.add_attribute(render_toggle, 'active', self.MOD_RESET_ROW)
         module_treeview.append_column(column)
 
         scrolledwindow = gtk.ScrolledWindow()
@@ -150,27 +154,29 @@ class preference_window(gtk.Window):
         self.add(vbox)
         self.resize(250, 400)
 
-        for i in self.par.modules.keys():
+        modlist = self.par.modules.keys()
+        modlist.sort()
+        for i in modlist:
             (module, enabled) = self.par.modules[i]
             self.module_liststore.append([i, enabled, False])
 
     def toggle_callback(self, cell, path, model):
-        model[path][1] = not model[path][1]
-        if model[path][1]:
-            self.par.init_module(model[path][0])
+        model[path][self.MOD_ENABLE_ROW] = not model[path][self.MOD_ENABLE_ROW]
+        if model[path][self.MOD_ENABLE_ROW]:
+            self.par.init_module(model[path][self.MOD_NAME_ROW])
         else:
-            self.par.shut_module(model[path][0])
+            self.par.shut_module(model[path][self.MOD_NAME_ROW])
 
     def reset_callback(self, cell, path, model):
-        model[path][2] = not model[path][2]
+        model[path][self.MOD_RESET_ROW] = not model[path][self.MOD_RESET_ROW]
         if cell:
             gobject.timeout_add(750, self.reset_callback, None, path, model)
             cur = self.par.notebook.get_current_page()
-            old_pos = self.par.shut_module(model[path][0])
-            self.par.load_module(model[path][0], model[path][1])
-            (module, enabled) = self.par.modules[model[path][0]]
+            old_pos = self.par.shut_module(model[path][self.MOD_NAME_ROW])
+            self.par.load_module(model[path][self.MOD_NAME_ROW], model[path][self.MOD_ENABLE_ROW])
+            (module, enabled) = self.par.modules[model[path][self.MOD_NAME_ROW]]
             if enabled:
-                self.par.init_module(model[path][0], old_pos)
+                self.par.init_module(model[path][self.MOD_NAME_ROW], old_pos)
                 if old_pos == cur:
                     self.par.notebook.set_current_page(cur)
             return False
