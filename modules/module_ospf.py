@@ -1524,6 +1524,7 @@ class mod_class(object):
                     }
 
     def set_config_dict(self, dict):
-        self.delay = dict["delay"]["value"]
-        self.mtu = dict["mtu"]["value"]
-        self.sleep_time = dict["sleep_time"]["value"]
+        if dict:
+            self.delay = dict["delay"]["value"]
+            self.mtu = dict["mtu"]["value"]
+            self.sleep_time = dict["sleep_time"]["value"]

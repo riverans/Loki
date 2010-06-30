@@ -212,7 +212,10 @@ class module_preferences_window(gtk.Window):
         config.add_section(self.mod_name)
         for i in self.dict:
             config.set(self.mod_name, i, self.dict[i]["value"])
-        with open(CONFIG_PATH + "/" + self.mod_name +".cfg", 'wb') as configfile:
+        path = CONFIG_PATH + "/"
+        if not os.path.exists(path):
+            os.mkdir(path, 0700)
+        with open(path + self.mod_name +".cfg", 'wb') as configfile:
             config.write(configfile)
             self.par.log("Saved %s configuration" % self.mod_name)
         self.close_button_clicked(None)
@@ -635,17 +638,18 @@ class codename_loki(object):
             if "get_config_dict" in dir(mod):
                 cdict = mod.get_config_dict()
                 file = CONFIG_PATH + "/" + module +".cfg"
-                config = ConfigParser.RawConfigParser()
-                config.read(file)
-                for i in cdict:
-                    {   "str" : str_,
-                        "int" : int_    }[cdict[i]["type"]](config, module, i, cdict)
-                if DEBUG:
-                    print "conf %i from %s" % (len(cdict), file)
-                return cdict
+                if os.path.exists(file):
+                    config = ConfigParser.RawConfigParser()
+                    config.read(file)
+                    for i in cdict:
+                        {   "str" : str_,
+                            "int" : int_    }[cdict[i]["type"]](config, module, i, cdict)
+                    if DEBUG:
+                        print "conf %i from %s" % (len(cdict), file)
+                    return cdict
         except:
             pass
-        return {}
+        return None
 
     def start_module(self, module):
         (mod, en) = self.modules[module]
