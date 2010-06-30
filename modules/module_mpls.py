@@ -98,7 +98,6 @@ class mod_class(object):
         self.peers = {}
         self.redirects = {}
 
-
     def start_mod(self):
         self.peers = {}
         self.redirects = {}

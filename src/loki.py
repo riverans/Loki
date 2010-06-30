@@ -41,6 +41,8 @@ import traceback
 import string
 import struct
 
+import ConfigParser
+
 import pygtk
 pygtk.require('2.0')
 
@@ -58,6 +60,7 @@ VERSION = "v0.2.2"
 PLATFORM = platform.system()
 
 MODULE_PATH="/modules"
+CONFIG_PATH="./etc"
 DATA_DIR="."
 
 class about_window(gtk.Window):
@@ -161,16 +164,19 @@ class module_preferences_window(gtk.Window):
         close.set_use_stock(True)
         close.connect_object("clicked", self.close_button_clicked, None)
         buttonbox.pack_start(close)
-        close = gtk.Button(gtk.STOCK_SAVE)
-        close.set_use_stock(True)
-        close.connect_object("clicked", self.save_button_clicked, None)
-        buttonbox.pack_start(close)
+        save = gtk.Button(gtk.STOCK_SAVE)
+        save.set_use_stock(True)
+        save.connect_object("clicked", self.save_button_clicked, None)
+        buttonbox.pack_start(save)
+        apply = gtk.Button(gtk.STOCK_APPLY)
+        apply.set_use_stock(True)
+        apply.connect_object("clicked", self.apply_button_clicked, None)
+        buttonbox.pack_start(apply)
         vbox.pack_start(buttonbox, False, False, 0)
         self.add(vbox)
 
         for name in dict:
-            (value, val_type, val_min, val_max) = dict[name]
-            self.module_liststore.append([name, str(value), val_type, val_min, val_max])
+            self.module_liststore.append([name, str(dict[name]["value"]), dict[name]["type"], dict[name]["min"], dict[name]["max"]])
 
     def edited_callback(self, cell, path, new_text, model):
         def int_(self, cell, path, new_text, model):
@@ -182,7 +188,7 @@ class module_preferences_window(gtk.Window):
                 pass
             else:
                 model[path][self.VALUE_ROW] = new_text
-                self.dict[model[path][self.NAME_ROW]] = val
+                self.dict[model[path][self.NAME_ROW]]["value"] = val
 
         def str_(self, cell, path, new_text, model):
             try:
@@ -192,7 +198,7 @@ class module_preferences_window(gtk.Window):
                 pass
             else:
                 model[path][self.VALUE_ROW] = new_text
-                self.dict[model[path][self.NAME_ROW]] = new_text
+                self.dict[model[path][self.NAME_ROW]]["value"] = new_text
 
         {   "str" : str_,
             "int" : int_    }[model[path][self.TYPE_ROW]](self, cell, path, new_text, model)
@@ -201,6 +207,17 @@ class module_preferences_window(gtk.Window):
         gtk.Widget.destroy(self)
 
     def save_button_clicked(self, btn):
+        self.apply_button_clicked(None)
+        config = ConfigParser.RawConfigParser()
+        config.add_section(self.mod_name)
+        for i in self.dict:
+            config.set(self.mod_name, i, self.dict[i]["value"])
+        with open(CONFIG_PATH + "/" + self.mod_name +".cfg", 'wb') as configfile:
+            config.write(configfile)
+            self.par.log("Saved %s configuration" % self.mod_name)
+        self.close_button_clicked(None)
+
+    def apply_button_clicked(self, btn):
         (module, enabled) = self.par.modules[self.mod_name]
         module.set_config_dict(self.dict)
 
@@ -582,12 +599,47 @@ class codename_loki(object):
         if "get_udp_checks" in dir(mod):
             (check, call) = mod.get_udp_checks()
             self.udp_checks.append((check, call, mod.name))
+        if "set_config_dict" in dir(mod):
+            cdict = self.load_mod_config(module)
+            mod.set_config_dict(cdict)
         if self.run_togglebutton.get_active():
             self.start_module(module)
             root.set_property("sensitive", True)
         else:
             root.set_property("sensitive", False)
         self.modules[module] = (mod, True)
+
+    def load_mod_config(self, module):
+        def str_(config, section, name, cdict):
+            try:
+                val = config.get(section, name)
+                assert(len(val) >= cdict[name]["min"])
+                assert(len(val) <= cdict[name]["max"])
+            except:
+                pass
+            else:
+                cdict[name]["value"] = val
+
+        def int_(config, section, name, cdict):
+            try:
+                val = config.getint(section, name)
+                assert(val >= cdict[name]["min"])
+                assert(val <= cdict[name]["max"])
+            except:
+                pass
+            else:
+                cdict[name]["value"] = val
+
+        (mod, en) = self.modules[module]
+        if "get_config_dict" in dir(mod):
+            cdict = mod.get_config_dict()
+            config = ConfigParser.RawConfigParser()
+            config.read(CONFIG_PATH + "/" + module +".cfg")
+            for i in cdict:
+                {   "str" : str_,
+                    "int" : int_    }[cdict[i]["type"]](config, module, i, cdict)
+            return cdict
+        return {}
 
     def start_module(self, module):
         (mod, en) = self.modules[module]

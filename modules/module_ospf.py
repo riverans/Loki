@@ -728,11 +728,10 @@ class ospf_thread(threading.Thread):
     GLOBAL_STATE_INIT = 1
     GLOBAL_STATE_DONE = 2
     
-    def __init__(self, parent, delay):
+    def __init__(self, parent):
         self.parent = parent
         self.running = True
         self.hello = False
-        self.delay = delay
         self.hello_count = 0
         self.state = self.GLOBAL_STATE_INIT
         threading.Thread.__init__(self)
@@ -819,10 +818,10 @@ class ospf_thread(threading.Thread):
                                                 self.parent.auth_data,
                                                 self.parent.ip,
                                                 self.parent.mask,
-                                                self.delay,
+                                                self.parent.delay,
                                                 ospf_hello.OPTION_TOS_CAPABILITY | (self.parent.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
                                                 1,
-                                                self.delay * 4,
+                                                self.parent.delay * 4,
                                                 0,
                                                 0,
                                                 []
@@ -830,7 +829,7 @@ class ospf_thread(threading.Thread):
                         self.state = self.GLOBAL_STATE_DONE
                         self.send_multicast(packet.render())
 
-                    if self.hello_count == self.delay - 1:
+                    if self.hello_count == self.parent.delay - 1:
                         self.hello_count = 0
                         #Multicast hello
                         packet = ospf_hello(    self.parent.area,
@@ -838,10 +837,10 @@ class ospf_thread(threading.Thread):
                                                 self.parent.auth_data,
                                                 self.parent.ip,
                                                 self.parent.mask,
-                                                self.delay,
+                                                self.parent.delay,
                                                 ospf_hello.OPTION_TOS_CAPABILITY | (self.parent.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
                                                 1,
-                                                self.delay * 4,
+                                                self.parent.delay * 4,
                                                 self.parent.dr,
                                                 self.parent.bdr,
                                                 neighbors
@@ -860,10 +859,10 @@ class ospf_thread(threading.Thread):
                                                     self.parent.auth_data,
                                                     self.parent.ip,
                                                     self.parent.mask,
-                                                    self.delay,
+                                                    self.parent.delay,
                                                     ospf_hello.OPTION_TOS_CAPABILITY | (self.parent.options & ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY),
                                                     1,
-                                                    self.delay * 4,
+                                                    self.parent.delay * 4,
                                                     self.parent.dr,
                                                     self.parent.bdr,
                                                     neighbors
@@ -1117,9 +1116,11 @@ class mod_class(object):
         self.filter = False
         self.thread = None
         self.bf = None
+        self.mtu = 1500
+        self.delay = 10
 
     def start_mod(self):
-        self.thread = ospf_thread(self, 10)
+        self.thread = ospf_thread(self)
         self.area = 0
         self.auth_type = ospf_header.AUTH_CRYPT
         self.auth_data = 0
@@ -1128,7 +1129,6 @@ class mod_class(object):
         self.dr = ""
         self.bdr = ""
         self.options = ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY
-        self.mtu = 1500
         self.bf = {}
         self.thread.start()
 
@@ -1505,10 +1505,19 @@ class mod_class(object):
             self.network_liststore.set_value(iter, self.NET_TYPE_ROW, "REMOVED")
 
     def get_config_dict(self):
-        return {    "delay" : [10, "int", 1, 100],
-                    "mtu" : [1500, "int", 1, 10000]
+        return {    "delay" : { "value" : self.delay,
+                                "type" : "int",
+                                "min" : 1,
+                                "max" : 100
+                                },
+                    "mtu" : {   "value" : self.mtu,
+                                "type" : "int",
+                                "min" : 1,
+                                "max" : 10000
+                                }
                     }
 
     def set_config_dict(self, dict):
-        print dict
+        self.delay = dict["delay"]["value"]
+        self.mtu = dict["mtu"]["value"]
         
