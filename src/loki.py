@@ -631,14 +631,20 @@ class codename_loki(object):
                 cdict[name]["value"] = val
 
         (mod, en) = self.modules[module]
-        if "get_config_dict" in dir(mod):
-            cdict = mod.get_config_dict()
-            config = ConfigParser.RawConfigParser()
-            config.read(CONFIG_PATH + "/" + module +".cfg")
-            for i in cdict:
-                {   "str" : str_,
-                    "int" : int_    }[cdict[i]["type"]](config, module, i, cdict)
-            return cdict
+        try:
+            if "get_config_dict" in dir(mod):
+                cdict = mod.get_config_dict()
+                file = CONFIG_PATH + "/" + module +".cfg"
+                config = ConfigParser.RawConfigParser()
+                config.read(file)
+                for i in cdict:
+                    {   "str" : str_,
+                        "int" : int_    }[cdict[i]["type"]](config, module, i, cdict)
+                if DEBUG:
+                    print "conf %i from %s" % (len(cdict), file)
+                return cdict
+        except:
+            pass
         return {}
 
     def start_module(self, module):

@@ -829,7 +829,7 @@ class ospf_thread(threading.Thread):
                         self.state = self.GLOBAL_STATE_DONE
                         self.send_multicast(packet.render())
 
-                    if self.hello_count == self.parent.delay - 1:
+                    if self.hello_count >= self.parent.delay - 1:
                         self.hello_count = 0
                         #Multicast hello
                         packet = ospf_hello(    self.parent.area,
@@ -1041,7 +1041,7 @@ class ospf_thread(threading.Thread):
                         
             if not self.running:
                 return
-            time.sleep(1)
+            time.sleep(self.parent.sleep_time)
 
     def quit(self):
         self.running = False
@@ -1118,6 +1118,7 @@ class mod_class(object):
         self.bf = None
         self.mtu = 1500
         self.delay = 10
+        self.sleep_time = 1
 
     def start_mod(self):
         self.thread = ospf_thread(self)
@@ -1514,10 +1515,15 @@ class mod_class(object):
                                 "type" : "int",
                                 "min" : 1,
                                 "max" : 10000
-                                }
+                                },
+                    "sleep_time" : {    "value" : self.sleep_time,
+                                        "type" : "int",
+                                        "min" : 1,
+                                        "max" : 10
+                                    }
                     }
 
     def set_config_dict(self, dict):
         self.delay = dict["delay"]["value"]
         self.mtu = dict["mtu"]["value"]
-        
+        self.sleep_time = dict["sleep_time"]["value"]
