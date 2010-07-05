@@ -1,0 +1,18 @@
+# To generate the configure files
+aclocal && automake --add-missing && autoconf
+# No you can configure:
+./configure
+# No you can build:
+make
+# Now you can install the compiled binaries:
+make install
+
+# If you want to deinstall loki:
+make uninstall
+
+# Get the source of the libdnet
+http://downloads.sourceforge.net/project/libdnet/libdnet/libdnet-1.11/libdnet-1.11.tar.gz
+# Patch the the source of libdnet
+patch -p0/1 < libdnet-1.11-iptables.diff
+patch -p0/1 < libdnet-1.11-py26.diff
+
