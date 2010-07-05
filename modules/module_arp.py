@@ -45,10 +45,9 @@ import gtk
 import gtk.glade
 
 class spoof_thread(threading.Thread):
-    def __init__(self, parent, delay):
+    def __init__(self, parent):
         threading.Thread.__init__(self)
         self.parent = parent
-        self.delay = delay
         self.running = True
         self.reset = False
 
@@ -62,7 +61,7 @@ class spoof_thread(threading.Thread):
                         for data in entry:
                             self.parent.dnet.send(data)
                             time.sleep(0.001)
-            for x in xrange(self.delay):
+            for x in xrange(self.parent.spoof_delay):
                 if not self.running:
                     break
                 if self.reset:
@@ -102,6 +101,7 @@ class flood_thread(threading.Thread):
                                                 )
                 self.parent.dnet.send(str(_eth))
                 self.no -= 1
+            time.sleep(self.parent.flood_delay)
         self.parent.flood_togglebutton.set_active(False)
         self.parent.log("ARP: Flood thread terminated")
 
@@ -122,12 +122,14 @@ class mod_class(object):
         self.mappings_liststore = gtk.ListStore(str, str)
         self.dnet = None
         self.spoof_thread = None
+        self.flood_thread = None
         self.macs = None
         self.mac = None
+        self.spoof_delay = 30
+        self.flood_delay = 0.001
     
     def start_mod(self):
-        self.spoof_thread = spoof_thread(self, 30)
-        self.flood_thread = None
+        self.spoof_thread = spoof_thread(self)
         self.hosts = {}
         self.upper_add = {}
         self.lower_add = {}
@@ -576,3 +578,21 @@ class mod_class(object):
             if self.flood_thread and self.flood_thread.is_alive():
                 self.flood_thread.quit()
                 self.flood_thread = None
+
+    def get_config_dict(self):
+        return {    "spoof_delay" : {   "value" : self.spoof_delay,
+                                        "type" : "int",
+                                        "min" : 1,
+                                        "max" : 100
+                                        },
+                    "flood_delay" : {   "value" : self.flood_delay,
+                                        "type" : "float",
+                                        "min" : 0,
+                                        "max" : 100
+                                        }
+                    }
+
+    def set_config_dict(self, dict):
+        if dict:
+            self.spoof_delay = dict["spoof_delay"]["value"]
+            self.flood_delay = dict["flood_delay"]["value"]

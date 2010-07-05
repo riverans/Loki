@@ -881,7 +881,7 @@ class ospf_thread(threading.Thread):
                                                                         seq
                                                                         )
                                     self.send_unicast(mac, ip, packet.render(""))
-                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet, adverts)
+                                    #self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet, adverts)
                                 else:
                                     #Learned DBD
                                     packet = ospf_database_description( self.parent.area,
@@ -1198,14 +1198,14 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.NEIGH_CRACK_ROW)
         self.neighbor_treeview.append_column(column)
-        #~ column = gtk.TreeViewColumn()
-        #~ column.set_title("MASTER")
-        #~ render_toggle = gtk.CellRendererToggle()
-        #~ render_toggle.set_property('activatable', True)
-        #~ render_toggle.connect('toggled', self.master_toggle_callback, self.neighbor_liststore)
-        #~ column.pack_start(render_toggle, expand=False)
-        #~ column.add_attribute(render_toggle, "active", self.NEIGH_MASTER_ROW)
-        #~ self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("MASTER")
+        render_toggle = gtk.CellRendererToggle()
+        render_toggle.set_property('activatable', True)
+        render_toggle.connect('toggled', self.master_toggle_callback, self.neighbor_liststore)
+        column.pack_start(render_toggle, expand=False)
+        column.add_attribute(render_toggle, "active", self.NEIGH_MASTER_ROW)
+        self.neighbor_treeview.append_column(column)
 
         self.network_treeview = self.glade_xml.get_widget("network_treeview")
         self.network_treeview.set_model(self.network_liststore)
@@ -1300,13 +1300,13 @@ class mod_class(object):
                 header = ospf_header()
                 data = str(ip.data)
                 header.parse(data[:24])
+                id = dnet.ip_ntoa(header.id)
                 if header.type == ospf_header.TYPE_HELLO:
                     hello = ospf_hello()
                     hello.parse(data)
-                    id = dnet.ip_ntoa(header.id)
                     (ip_int,) = struct.unpack("!I", self.ip)
                     if id not in self.neighbors:
-                        if socket.ntohl(header.id) < socket.ntohl(ip_int):
+                        if socket.ntohl(hello.id) < socket.ntohl(ip_int):
                             master = True
                         else:
                             master = False
@@ -1323,6 +1323,29 @@ class mod_class(object):
                     self.dr = hello.designated_router
                     self.bdr = hello.backup_designated_router
                     self.options = hello.options
+                elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
+                    if id in self.neighbors:
+                        (iter, mac, src, org_dbd, update, state, master, seq, ip.data, adverts) = self.neighbors[id]
+                        if state > ospf_thread.STATE_EXSTART:
+                            if state < ospf_thread.STATE_LOADING:
+                                pass
+                            update = ospf_link_state_update()
+                            update.parse(data)
+                            
+                            ### ADD LSA'S TO NEIGH-STORE ###
+                            for lsa in update.advertisements:
+                                if lsa.ls_type == ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS:
+                                    for link in lsa.links:
+                                        link_id = dnet.ip_ntoa(link.id)
+                                        if link_id not in adverts:
+                                            iter2 = self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", link_id, dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
+                                            adverts[link_id] = (iter2, link)
+                                        else:
+                                            (iter2, old_link) = adverts[link_id]
+                                            self.neighbor_liststore.set(iter2, self.NEIGH_AREA_ROW, dnet.ip_ntoa(link.data), self.NEIGH_STATE_ROW, ospf_router_link_advertisement_link.TYPES[link.type])
+                                            adverts[link_id] = (iter2, link)
+
+                            self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq, ip.data, adverts)
             #Unicast packet
             elif ip.dst == self.ip and self.thread.hello:
                 header = ospf_header()

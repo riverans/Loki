@@ -579,6 +579,7 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.TREE_AS_ROW)
         self.treeview.append_column(column)
+        self.treeview.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
 
         self.goodbye_window = self.glade_xml.get_widget("goodbye_window")
         #self.goodbye_window.set_parent(self.parent.window)
