@@ -106,6 +106,7 @@ class module_preferences_window(gtk.Window):
     TYPE_ROW = 2
     MIN_ROW = 3
     MAX_ROW = 4
+    TOOLTIP_ROW = 5
     
     def __init__(self, parent, mod_name, dict):
         self.par = parent
@@ -114,11 +115,12 @@ class module_preferences_window(gtk.Window):
         gtk.Window.__init__(self)
         self.set_title("%s Preferences" % mod_name.upper())
         self.set_default_size(250, 350)
-        self.module_liststore = gtk.ListStore(str, str, str, int, int)
+        self.module_liststore = gtk.ListStore(str, str, str, int, int, str)
         notebook = gtk.Notebook()
         module_treeview = gtk.TreeView()
         module_treeview.set_model(self.module_liststore)
         module_treeview.set_headers_visible(True)
+        module_treeview.set_tooltip_column(self.TOOLTIP_ROW)
 
         column = gtk.TreeViewColumn()
         column.set_title("Name")
@@ -140,18 +142,18 @@ class module_preferences_window(gtk.Window):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.TYPE_ROW)
         module_treeview.append_column(column)
-        column = gtk.TreeViewColumn()
-        column.set_title("Min")
-        render_text = gtk.CellRendererText()
-        column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.MIN_ROW)
-        module_treeview.append_column(column)
-        column = gtk.TreeViewColumn()
-        column.set_title("Max")
-        render_text = gtk.CellRendererText()
-        column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.MAX_ROW)
-        module_treeview.append_column(column)
+        #~ column = gtk.TreeViewColumn()
+        #~ column.set_title("Min")
+        #~ render_text = gtk.CellRendererText()
+        #~ column.pack_start(render_text, expand=True)
+        #~ column.add_attribute(render_text, 'text', self.MIN_ROW)
+        #~ module_treeview.append_column(column)
+        #~ column = gtk.TreeViewColumn()
+        #~ column.set_title("Max")
+        #~ render_text = gtk.CellRendererText()
+        #~ column.pack_start(render_text, expand=True)
+        #~ column.add_attribute(render_text, 'text', self.MAX_ROW)
+        #~ module_treeview.append_column(column)
         
         scrolledwindow = gtk.ScrolledWindow()
         scrolledwindow.set_property("vscrollbar-policy", gtk.POLICY_AUTOMATIC)
@@ -176,7 +178,7 @@ class module_preferences_window(gtk.Window):
         self.add(vbox)
 
         for name in dict:
-            self.module_liststore.append([name, str(dict[name]["value"]), dict[name]["type"], dict[name]["min"], dict[name]["max"]])
+            self.module_liststore.append([name, str(dict[name]["value"]), dict[name]["type"], dict[name]["min"], dict[name]["max"], "Min: %s   Max: %s" % (dict[name]["min"],dict[name]["max"] )])
 
     def edited_callback(self, cell, path, new_text, model):
         def int_(self, cell, path, new_text, model):
@@ -200,8 +202,20 @@ class module_preferences_window(gtk.Window):
                 model[path][self.VALUE_ROW] = new_text
                 self.dict[model[path][self.NAME_ROW]]["value"] = new_text
 
+        def float_(self, cell, path, new_text, model):
+            try:
+                val = float(new_text)
+                assert(val >= model[path][self.MIN_ROW])
+                assert(val <= model[path][self.MAX_ROW])
+            except:
+                pass
+            else:
+                model[path][self.VALUE_ROW] = new_text
+                self.dict[model[path][self.NAME_ROW]]["value"] = val
+
         {   "str" : str_,
-            "int" : int_    }[model[path][self.TYPE_ROW]](self, cell, path, new_text, model)
+            "int" : int_,
+            "float" : float_    }[model[path][self.TYPE_ROW]](self, cell, path, new_text, model)
 
     def close_button_clicked(self, btn):
         gtk.Widget.destroy(self)
@@ -292,12 +306,20 @@ class preference_window(gtk.Window):
 
         modlist = self.par.modules.keys()
         modlist.sort()
-        for i in modlist:
-            (module, enabled) = self.par.modules[i]
-            if "get_config_dict" in dir(module) and "set_config_dict" in dir(module):
-                self.module_liststore.append([i, enabled, False, False])
-            else:
-                self.module_liststore.append([i, enabled, False, True])
+        try:
+            for i in modlist:
+                (module, enabled) = self.par.modules[i]
+                if "get_config_dict" in dir(module) and "set_config_dict" in dir(module):
+                    self.module_liststore.append([i, enabled, False, False])
+                else:
+                    self.module_liststore.append([i, enabled, False, True])        
+        except Exception, e:
+            print e
+            if DEBUG:
+                print '-'*60
+                traceback.print_exc(file=sys.stdout)
+                print '-'*60
+            print "failed to open module %s" % module
 
     def toggle_callback(self, cell, path, model):
         model[path][self.MOD_ENABLE_ROW] = not model[path][self.MOD_ENABLE_ROW]
@@ -324,7 +346,16 @@ class preference_window(gtk.Window):
         if not model[path][self.MOD_CONFIG_ROW]:
             name = model[path][self.MOD_NAME_ROW]
             (module, enabled) = self.par.modules[name]
-            dict = module.get_config_dict()
+            try:
+                dict = module.get_config_dict()
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
+                print "failed to load conf-dict from %s" % module
+                dict = None
             wnd = module_preferences_window(self.par, name, dict)
             wnd.show_all()
         
@@ -590,27 +621,38 @@ class codename_loki(object):
                 self.notebook.reorder_child(root, pos)
             else:
                 self.notebook.insert_page(root, gtk.Label(mod.name), pos)
-        if "get_eth_checks" in dir(mod):
-            (check, call) = mod.get_eth_checks()
-            self.eth_checks.append((check, call, mod.name))
-        if "get_ip_checks" in dir(mod):
-            (check, call) = mod.get_ip_checks()
-            self.ip_checks.append((check, call, mod.name))
-        if "get_tcp_checks" in dir(mod):
-            (check, call) = mod.get_tcp_checks()
-            self.tcp_checks.append((check, call, mod.name))
-        if "get_udp_checks" in dir(mod):
-            (check, call) = mod.get_udp_checks()
-            self.udp_checks.append((check, call, mod.name))
-        if "set_config_dict" in dir(mod):
-            cdict = self.load_mod_config(module)
-            mod.set_config_dict(cdict)
-        if self.run_togglebutton.get_active():
-            self.start_module(module)
-            root.set_property("sensitive", True)
+        try:
+            if "get_eth_checks" in dir(mod):
+                (check, call) = mod.get_eth_checks()
+                self.eth_checks.append((check, call, mod.name))
+            if "get_ip_checks" in dir(mod):
+                (check, call) = mod.get_ip_checks()
+                self.ip_checks.append((check, call, mod.name))
+            if "get_tcp_checks" in dir(mod):
+                (check, call) = mod.get_tcp_checks()
+                self.tcp_checks.append((check, call, mod.name))
+            if "get_udp_checks" in dir(mod):
+                (check, call) = mod.get_udp_checks()
+                self.udp_checks.append((check, call, mod.name))
+            if "set_config_dict" in dir(mod):
+                cdict = self.load_mod_config(module)
+                if cdict:
+                    mod.set_config_dict(cdict)
+            if self.run_togglebutton.get_active():
+                self.start_module(module)
+                root.set_property("sensitive", True)
+            else:
+                root.set_property("sensitive", False)
+
+        except Exception, e:
+            print e
+            if DEBUG:
+                print '-'*60
+                traceback.print_exc(file=sys.stdout)
+                print '-'*60
+            print "failed to start module %s" % mod
         else:
-            root.set_property("sensitive", False)
-        self.modules[module] = (mod, True)
+            self.modules[module] = (mod, True)
 
     def load_mod_config(self, module):
         def str_(config, section, name, cdict):
@@ -633,6 +675,16 @@ class codename_loki(object):
             else:
                 cdict[name]["value"] = val
 
+        def float_(config, section, name, cdict):
+            try:
+                val = config.getfloat(section, name)
+                assert(val >= cdict[name]["min"])
+                assert(val <= cdict[name]["max"])
+            except:
+                pass
+            else:
+                cdict[name]["value"] = val
+
         (mod, en) = self.modules[module]
         try:
             if "get_config_dict" in dir(mod):
@@ -643,12 +695,17 @@ class codename_loki(object):
                     config.read(file)
                     for i in cdict:
                         {   "str" : str_,
-                            "int" : int_    }[cdict[i]["type"]](config, module, i, cdict)
+                            "int" : int_,
+                            "float" : float_    }[cdict[i]["type"]](config, module, i, cdict)
                     if DEBUG:
                         print "conf %i from %s" % (len(cdict), file)
                     return cdict
-        except:
-            pass
+        except Exception, e:
+            print e
+            if DEBUG:
+                print '-'*60
+                traceback.print_exc(file=sys.stdout)
+                print '-'*60
         return None
 
     def start_module(self, module):
@@ -691,7 +748,14 @@ class codename_loki(object):
                     print '-'*60
                     traceback.print_exc(file=sys.stdout)
                     print '-'*60
-            mod.start_mod()
+            try:
+                mod.start_mod()
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
 
     def shut_module(self, module, delete=False):
         if DEBUG:
