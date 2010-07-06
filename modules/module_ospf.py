@@ -1138,8 +1138,10 @@ class mod_class(object):
             self.thread.quit()
         if self.filter:
             self.log("OSPF: Removing lokal packet filter for OSPF")
-            #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
-            self.fw.delete(self.ospf_filter)
+            if self.platform == "Linux":
+                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            else:
+                self.fw.delete(self.ospf_filter)
             self.filter = False
         if self.bf:
             for i in self.bf:
@@ -1426,8 +1428,10 @@ class mod_class(object):
             self.id_spinbutton.set_property("sensitive", False)
             if not self.filter:
                 self.log("OSPF: Setting lokal packet filter for OSPF")
-                #os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
-                self.fw.add(self.ospf_filter)
+                if self.platform == "Linux":
+                    os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                else:
+                    self.fw.add(self.ospf_filter)
                 self.filter = True
             self.log("OSPF: Hello thread activated")
             self.area = int(self.area_entry.get_text())
@@ -1460,8 +1464,10 @@ class mod_class(object):
                 self.id_spinbutton.set_property("sensitive", True)
             if self.filter:
                 self.log("OSPF: Removing lokal packet filter for OSPF")
-                #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
-                self.fw.delete(self.ospf_filter)
+                if self.platform == "Linux":
+                    os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                else:
+                    self.fw.delete(self.ospf_filter)
                 self.filter = False
             self.log("OSPF: Hello thread deactivated")
             for id in self.neighbors:

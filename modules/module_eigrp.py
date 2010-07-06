@@ -536,8 +536,10 @@ class mod_class(object):
                 self.peers[i].quit()
         if self.filter:
                 self.log("EIGRP: Removing lokal packet filter for EIGRP")
-                #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
-                self.fw.delete(self.ospf_filter)
+                if self.platform == "Linux":
+                    os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
+                else:
+                    self.fw.delete(self.ospf_filter)
                 self.filter = False
         self.treestore.clear()
 
@@ -715,8 +717,10 @@ class mod_class(object):
             self.as_spinbutton.set_property("sensitive", False)
             if not self.filter:
                 self.log("EIGRP: Setting lokal packet filter for EIGRP")
-                #os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
-                self.fw.add(self.ospf_filter)
+                if self.platform == "Linux":
+                    os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                else:
+                    self.fw.add(self.ospf_filter)
                 self.filter = True
             try:
                 self.spoof_togglebutton.set_property("sensitive", False)
@@ -736,8 +740,10 @@ class mod_class(object):
         else:
             if self.filter:
                 self.log("EIGRP: Removing lokal packet filter for EIGRP")
-                #os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
-                self.fw.delete(self.ospf_filter)
+                if self.platform =="Linux":
+                    os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
+                else:
+                    self.fw.delete(self.ospf_filter)
                 self.filter = False
             self.hello_thread.quit()
             self.spoof_togglebutton.set_property("sensitive", True)

@@ -304,7 +304,10 @@ class mod_class(object):
         if id not in self.neighbors and id_rev not in self.neighbors:
             if not self.filter:
                 self.log("BFD: Setting lokal packet filter for BFD")
-                self.fw.add(self.bfd_filter)
+                if self.platform == "Linux":
+                    os.system("iptables -A INPUT -i %s -p udp --dport -j DROP" % (self.interface, BFD_PORT))
+                else:
+                    self.fw.add(self.bfd_filter)
                 self.filter = True
                 self.filter_checkbutton.set_active(True)
             self.log("BFD: got new session: %s -> %s" % (src, dst))
@@ -373,10 +376,16 @@ class mod_class(object):
         if btn.get_active():
             if not self.filter:
                 self.log("BFD: Setting lokal packet filter for BFD")
-                self.fw.add(self.bfd_filter)
+                if self.platform == "Linux":
+                    os.system("iptables -A INPUT -i %s -p udp --dport -j DROP" % (self.interface, BFD_PORT))
+                else:
+                    self.fw.add(self.bfd_filter)
                 self.filter = True
         else:
             if self.filter:
                 self.log("BFD: Removing lokal packet filter for BFD")
-                self.fw.delete(self.bfd_filter)
+                if self.platform == "Linux":
+                    self.fw.delete(self.bfd_filter)
+                else:
+                    os.system("iptables -D INPUT -i %s -p udp --dport -j DROP" % (self.interface, BFD_PORT))
                 self.filter = False
