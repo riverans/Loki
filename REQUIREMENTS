@@ -14,8 +14,7 @@ ipy         0.70, 0.64		http://software.inl.fr/trac/trac.cgi/wiki/IPy http://pyp
 
 === Linux ===
 
-- for firewalling an iptables enabled libdnet is needed. patch can be found in trunk/misc/libdnet folder.
-    - for the moment this patch hard depends on iptables-1.4.3.2, as the API is broken in the newest version.
+- for firewalling an iptables needs to be installed an in the path
 - rfc2385 support in bgp needs following kernel options
 
 CONFIG_TCP_MD5SIG=y or m
