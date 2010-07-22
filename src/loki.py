@@ -868,7 +868,8 @@ class codename_loki(object):
             self.pcap_thread = pcap_thread(self, self.interface)
             self.dnet_thread = dnet_thread(self.interface)
             self.log("Listening on %s" % (self.interface))
-            self.fw = dnet.fw()
+            if PLATFORM != "Linux":
+                self.fw = dnet.fw()
             for i in self.modules:
                 self.start_module(i)
             for i in self.notebook:
