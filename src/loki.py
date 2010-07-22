@@ -60,7 +60,7 @@ VERSION = "v0.2.4"
 PLATFORM = platform.system()
 
 MODULE_PATH="/modules"
-CONFIG_PATH="./etc"
+CONFIG_PATH=os.path.expanduser("~./loki")
 DATA_DIR="."
 
 class about_window(gtk.Window):
