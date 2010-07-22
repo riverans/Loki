@@ -29,6 +29,7 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import random
 import struct
 
@@ -182,7 +183,10 @@ class mod_class(object):
         self.neighbor_treestore.clear()
         if self.filter:
             self.log("BFD: Removing lokal packet filter for BFD")
-            self.fw.delete(self.bfd_filter)
+            if self.platform == "Linux":
+                os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
+            else:
+                self.fw.delete(self.bfd_filter)
             self.filter = False
             self.filter_checkbutton.set_active(False)
 
@@ -377,7 +381,7 @@ class mod_class(object):
             if not self.filter:
                 self.log("BFD: Setting lokal packet filter for BFD")
                 if self.platform == "Linux":
-                    os.system("iptables -A INPUT -i %s -p udp --dport -j DROP" % (self.interface, BFD_PORT))
+                    os.system("iptables -A INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
                 else:
                     self.fw.add(self.bfd_filter)
                 self.filter = True
@@ -385,7 +389,7 @@ class mod_class(object):
             if self.filter:
                 self.log("BFD: Removing lokal packet filter for BFD")
                 if self.platform == "Linux":
-                    self.fw.delete(self.bfd_filter)
+                    os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
                 else:
-                    os.system("iptables -D INPUT -i %s -p udp --dport -j DROP" % (self.interface, BFD_PORT))
+                    self.fw.delete(self.bfd_filter)
                 self.filter = False
