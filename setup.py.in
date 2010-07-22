@@ -86,9 +86,9 @@ from distutils.core import setup, Extension
 asleap_srcs = [ '@top_srcdir@/loki_bindings/asleap/asleap.c', '@top_srcdir@/lib/asleap/asleap.c']
 asleap_incdirs = [ '@top_srcdir@' ]
 asleap_libdirs = []
-asleap_libs = []
+asleap_libs = ['dnet', 'pcap']
 asleap_extargs = [ '@PCAPINC@', '@DNETINC@' ]
-asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o', '@PCAPLIB@']
+asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o']
 asleap_extobj += '@LIBS@'.split()
 
 ospfmd5bf_srcs = [ '@top_srcdir@/loki_bindings/ospfmd5/ospfmd5bf.c', '@top_srcdir@/lib/md5.c' ]
@@ -115,18 +115,18 @@ tcpmd5bf_extobj = []
 mplstun_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplstun.c', '@top_srcdir@/lib/mplstun.c' ]
 mplstun_incdirs = [ '@top_srcdir@' ]
 mplstun_libdirs = []
-mplstun_libs = []
-mplstun_extargs = [ '@PCAPINC@', '@DNETINC@' ]
+mplstun_libs = ['dnet', 'pcap']
+mplstun_extargs = ['@DNETINC@', '@PCAPINC@']
 mplstun_extargs += '@DEFS@'.replace("\ ", "_").split()
-mplstun_extobj = [ '@DNETLIB@', '@PCAPLIB@' ]
+mplstun_extobj = []
 
 mplsred_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplsred.c', '@top_srcdir@/lib/mplsred.c' ]
 mplsred_incdirs = [ '@top_srcdir@' ]
 mplsred_libdirs = []
-mplsred_libs = []
-mplsred_extargs = [ '@PCAPINC@', '@DNETINC@' ]
+mplsred_libs = ['dnet', 'pcap']
+mplsred_extargs = ['@DNETINC@', '@PCAPINC@']
 mplsred_extargs += '@DEFS@'.replace("\ ", "_").split()
-mplsred_extobj = [ '@DNETLIB@', '@PCAPLIB@' ]
+mplsred_extobj = []
 
 asleap = Extension( 'loki_bindings.asleap.asleap',
                     asleap_srcs,
