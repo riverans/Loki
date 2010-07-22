@@ -71,42 +71,41 @@ AC_ARG_WITH(libpcap,
 AC_SUBST(PCAPINC)
 AC_SUBST(PCAPLIB)
 
-#~ dnl Checks for (installed) libdnet
-#~ AC_ARG_WITH(libdnet,
-#~ [  --with-libdnet=DIR      use libdnet in DIR],
-#~ [ case "$withval" in
-  #~ yes|no)
-     #~ AC_ERROR([Please specify directory containing dnet-config when using --with-libdnet])
-     #~ ;;
-  #~ *)
-     #~ AC_MSG_CHECKING(for libdnet)
-     #~ AC_MSG_RESULT($withval)
-     #~ if test -f $withval/src/libdnet.a; then
-    #~ DNETINC="-I$withval/include"
-	#~ DNETLIB="-L$withval/src -ldnet `$withval/dnet-config --libs`"
-     #~ elif test -x $withval/bin/dnet-config; then
-	#~ DNETINC="`$withval/bin/dnet-config --cflags`"
-	#~ DNETLIB="`$withval/bin/dnet-config --libs`"
-     #~ else
-        #~ AC_MSG_RESULT(no)
-        #~ AC_ERROR(dnet-config not found in $withval/bin)
-     #~ fi
-     #~ ;;
-  #~ esac
-  #~ AC_MSG_RESULT(yes) ],
-#~ [ dnl This is the default case so lets just use AC_PATH_PROG! --CPK.
-  #~ AC_PATH_PROG(dnetconfig, dnet-config, "no")
-  #~ if test "$dnetconfig" = "no"; then
-     #~ AC_ERROR(dnet-config not found)
-  #~ else
-     #~ DNETINC="`$dnetconfig --cflags`"
-     #~ DNETLIB="`$dnetconfig --libs`"
-  #~ fi]
-#~ )
+dnl Checks for (installed) libdnet
+AC_ARG_WITH(libdnet,
+[  --with-libdnet=DIR      use libdnet in DIR],
+[ case "$withval" in
+  yes|no)
+     AC_ERROR([Please specify directory containing dnet-config when using --with-libdnet])
+     ;;
+  *)
+     AC_MSG_CHECKING(for libdnet)
+     AC_MSG_RESULT($withval)
+     if test -f $withval/src/libdnet.a; then
+    DNETINC="-I$withval/include"
+	DNETLIB="-L$withval/src -ldnet `$withval/dnet-config --libs`"
+     elif test -x $withval/bin/dnet-config; then
+	DNETINC="`$withval/bin/dnet-config --cflags`"
+	DNETLIB="`$withval/bin/dnet-config --libs`"
+     else
+        AC_MSG_RESULT(no)
+        AC_ERROR(dnet-config not found in $withval/bin)
+     fi
+     ;;
+  esac
+  AC_MSG_RESULT(yes) ],
+[ dnl This is the default case so lets just use AC_PATH_PROG! --CPK.
+  AC_PATH_PROG(dnetconfig, dnet-config, "no")
+  if test "$dnetconfig" = "no"; then
+     AC_ERROR(dnet-config not found)
+  else
+     DNETINC="`$dnetconfig --cflags`"
+     DNETLIB="`$dnetconfig --libs`"
+  fi]
+)
 
-DNETLIB="-ldnet"
-#AC_SUBST(DNETINC)
-~ AC_SUBST(DNETLIB)
+AC_SUBST(DNETINC)
+AC_SUBST(DNETLIB)
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_OFF_T
