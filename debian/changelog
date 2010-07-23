@@ -1,0 +1,5 @@
+loki (0.2.4-1) unstable; urgency=low
+
+  * Initial release (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- user <bugs@c0decafe.de>  Thu, 22 Jul 2010 03:27:52 +0200
