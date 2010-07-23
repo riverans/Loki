@@ -870,7 +870,21 @@ class mod_class(object):
             self.log("EIGRP: Sending update to %s" % (host))
             peer = dnet.ip_aton(host)
             self.peers[peer].update(msg)
-            
+        #~ #bcast
+        #~ ip_hdr = dpkt.ip.IP(    ttl=2,
+                                #~ p=dpkt.ip.IP_PROTO_EIGRP,
+                                #~ src=self.address,
+                                #~ dst=dnet.ip_aton(EIGRP_MULTICAST_ADDRESS),
+                                #~ data=msg.render()
+                                #~ )
+        #~ ip_hdr.len += len(ip_hdr.data)
+        #~ eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(EIGRP_MULTICAST_MAC),
+                                            #~ src=self.mac,
+                                            #~ type=dpkt.ethernet.ETH_TYPE_IP,
+                                            #~ data=str(ip_hdr)
+                                            #~ )
+        #~ self.dnet.send(str(eth_hdr))
+        
     def on_stop_button_clicked(self, data):
         self.goodbye_thread.quit()
         self.goodbye_window.hide_all()

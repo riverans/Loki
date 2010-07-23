@@ -1484,7 +1484,7 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            id = model.get_value(iter, self.NEIGH_IP_ROW)
+            id = model.get_value(iter, self.NEIGH_ID_ROW)
             ident = "%s" % (id)
             if ident in self.bf:
                 if self.bf[ident].is_alive():
