@@ -1480,6 +1480,11 @@ class mod_class(object):
         bf = self.bf_checkbutton.get_active()
         full = self.full_checkbutton.get_active()
         wl = self.wordlist_filechooserbutton.get_filename()
+        if not wl:
+            if not bf:
+                self.log("OSPF: no wordlist given")
+                return
+            wl = ""
         select = self.neighbor_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
@@ -1492,7 +1497,7 @@ class mod_class(object):
             (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
             type = self.neighbor_liststore.get_value(iter, self.NEIGH_AUTH_ROW)
             if not type == "CRYPT":
-                self.log("OSPF: Cant crack %s, doesnt use CRYPT authentication")
+                self.log("OSPF: Cant crack %s, doesnt use CRYPT authentication" % ident)
                 return
             packet_str = str(last_packet)
             hdr = ospf_header()
