@@ -881,7 +881,7 @@ class ospf_thread(threading.Thread):
                                                                         seq
                                                                         )
                                     self.send_unicast(mac, ip, packet.render(""))
-                                    #self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet, adverts)
+                                    self.parent.neighbors[id] = (iter, mac, ip, dbd, lsa, state, master, seq + 1, last_packet, adverts)
                                 else:
                                     #Learned DBD
                                     packet = ospf_database_description( self.parent.area,
@@ -1320,7 +1320,7 @@ class mod_class(object):
                     elif self.thread.hello:
                         (iter, mac, src, dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
-                            self.neighbors[id] = (iter, src, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data, adverts)
+                            self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data, adverts)
                             self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
                     self.dr = hello.designated_router
                     self.bdr = hello.backup_designated_router

@@ -31,6 +31,7 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import copy
 import sys
 import os
 import platform
@@ -399,7 +400,7 @@ class pcap_thread(threading.Thread):
         for (check, call, name) in self.parent.eth_checks:
             (ret, stop) = check(eth)
             if ret:
-                call(eth, timestamp)
+                call(copy.copy(eth), timestamp)
                 if stop:
                     return
         if eth.type == dpkt.ethernet.ETH_TYPE_IP:
@@ -407,7 +408,7 @@ class pcap_thread(threading.Thread):
             for (check, call, name) in self.parent.ip_checks:
                 (ret, stop) = check(ip)
                 if ret:
-                    call(eth, ip, timestamp)
+                    call(copy.copy(eth), copy.copy(ip), timestamp)
                     if stop:
                         return
             if ip.p == dpkt.ip.IP_PROTO_TCP:
@@ -415,7 +416,7 @@ class pcap_thread(threading.Thread):
                 for (check, call, name) in self.parent.tcp_checks:
                     (ret, stop) = check(tcp)
                     if ret:
-                        call(eth, ip, tcp, timestamp)
+                        call(copy.copy(eth), copy.copy(ip), copy.copy(tcp), timestamp)
                         if stop:
                             return
             elif ip.p == dpkt.ip.IP_PROTO_UDP:
@@ -423,7 +424,7 @@ class pcap_thread(threading.Thread):
                 for (check, call, name) in self.parent.udp_checks:
                     (ret, stop) = check(udp)
                     if ret:
-                        call(eth, ip, udp, timestamp)
+                        call(copy.copy(eth), copy.copy(ip), copy.copy(udp), timestamp)
                         if stop:
                             return
 

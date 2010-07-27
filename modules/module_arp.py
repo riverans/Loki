@@ -29,7 +29,6 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import copy
 import random
 import threading
 import time
@@ -344,8 +343,7 @@ class mod_class(object):
     def check_ip(self, ip):
         return (True, False)
 
-    def input_ip(self, _eth, ip, timestamp):
-        eth = copy.copy(_eth)
+    def input_ip(self, eth, ip, timestamp):
         src = dnet.eth_ntoa(str(eth.src))
         dst = dnet.eth_ntoa(str(eth.dst))
         
