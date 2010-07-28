@@ -309,7 +309,7 @@ class mod_class(object):
             if not self.filter:
                 self.log("BFD: Setting lokal packet filter for BFD")
                 if self.platform == "Linux":
-                    os.system("iptables -A INPUT -i %s -p udp --dport -j DROP" % (self.interface, BFD_PORT))
+                    os.system("iptables -A INPUT -i %s -p udp --dport %i -j DROP" % (self.interface, BFD_PORT))
                 else:
                     self.fw.add(self.bfd_filter)
                 self.filter = True
