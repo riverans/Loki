@@ -155,6 +155,7 @@ class vrrp_thread(threading.Thread):
                     if arp:
                         brdc_mac = dnet.eth_aton("ff:ff:ff:ff:ff:ff")
                         stp_uplf_mac = dnet.eth_aton("01:00:0c:cd:cd:cd")
+                        src_mac = self.parent.mac
                         for j in pkg.ips:
                             arp_hdr = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
                                                 pro=dpkt.arp.ARP_PRO_IP,
@@ -193,13 +194,19 @@ class vrrp_thread(threading.Thread):
         self.running = False
 
 class mod_class(object):
+    LIST_SRC_ROW = 0
+    LIST_IP_ROW = 1
+    LIST_ID_ROW = 2
+    LIST_PRIO_ROW = 3
+    LIST_STATE_ROW = 4
+    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
         self.name = "vrrp"
         self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_vrrp.glade"
-        self.liststore = gtk.ListStore(str, str, int, str)
+        self.liststore = gtk.ListStore(str, str, int, int, str)
         self.thread = None
 
     def start_mod(self):
@@ -227,25 +234,31 @@ class mod_class(object):
         column.set_title("Source")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 0)
+        column.add_attribute(render_text, 'text', self.LIST_SRC_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("IP")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 1)
+        column.add_attribute(render_text, 'text', self.LIST_IP_ROW)
+        self.treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("ID")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.LIST_ID_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Priority")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 2)
+        column.add_attribute(render_text, 'text', self.LIST_PRIO_ROW)
         self.treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Status")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 3)
+        column.add_attribute(render_text, 'text', self.LIST_STATE_ROW)
         self.treeview.append_column(column)
 
         self.arp_checkbutton = self.glade_xml.get_widget("arp_checkbutton")
@@ -275,7 +288,7 @@ class mod_class(object):
                 return (True, True)
         return (False, False)
 
-    def input_ip(self, eth, ip, timestamo):
+    def input_ip(self, eth, ip, timestamp):
         if ip.src != self.ip:
             if ip.src not in self.peers:
                 pkg = vrrp_packet()
@@ -284,7 +297,7 @@ class mod_class(object):
                 ips = []
                 for i in pkg.ips:
                     ips.append(dnet.ip_ntoa(i))
-                iter = self.liststore.append([src, " ".join(ips), pkg.prio, "Seen"])
+                iter = self.liststore.append([src, " ".join(ips), pkg.id, pkg.prio, "Seen"])
                 self.peers[ip.src] = (iter, pkg, False, False)
                 self.log("VRRP: Got new peer %s" % (src))
 
@@ -295,14 +308,14 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            peer = dnet.ip_aton(model.get_value(iter, 0))
+            peer = dnet.ip_aton(model.get_value(iter, self.LIST_SRC_ROW))
             (iter, pkg, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
                 arp = 3
             else:
                 arp = 0
             self.peers[peer] = (iter, pkg, True, arp)
-            model.set_value(iter, 3, "Taken")
+            model.set_value(iter, self.LIST_STATE_ROW, "Taken")
         if not self.thread.is_alive():
             self.thread.start()
 
@@ -311,9 +324,9 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            peer = dnet.ip_aton(model.get_value(iter, 0))
+            peer = dnet.ip_aton(model.get_value(iter, self.LIST_SRC_ROW))
             (iter, pkg, run, arp) = self.peers[peer]
             self.peers[peer] = (iter, pkg, False, arp)
-            model.set_value(iter, 3, "Released")
+            model.set_value(iter, self.LIST_STATE_ROW, "Released")
 
 

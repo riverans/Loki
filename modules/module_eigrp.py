@@ -132,7 +132,7 @@ class eigrp_packet:
                 #data = data[0:auth_pos] + auth.render(struct.pack("!BBHIIII", self.EIGRP_VERSION, self.optcode, self.checksum, self.flags, self.seq_num, self.ack_num, self.as_num) + data) + data[auth_pos:]
                 data = data[0:auth_pos] + auth.render(struct.pack("!BBIIII", self.EIGRP_VERSION, self.optcode, self.flags, self.seq_num, self.ack_num, self.as_num)) + data[auth_pos:]
                 #data = data[0:auth_pos] + auth.render(struct.pack("!BIII", self.optcode, self.as_num, self.flags, self.seq_num) ) + data[auth_pos:]
-        ret = struct.pack("!BBHIIII", self.EIGRP_VERSION, self.optcode, self.checksum, self.flags, self.seq_num, self.ack_num, self.as_num)
+        ret = struct.pack("!BBHIIII", self.EIGRP_VERSION, self.optcode, 0, self.flags, self.seq_num, self.ack_num, self.as_num)
         self.checksum = ichecksum_func(ret + data)
         return struct.pack("!BBHIIII", self.EIGRP_VERSION, self.optcode, self.checksum, self.flags, self.seq_num, self.ack_num, self.as_num) + data
 
@@ -428,6 +428,7 @@ class eigrp_peer(threading.Thread):
         payload = packet.parse(data)
         if not packet.optcode == eigrp_packet.EIGRP_OPTCODE_HELLO:
             reply = eigrp_packet(eigrp_packet.EIGRP_OPTCODE_HELLO, 0, 0, packet.seq_num, self.as_num)
+            self.seq_num = packet.seq_num + 1
             self.sem.acquire()
             self.msg = reply
             self.sem.release()
