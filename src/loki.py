@@ -969,7 +969,15 @@ class codename_loki(object):
                 pass
             else:
                 if len(addr) > 1:
-                    (ip, mask, net, gw) = addr[1]
+                    for (ip, mask, net, gw) in addr:
+                        try:
+                            dnet.ip_aton(ip)
+                            break
+                        except:
+						    pass
+                        else:
+                            ip = "no"
+							mask = "address"
                 else:
                     ip = "no"
                     mask = "address"
@@ -1017,7 +1025,7 @@ class codename_loki(object):
         gtk.main_quit()
 
 if __name__ == '__main__':
-    if PLATFORM == "Linux" or PLATFORM == "FreeBSD":
+    if PLATFORM == "Linux" or PLATFORM == "FreeBSD" or PLATFORM == "Darwin":
         if os.geteuid() != 0:
             print "You must be root to run this script."
             sys.exit(1)
