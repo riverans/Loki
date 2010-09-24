@@ -59,10 +59,33 @@ class mod_class(object):
         self.__log = log
 
     #def get_eth_checks(self):
-        #pass
+        #return (self.some_eth_check_func, self.the_input_func)
 
     #def get_ip_checks(self):
-        #pass
+        #return (self.some_ip_check_func, self.the_input_func)
 
     #def get_tcp_checks(self):
-        #pass
+        #return (self.some_tcp_check_func, self.the_input_func)
+
+    #~ def get_config_dict(self):
+        #~ return {    "foo" : {   "value" : self.foo,
+                                #~ "type" : "int",
+                                #~ "min" : 1,
+                                #~ "max" : 10
+                                #~ },
+                    #~ "bar" : {   "value" : self.bar,
+                                #~ "type" : "str",
+                                #~ "min" : 1,
+                                #~ "max" : 10000
+                                #~ },
+                    #~ "xxf" : {  "value" : self.sleep_time,
+                                #~ "type" : "float",
+                                #~ "min" : 1.0,
+                                #~ "max" : -23.4321
+                                #~ }
+                    #~ }
+    #~ def set_config_dict(self, dict):
+        #~ if dict:
+            #~ self.foo = dict["foo"]["value"]
+            #~ self.bar = dict["bar"]["value"]
+            #~ self.xxf = dict["xxf"]["value"]
