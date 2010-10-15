@@ -295,6 +295,7 @@ class preference_window(gtk.Window):
         scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
         scrolledwindow.add_with_viewport(module_treeview)
         notebook.append_page(scrolledwindow, tab_label=gtk.Label("Modules"))
+
         vbox = gtk.VBox(False, 0)
         vbox.pack_start(notebook, True, True, 0)
         buttonbox = gtk.HButtonBox()
@@ -486,6 +487,7 @@ class codename_loki(object):
         self.dnet_thread = None
         self.fw = None
         self.data_dir = DATA_DIR
+        self.devices = {}
 
         self.eth_checks = []
         self.ip_checks = []
@@ -856,6 +858,31 @@ class codename_loki(object):
         dialog.vbox.pack_start(label, True, True, 0)
         dialog.run()
         dialog.destroy()
+        
+    def update_devices(self):
+        self.devices = {}
+        devs = pcap.findalldevs()
+        for (name, descr, addr, flags) in devs:
+            try:
+                test = dnet.eth(name)
+                mac = test.get()
+                print mac
+                self.devices[name] = { 'mac' : mac, 'ip4' : [], 'ip6' : [] }
+            except:
+                pass
+            else:
+                if len(addr) > 1:
+                    for (ip, mask, net, gw) in addr:
+                        try:
+                            dnet.ip_aton(ip)
+                            self.devices[name]['ip4'].append((ip, mask))
+                        except:
+                            pass                            
+                        try:
+                            dnet.ip6_aton(ip)
+                            self.devices[name]['ip6'].append((ip, mask))
+                        except:
+                            pass
 
     ### EVENTS ###
 
@@ -956,52 +983,86 @@ class codename_loki(object):
     def on_log_button_clicked(self, data):
         l_window = log_window(self.log_textbuffer)
         l_window.show_all()
+    
+    def on_network_combobox_changed(self, box, label):
+        dev = box.get_active_text()
+        str = ""
+        if len(self.devices[dev]['ip4']) > 0:
+            str += "\nIPv4:"
+            for (a, m) in self.devices[dev]['ip4']:
+                str += "\n\t%s\n\t\t%s" % (a, m)
+        else:
+            str += "\nNo IPv4 Address"
+        if len(self.devices[dev]['ip6']) > 0:
+            str += "\nIPv6:"
+            for (a, m) in self.devices[dev]['ip6']:
+                str += "\n\t%s\n\t\t%s" % (a, m)
+        else:
+            str += "\nNo IPv6 Address"
+        label.set_text(str)
         
     def on_network_button_clicked(self, data):
+        self.update_devices()
+        
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
         box = gtk.combo_box_new_text()
-        devs = pcap.findalldevs()
-        for (name, descr, addr, flags) in devs:
-            try:
-                test = dnet.eth(name)
-                test.get()
-            except:
-                pass
-            else:
-                if len(addr) > 1:
-                    for (ip, mask, net, gw) in addr:
-                        try:
-                            dnet.ip_aton(ip)
-                            break
-                        except:
-						    pass
-                        else:
-                            ip = "no"
-							mask = "address"
-                else:
-                    ip = "no"
-                    mask = "address"
-                if descr:
-                    line = " (%s %s) - %s" % (ip, mask, descr)
-                else:
-                    line = " (%s %s)" % (ip, mask)
-                box.append_text(name + line)
-        box.set_active(0)
+        for dev in self.devices:
+            box.append_text(dev)
         dialog.vbox.pack_start(box)
-        box.show()
+        label = gtk.Label()
+        dialog.vbox.pack_start(label)
+        box.connect('changed', self.on_network_combobox_changed, label)
+        dialog.vbox.show_all()
+        
+        box.set_active(0)
         ret = dialog.run()
         dialog.destroy()
         if ret == gtk.RESPONSE_OK:
-            model = box.get_model()
-            active = box.get_active()
-            self.interface = model[active][0].split(" ")[0]
-            self.ip = model[active][0].split("(")[1].split(" ")[0]
-            if self.ip == "no":
-                self.ip = "0.0.0.0"
-            self.mask = model[active][0].split(" ")[2].split(")")[0]
-            if self.mask == "address":
-                self.mask = "0"
-            self.configured = True
+            self.interface = box.get_active_text()
+            select4 = len(self.devices[self.interface]['ip4']) > 1
+            select6 = len(self.devices[self.interface]['ip6']) > 1
+            if select4 or select6:
+                dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
+                if select4:
+                    label = gtk.Label("Select the IPv4 address to use:")
+                    dialog.vbox.pack_start(label)
+                    box4 = gtk.combo_box_new_text()
+                    for (a, m) in self.devices[self.interface]['ip4']:
+                        box4.append_text("%s %s" % (a, m))
+                    dialog.vbox.pack_start(box4)
+                    box4.set_active(0)
+                if select6:
+                    label = gtk.Label("Select the IPv6 address to use:")
+                    dialog.vbox.pack_start(label)
+                    box6 = gtk.combo_box_new_text()
+                    for (a, m) in self.devices[self.interface]['ip6']:
+                        box6.append_text("%s %s" % (a, m))
+                    dialog.vbox.pack_start(box6)
+                    box6.set_active(0)
+                    
+                dialog.vbox.show_all()
+                ret = dialog.run()
+                dialog.destroy()
+                if ret == gtk.RESPONSE_OK:
+                    if not select4:
+                        if len(self.devices[self.interface]['ip4']) > 0:
+                            (self.ip, self.mask) = self.devices[self.interface]['ip4'][0]
+                        else:
+                            self.ip = "0.0.0.0"
+                            self.mask ="0.0.0.0"
+                    else:
+                        self.ip = box4.get_active_text().split(" ")[0]
+                        self.mask = box4.get_active_text().split(" ")[1]
+                    if not select6:
+                        if len(self.devices[self.interface]['ip6']) > 0:
+                            (self.ip6, self.mask6) = self.devices[self.interface]['ip6'][0]
+                        else:
+                            self.ip6 = "::"
+                            self.mask6 ="::"
+                    else:
+                        self.ip6 = box6.get_active_text().split(" ")[0]
+                        self.mask6 = box6.get_active_text().split(" ")[1]
+                    self.configured = True
 
     def on_about_button_clicked(self, data):
         window = about_window(self)
