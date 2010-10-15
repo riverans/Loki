@@ -295,7 +295,6 @@ class preference_window(gtk.Window):
         scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
         scrolledwindow.add_with_viewport(module_treeview)
         notebook.append_page(scrolledwindow, tab_label=gtk.Label("Modules"))
-
         vbox = gtk.VBox(False, 0)
         vbox.pack_start(notebook, True, True, 0)
         buttonbox = gtk.HButtonBox()
@@ -1043,26 +1042,27 @@ class codename_loki(object):
                 dialog.vbox.show_all()
                 ret = dialog.run()
                 dialog.destroy()
-                if ret == gtk.RESPONSE_OK:
-                    if not select4:
-                        if len(self.devices[self.interface]['ip4']) > 0:
-                            (self.ip, self.mask) = self.devices[self.interface]['ip4'][0]
-                        else:
-                            self.ip = "0.0.0.0"
-                            self.mask ="0.0.0.0"
-                    else:
-                        self.ip = box4.get_active_text().split(" ")[0]
-                        self.mask = box4.get_active_text().split(" ")[1]
-                    if not select6:
-                        if len(self.devices[self.interface]['ip6']) > 0:
-                            (self.ip6, self.mask6) = self.devices[self.interface]['ip6'][0]
-                        else:
-                            self.ip6 = "::"
-                            self.mask6 ="::"
-                    else:
-                        self.ip6 = box6.get_active_text().split(" ")[0]
-                        self.mask6 = box6.get_active_text().split(" ")[1]
-                    self.configured = True
+                if ret != gtk.RESPONSE_OK:
+                    return
+            if not select4:
+                if len(self.devices[self.interface]['ip4']) > 0:
+                    (self.ip, self.mask) = self.devices[self.interface]['ip4'][0]
+                else:
+                    self.ip = "0.0.0.0"
+                    self.mask ="0.0.0.0"
+            else:
+                self.ip = box4.get_active_text().split(" ")[0]
+                self.mask = box4.get_active_text().split(" ")[1]
+            if not select6:
+                if len(self.devices[self.interface]['ip6']) > 0:
+                    (self.ip6, self.mask6) = self.devices[self.interface]['ip6'][0]
+                else:
+                    self.ip6 = "::"
+                    self.mask6 ="::"
+            else:
+                self.ip6 = box6.get_active_text().split(" ")[0]
+                self.mask6 = box6.get_active_text().split(" ")[1]
+            self.configured = True
 
     def on_about_button_clicked(self, data):
         window = about_window(self)
