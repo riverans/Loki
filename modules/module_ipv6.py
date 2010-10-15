@@ -32,6 +32,7 @@
 import threading
 
 import dnet
+import dpkt
 
 import gobject
 import gtk
@@ -97,7 +98,7 @@ class ipv6_header(object):
         self.dst = dst
 
     def parse(self, data):
-        (ver_class_label, length, self.nh, self.hops, self.src, self.dst = struct.unpack("!IHBB16s16s", data[:40])
+        (ver_class_label, length, self.nh, self.hops, self.src, self.dst) = struct.unpack("!IHBB16s16s", data[:40])
         self.version = ver_class_label >> 28
         self.tclass = (ver_class_label >> 20) & 0x0ff
         self.label = ver_class_label & 0x000fffff
@@ -134,22 +135,143 @@ class icmp6_header(object):
         return ret
 
 class mod_class(object):
+    NEIGH_IP_ROW = 0
+    NEIGH_STATE_ROW = 1
+    
+    SPECIAL_IP_ROW = 0
+    SPECIAL_TYPE_ROW = 1
+    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
         self.name = "ipv6"
+        self.gladefile = "/modules/module_ipv6.glade"
+        self.neigh_liststore = gtk.ListStore(str, str)
+        self.special_treestore = gtk.TreeStore(str, str)
+        self.neigh = {}
+        self.special = {}
 
     def start_mod(self):
         pass
-
+    
     def shut_mod(self):
-        pass
+        self.neigh_liststore.clear()
+        self.special_treestore.clear()
+        self.neigh = {}
+        self.special = {}
 
     def get_root(self):
-        return gtk.Label("IPV6")
+        self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
+        dic = { }
+        self.glade_xml.signal_autoconnect(dic)
+
+        self.neigh_treeview = self.glade_xml.get_widget("neigh_treeview")
+        self.neigh_treeview.set_model(self.neigh_liststore)
+        self.neigh_treeview.set_headers_visible(True)
+        
+        column = gtk.TreeViewColumn()
+        column.set_title("IP")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.NEIGH_IP_ROW)
+        self.neigh_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("STATE")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.NEIGH_STATE_ROW)
+        self.neigh_treeview.append_column(column)
+        
+        
+        self.special_treeview = self.glade_xml.get_widget("special_treeview")
+        self.special_treeview.set_model(self.special_treestore)
+        #self.special_treeview.set_headers_visible(True)
+        self.special_treeview.set_headers_visible(False)
+        
+        column = gtk.TreeViewColumn()
+        #column.set_title("IP")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.SPECIAL_IP_ROW)
+        self.special_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        #column.set_title("")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.SPECIAL_TYPE_ROW)
+        self.special_treeview.append_column(column)
+        
+        return self.glade_xml.get_widget("root")
 
     def log(self, msg):
         self.__log(msg, self.name)
 
     def set_log(self, log):
         self.__log = log
+
+    def get_eth_checks(self):
+        return (self.check_eth, self.input_eth)
+    
+    def check_eth(self, eth):
+        if eth.type == dpkt.ethernet.ETH_TYPE_IP6:
+            return (True, False)
+        return (False, False)
+
+    def input_eth(self, eth, timestamp):
+        ip6 = dpkt.ip6.IP6(eth.data)
+        src_str = dnet.ip6_ntoa(ip6.src)
+        if src_str != "::" and src_str not in self.neigh:
+            if src_str.startswith("fe80:"):
+                state = ["LinkLocal"]
+            else:
+                state = []
+            iter = self.neigh_liststore.append([src_str, ", ".join(state)])
+            self.neigh[src_str] = { 'iter' : iter, 'state' : state }
+
+        if ip6.nxt == dnet.IP_PROTO_ICMPV6:
+            icmp6 = dpkt.icmp6.ICMP6(str(ip6.data))
+            
+            if icmp6.type == dpkt.icmp6.ND_NEIGHBOR_SOLICIT:
+                pass
+            elif icmp6.type == dpkt.icmp6.ND_NEIGHBOR_ADVERT:
+                pass
+            elif icmp6.type == dpkt.icmp6.ND_ROUTER_SOLICIT:
+                type_str = "asking for router"
+                self.set_special_type(src_str, type_str)
+            elif icmp6.type == dpkt.icmp6.ND_ROUTER_ADVERT:
+                self.add_neigh_state(src_str, "Router")
+              
+    def add_neigh_state(self, src, state):
+        if src in self.neigh:
+            dict = self.neigh[src]
+            if state not in dict['state']:
+                dict['state'].append(state)
+                self.update_neigh_state(src)
+    
+    def del_neigh_state(self, src, state):
+        if src in self.neigh:
+            if state in self.neigh[src]['state']:
+                self.neigh[src]['state'].remove(state)
+                self.update_neigh_state(src)
+                
+    def update_neigh_state(self, src):
+        if src in self.neigh:
+            self.neigh_liststore.set(self.neigh[src]['iter'], self.NEIGH_STATE_ROW, ", ".join(self.neigh[src]['state']))
+        
+    def set_special_type(self, src, type, data=""):       
+        dict = None
+        if src not in self.special:
+            root = self.special_treestore.append(None, [src, ""])
+            iter = self.special_treestore.append(root, [type, data])
+            dict = { 'iter' : root, type : iter}
+            self.special[src] = dict
+        else:
+            if type_str not in self.special[src]:                        
+                dict = self.special[src]
+                iter = self.special_treestore.append(dict['iter'], [type, data])
+                dict[type] = None
+                
+            
+            
+            
+            
