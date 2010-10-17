@@ -57,12 +57,14 @@ import dnet
 
 DEBUG = True
 
-VERSION = "v0.2.4"
+VERSION = "v0.2.5"
 PLATFORM = platform.system()
 
 MODULE_PATH="/modules"
 CONFIG_PATH=os.path.expanduser("~./loki")
 DATA_DIR="."
+#~ For OSX Bundeling
+#~ DATA_DIR=os.path.expandvars("$bundle_data/loki")
 
 class about_window(gtk.Window):
     def __init__(self, parent):

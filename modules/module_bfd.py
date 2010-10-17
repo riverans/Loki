@@ -140,15 +140,15 @@ class bfd_auth(object):
     TYPE_KEYED_SHA1 = 4
     TYPE_METRIC_SHA1 = 5
     
-    #~ 0                   1                   2                   3
-    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   #~ |   Auth Type   |   Auth Len    |    Authentication Data...     |
-   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~  0                   1                   2                   3
+    #~  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |   Auth Type   |   Auth Len    |    Authentication Data...     |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
     def __init__(self, type=None, data=None):
-       self.type = type
-       self.data = data
+        self.type = type
+        self.data = data
 
     def render(self):
         return struct.pack("!BB", self.type, 2 + len(self.data)) + self.data
@@ -279,7 +279,7 @@ class mod_class(object):
 
     def set_int(self, interface):
         self.interface = interface
-        self.bfd_filter = {    "device"    : self.interface,
+        self.bfd_filter = {     "device"    : self.interface,
                                 "op"        : dnet.FW_OP_BLOCK,
                                 "dir"       : dnet.FW_DIR_IN,
                                 "proto"     : dpkt.ip.IP_PROTO_UDP,

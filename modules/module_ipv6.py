@@ -236,8 +236,7 @@ class mod_class(object):
             elif icmp6.type == dpkt.icmp6.ND_NEIGHBOR_ADVERT:
                 pass
             elif icmp6.type == dpkt.icmp6.ND_ROUTER_SOLICIT:
-                type_str = "asking for router"
-                self.set_special_type(src_str, type_str)
+                self.set_special_type(src_str, "asking for router")
             elif icmp6.type == dpkt.icmp6.ND_ROUTER_ADVERT:
                 self.add_neigh_state(src_str, "Router")
               
@@ -270,8 +269,4 @@ class mod_class(object):
                 dict = self.special[src]
                 iter = self.special_treestore.append(dict['iter'], [type, data])
                 dict[type] = None
-                
-            
-            
-            
-            
+    
