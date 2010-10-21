@@ -135,8 +135,9 @@ class icmp6_header(object):
         return ret
 
 class mod_class(object):
-    NEIGH_IP_ROW = 0
-    NEIGH_STATE_ROW = 1
+    NEIGH_MAC_ROW = 0
+    NEIGH_IP_ROW = 1
+    NEIGH_STATE_ROW = 2
     
     SPECIAL_IP_ROW = 0
     SPECIAL_TYPE_ROW = 1
@@ -144,9 +145,9 @@ class mod_class(object):
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
-        self.name = "ipv6"
-        self.gladefile = "/modules/module_ipv6.glade"
-        self.neigh_liststore = gtk.ListStore(str, str)
+        self.name = "icmp6"
+        self.gladefile = "/modules/module_icmp6.glade"
+        self.neigh_liststore = gtk.ListStore(str, str, str)
         self.special_treestore = gtk.TreeStore(str, str)
         self.neigh = {}
         self.special = {}
@@ -169,6 +170,12 @@ class mod_class(object):
         self.neigh_treeview.set_model(self.neigh_liststore)
         self.neigh_treeview.set_headers_visible(True)
         
+        column = gtk.TreeViewColumn()
+        column.set_title("MAC")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.NEIGH_MAC_ROW)
+        self.neigh_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("IP")
         render_text = gtk.CellRendererText()
@@ -218,6 +225,7 @@ class mod_class(object):
         return (False, False)
 
     def input_eth(self, eth, timestamp):
+        mac = str(eth.src)
         ip6 = dpkt.ip6.IP6(eth.data)
         src_str = dnet.ip6_ntoa(ip6.src)
         if src_str != "::" and src_str not in self.neigh:
@@ -225,7 +233,7 @@ class mod_class(object):
                 state = ["LinkLocal"]
             else:
                 state = []
-            iter = self.neigh_liststore.append([src_str, ", ".join(state)])
+            iter = self.neigh_liststore.append([mac, src_str, ", ".join(state)])
             self.neigh[src_str] = { 'iter' : iter, 'state' : state }
 
         if ip6.nxt == dnet.IP_PROTO_ICMPV6:

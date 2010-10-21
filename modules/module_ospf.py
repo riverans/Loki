@@ -1140,6 +1140,8 @@ class mod_class(object):
             self.log("OSPF: Removing lokal packet filter for OSPF")
             if self.platform == "Linux":
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            elif self.platform == "Darwin":
+                os.system("ipfw -q delete 31334")
             else:
                 self.fw.delete(self.ospf_filter)
             self.filter = False
@@ -1430,6 +1432,8 @@ class mod_class(object):
                 self.log("OSPF: Setting lokal packet filter for OSPF")
                 if self.platform == "Linux":
                     os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q add 31334 deny ospf from any to any")
                 else:
                     self.fw.add(self.ospf_filter)
                 self.filter = True
@@ -1466,6 +1470,8 @@ class mod_class(object):
                 self.log("OSPF: Removing lokal packet filter for OSPF")
                 if self.platform == "Linux":
                     os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q delete 31334")
                 else:
                     self.fw.delete(self.ospf_filter)
                 self.filter = False

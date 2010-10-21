@@ -539,6 +539,8 @@ class mod_class(object):
                 self.log("EIGRP: Removing lokal packet filter for EIGRP")
                 if self.platform == "Linux":
                     os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q delete 31335")
                 else:
                     self.fw.delete(self.ospf_filter)
                 self.filter = False
@@ -641,15 +643,15 @@ class mod_class(object):
 
     def set_int(self, interface):
         self.interface = interface
-        self.ospf_filter = {    "device"    : self.interface,
-                                "op"        : dnet.FW_OP_BLOCK,
-                                "dir"       : dnet.FW_DIR_IN,
-                                "proto"     : dpkt.ip.IP_PROTO_EIGRP,
-                                "src"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
-                                "dst"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
-                                "sport"     : [0, 0],
-                                "dport"     : [0, 0]
-                                }
+        self.eigrp_filter = {    "device"    : self.interface,
+                                 "op"        : dnet.FW_OP_BLOCK,
+                                 "dir"       : dnet.FW_DIR_IN,
+                                 "proto"     : dpkt.ip.IP_PROTO_EIGRP,
+                                 "src"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
+                                 "dst"       : dnet.addr("0.0.0.0/0", dnet.ADDR_TYPE_IP),
+                                 "sport"     : [0, 0],
+                                 "dport"     : [0, 0]
+                                 }
 
     def set_dnet(self, dnet):
         self.dnet = dnet
@@ -720,8 +722,10 @@ class mod_class(object):
                 self.log("EIGRP: Setting lokal packet filter for EIGRP")
                 if self.platform == "Linux":
                     os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q add 31335 deny eigrp from any to any")
                 else:
-                    self.fw.add(self.ospf_filter)
+                    self.fw.add(self.eigrp_filter)
                 self.filter = True
             try:
                 self.spoof_togglebutton.set_property("sensitive", False)
@@ -743,8 +747,10 @@ class mod_class(object):
                 self.log("EIGRP: Removing lokal packet filter for EIGRP")
                 if self.platform =="Linux":
                     os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q delete 31335")
                 else:
-                    self.fw.delete(self.ospf_filter)
+                    self.fw.delete(self.eigrp_filter)
                 self.filter = False
             self.hello_thread.quit()
             self.spoof_togglebutton.set_property("sensitive", True)

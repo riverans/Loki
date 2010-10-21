@@ -185,6 +185,8 @@ class mod_class(object):
             self.log("BFD: Removing lokal packet filter for BFD")
             if self.platform == "Linux":
                 os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
+            elif self.platform == "Darwin":
+                os.system("ipfw -q delete 31336")
             else:
                 self.fw.delete(self.bfd_filter)
             self.filter = False
@@ -310,6 +312,8 @@ class mod_class(object):
                 self.log("BFD: Setting lokal packet filter for BFD")
                 if self.platform == "Linux":
                     os.system("iptables -A INPUT -i %s -p udp --dport %i -j DROP" % (self.interface, BFD_PORT))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q add 31336 deny udp from any to any %d" % (BFD_PORT))
                 else:
                     self.fw.add(self.bfd_filter)
                 self.filter = True
@@ -382,6 +386,8 @@ class mod_class(object):
                 self.log("BFD: Setting lokal packet filter for BFD")
                 if self.platform == "Linux":
                     os.system("iptables -A INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q add 31336 deny udp from any to any %d" % (BFD_PORT))
                 else:
                     self.fw.add(self.bfd_filter)
                 self.filter = True
@@ -390,6 +396,8 @@ class mod_class(object):
                 self.log("BFD: Removing lokal packet filter for BFD")
                 if self.platform == "Linux":
                     os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
+                elif self.platform == "Darwin":
+                    os.system("ipfw -q delete 31336")
                 else:
                     self.fw.delete(self.bfd_filter)
                 self.filter = False
