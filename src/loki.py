@@ -867,7 +867,6 @@ class codename_loki(object):
             try:
                 test = dnet.eth(name)
                 mac = test.get()
-                print mac
                 self.devices[name] = { 'mac' : mac, 'ip4' : [], 'ip6' : [] }
             except:
                 pass
