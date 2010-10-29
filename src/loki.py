@@ -939,7 +939,6 @@ class codename_loki(object):
                             self.devices[name]['ip6'].append(dict)
                         except:
                             pass
-        print self.devices
 
     ### EVENTS ###
 
