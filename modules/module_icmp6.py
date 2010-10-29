@@ -120,7 +120,7 @@ class mod_class(object):
         self.name = "icmp6"
         self.gladefile = "/modules/module_icmp6.glade"
         self.macfile = "/modules/mac.txt"
-        self.hosts_liststore = gtk.ListStore(str, str, str)
+        self.hosts_liststore = gtk.ListStore(str, str, str, str)
         self.upper_add_liststore = gtk.ListStore(str, str)
         self.lower_add_liststore = gtk.ListStore(str, str)
         self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str)
@@ -181,10 +181,17 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', 1)
         self.hosts_treeview.append_column(column)
         column = gtk.TreeViewColumn()
+        column.set_title("Flags")
+        render_text = gtk.CellRendererText()
+        render_text.set_property('xalign', 0.5)
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', 2)
+        self.hosts_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
         column.set_title("Vendor")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', 2)
+        column.add_attribute(render_text, 'text', 3)
         self.hosts_treeview.append_column(column)
         self.hosts_treeview.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
 
@@ -301,11 +308,11 @@ class mod_class(object):
             return
         
         if ip6.nxt == dpkt.ip.IP_PROTO_ICMP6:
-            icmp6 = dpkt.icmp6.ICMP6(str(eth.data))
+            icmp6 = dpkt.icmp6.ICMP6(str(ip6.data))
             mac = dnet.eth_ntoa(str(eth.src))
             if self.mac:
                 if icmp6.type == dpkt.icmp6.ND_NEIGHBOR_SOLICIT:
-                    ip6_dst = dnet.eth_ntoa(str(icmp6.data)[4:20])
+                    ip6_dst = dnet.ip6_ntoa(str(icmp6.data)[4:20])
                     for h in self.hosts:
                         if mac == h:
                             (ip6_src, rand_mac_src, iter_src, reply_src) = self.hosts[mac]
@@ -325,6 +332,10 @@ class mod_class(object):
                                                                 )
                                 self.dnet.send(str(_eth))
                                 break
+                if icmp6.type == dpkt.icmp6.ND_ROUTER_ADVERT:
+                    if mac in self.hosts:
+                        (ip, random_mac, iter, reply) = self.hosts[mac]
+                        self.hosts_liststore.set(iter, 2, "R")
             for h in self.hosts:
                 if mac == h:
                     return
@@ -333,7 +344,7 @@ class mod_class(object):
                     return
             rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
             rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
-            iter = self.hosts_liststore.append([mac, dnet.ip6_ntoa(ip6.src), self.mac_to_vendor(mac)])
+            iter = self.hosts_liststore.append([mac, dnet.ip6_ntoa(ip6.src), "", self.mac_to_vendor(mac)])
             self.hosts[mac] = (dnet.ip6_ntoa(ip6.src), rand_mac, iter, False)
             self.mappings_liststore.append([mac, rand_mac])
 
