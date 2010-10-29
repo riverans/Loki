@@ -725,6 +725,15 @@ class codename_loki(object):
                     traceback.print_exc(file=sys.stdout)
                     print '-'*60
             try:
+                if "set_ip6" in dir(mod):
+                    mod.set_ip(self.ip6, self.mask6, self.ip6_ll, self.mask6_ll)
+            except Exception, e:
+                print e
+                if DEBUG:
+                    print '-'*60
+                    traceback.print_exc(file=sys.stdout)
+                    print '-'*60
+            try:
                 if self.dnet_thread:
                     if "set_dnet" in dir(mod):
                         mod.set_dnet(self.dnet_thread)
@@ -867,7 +876,7 @@ class codename_loki(object):
             try:
                 test = dnet.eth(name)
                 mac = test.get()
-                self.devices[name] = { 'mac' : mac, 'ip4' : [], 'ip6' : [] }
+                self.devices[name] = { 'mac' : mac, 'ip4' : [], 'ip6' : [], 'descr' : descr, 'flags' : flags }
             except:
                 pass
             else:
@@ -875,12 +884,26 @@ class codename_loki(object):
                     for (ip, mask, net, gw) in addr:
                         try:
                             dnet.ip_aton(ip)
-                            self.devices[name]['ip4'].append((ip, mask))
+                            dict = {}
+                            dict['ip'] = ip
+                            dict['mask'] = mask
+                            dict['net'] = net
+                            dict['gw'] = gw
+                            self.devices[name]['ip4'].append(dict)
                         except:
                             pass                            
                         try:
                             dnet.ip6_aton(ip)
-                            self.devices[name]['ip6'].append((ip, mask))
+                            dict = {}
+                            dict['ip'] = ip
+                            dict['mask'] = mask
+                            dict['net'] = net
+                            dict['gw'] = gw
+                            if ip.startswith("fe80:"):
+                                dict['linklocal'] = True
+                            else:
+                                dict['linklocal'] = False
+                            self.devices[name]['ip6'].append(dict)
                         except:
                             pass
 
@@ -989,14 +1012,14 @@ class codename_loki(object):
         str = ""
         if len(self.devices[dev]['ip4']) > 0:
             str += "\nIPv4:"
-            for (a, m) in self.devices[dev]['ip4']:
-                str += "\n\t%s\n\t\t%s" % (a, m)
+            for i in self.devices[dev]['ip4']:
+                str += "\n\t%s\n\t\t%s" % (i['ip'], i['mask'])
         else:
             str += "\nNo IPv4 Address"
         if len(self.devices[dev]['ip6']) > 0:
             str += "\nIPv6:"
-            for (a, m) in self.devices[dev]['ip6']:
-                str += "\n\t%s\n\t\t%s" % (a, m)
+            for i in self.devices[dev]['ip6']:
+                str += "\n\t%s\n\t\t%s" % (i['ip'], i['mask'])
         else:
             str += "\nNo IPv6 Address"
         label.set_text(str)
@@ -1021,33 +1044,53 @@ class codename_loki(object):
             self.interface = box.get_active_text()
             select4 = len(self.devices[self.interface]['ip4']) > 1
             select6 = len(self.devices[self.interface]['ip6']) > 1
+            v6done = False
             if select4 or select6:
-                dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
                 if select4:
+                    dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
                     label = gtk.Label("Select the IPv4 address to use:")
                     dialog.vbox.pack_start(label)
                     box4 = gtk.combo_box_new_text()
-                    for (a, m) in self.devices[self.interface]['ip4']:
-                        box4.append_text("%s %s" % (a, m))
+                    for i in self.devices[self.interface]['ip4']:
+                        box4.append_text("%s %s" % (i['ip'], i['mask']))
                     dialog.vbox.pack_start(box4)
                     box4.set_active(0)
                 if select6:
-                    label = gtk.Label("Select the IPv6 address to use:")
-                    dialog.vbox.pack_start(label)
-                    box6 = gtk.combo_box_new_text()
-                    for (a, m) in self.devices[self.interface]['ip6']:
-                        box6.append_text("%s %s" % (a, m))
-                    dialog.vbox.pack_start(box6)
-                    box6.set_active(0)
-                    
-                dialog.vbox.show_all()
-                ret = dialog.run()
-                dialog.destroy()
-                if ret != gtk.RESPONSE_OK:
-                    return
+                    nl = 0
+                    ip = None
+                    mask = None
+                    for i in self.devices[self.interface]['ip6']:
+                        if i['linklocal']:
+                            self.ip6_ll = i['ip']
+                            self.mask6_ll = i['mask']
+                        else:
+                            ip = i['ip']
+                            mask = i['mask']
+                            nl += 1
+                    if nl > 1:
+                        dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
+                        label = gtk.Label("Select the IPv6 address to use:")
+                        dialog.vbox.pack_start(label)
+                        box6 = gtk.combo_box_new_text()
+                        for i in self.devices[self.interface]['ip6']:
+                            if not i['linklocal']:
+                                box6.append_text("%s %s" % (i['ip'], i['mask']))
+                        dialog.vbox.pack_start(box6)
+                        box6.set_active(0)                        
+                        dialog.vbox.show_all()
+                        ret = dialog.run()
+                        dialog.destroy()
+                        if ret != gtk.RESPONSE_OK:
+                            return
+                    else:
+                        self.ip6 = ip
+                        self.mask6 = mask
+                        select6 = False
+                        v6done = True
             if not select4:
                 if len(self.devices[self.interface]['ip4']) > 0:
-                    (self.ip, self.mask) = self.devices[self.interface]['ip4'][0]
+                        self.ip = self.devices[self.interface]['ip4'][0]['ip']
+                        self.mask = self.devices[self.interface]['ip4'][0]['mask']
                 else:
                     self.ip = "0.0.0.0"
                     self.mask ="0.0.0.0"
@@ -1055,11 +1098,18 @@ class codename_loki(object):
                 self.ip = box4.get_active_text().split(" ")[0]
                 self.mask = box4.get_active_text().split(" ")[1]
             if not select6:
-                if len(self.devices[self.interface]['ip6']) > 0:
-                    (self.ip6, self.mask6) = self.devices[self.interface]['ip6'][0]
-                else:
-                    self.ip6 = "::"
-                    self.mask6 ="::"
+                if not v6done:
+                    if len(self.devices[self.interface]['ip6']) > 0:
+                        self.ip6 = self.devices[self.interface]['ip6'][0]['ip']
+                        self.mask6 = self.devices[self.interface]['ip6'][0]['mask']
+                        if self.ip6.startswith("fe80:"):
+                            self.ip6_ll = self.ip6
+                            self.mask_ll = self.mask6
+                    else:
+                        self.ip6 = "::"
+                        self.mask6 ="::"
+                        self.ip6_ll = "::"
+                        self.mask6_ll = "::"
             else:
                 self.ip6 = box6.get_active_text().split(" ")[0]
                 self.mask6 = box6.get_active_text().split(" ")[1]
@@ -1107,3 +1157,4 @@ if __name__ == '__main__':
         app.delete_event(None, None)
     except:
         app.delete_event(None, None)
+
