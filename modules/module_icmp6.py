@@ -83,7 +83,7 @@ class spoof_thread(threading.Thread):
         self.reset = False
 
     def run(self):
-        self.parent.log("ARP: Spoof thread started")
+        self.parent.log("ICMP6: Spoof thread started")        
         while self.running:
             if self.parent.dnet:
                 for iter in self.parent.spoofs:
@@ -105,7 +105,7 @@ class spoof_thread(threading.Thread):
                 if run:
                     for j in org_data:
                         self.parent.dnet.eth.send(j)
-        self.parent.log("ARP: Spoof thread terminated")
+        self.parent.log("ICMP6: Spoof thread terminated")
 
     def wakeup(self):
         self.reset = True
@@ -158,7 +158,9 @@ class mod_class(object):
                 "on_remove_spoof_button_clicked" : self.on_remove_spoof_button_clicked,
                 "on_stop_spoof_button_clicked" : self.on_stop_spoof_button_clicked,
                 "on_start_spoof_button_clicked" : self.on_start_spoof_button_clicked,
-                "on_scan_start_button_clicked" : self.on_scan_start_button_clicked
+                "on_scan_start_button_clicked" : self.on_scan_start_button_clicked,
+                "on_invalid_header_scan_button_clicked" : self.on_invalid_header_scan_button_clicked,
+                "on_invalid_option_scan_button_clicked" : self.on_invalid_option_scan_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -290,6 +292,8 @@ class mod_class(object):
         return (self.check_ip6, self.input_ip6)
 
     def check_ip6(self, ip6):
+        if dnet.ip6_ntoa(ip6.src) == "::":
+            return (False, False)
         return (True, False)
 
     def input_ip6(self, eth, ip6, timestamp):
@@ -532,9 +536,68 @@ class mod_class(object):
                                                 type=dpkt.ethernet.ETH_TYPE_IP6
                                                 )
                 org_data.append(str(eth))
+                
             hosts.append(host_upper)
+
+            mld = struct.pack("!xxHBBH16s", 1, 4, 0, 0, dnet.ip6_aton("ff02::1:ff00:0000")[:13] + dnet.ip6_aton(ip_upper)[13:])
+            icmp6 = dpkt.icmp6.ICMP6(   type=143,
+                                        code=0,
+                                        data=mld
+                                        )
+            icmp6_str = str(icmp6)
+            ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(ip_upper),
+                                dst=dnet.ip6_aton("ff02::16"),
+                                nxt=dpkt.ip.IP_PROTO_HOPOPTS,
+                                hlim=1,
+                                data=icmp6,
+                                plen=len(icmp6_str) + 8
+                                )
+            ip6.extension_hdrs={}
+            for i in dpkt.ip6.ext_hdrs:
+                ip6.extension_hdrs[i]=None
+            ip6.extension_hdrs[dpkt.ip.IP_PROTO_HOPOPTS] = dpkt.ip6.IP6HopOptsHeader(nxt=dpkt.ip.IP_PROTO_ICMP6, data=struct.pack("!BBHBB", 5, 2, 0, 1, 0))
+            
+            ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, len(icmp6_str), 
+            dpkt.ip.IP_PROTO_ICMP6)
+            icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
+            eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("33:33:00:00:00:16"),
+                                            src=self.mac,
+                                            data=str(ip6),
+                                            type=dpkt.ethernet.ETH_TYPE_IP6
+                                            )
+            self.dnet.send(str(eth))
+            self.log("ICMP6: Joined multicast group " + dnet.ip6_ntoa(dnet.ip6_aton("ff02::1:ff00:0000")[:13] + dnet.ip6_aton(ip_upper)[13:]))
         for host_lower in self.lower_add:
             hosts.append(host_lower)
+            (ip_lower, rand_mac_lower, iter_lower) = self.lower_add[host_lower]
+            mld = struct.pack("!xxHBBH16s", 1, 4, 0, 0, dnet.ip6_aton("ff02::1:ff00:0000")[:13] + dnet.ip6_aton(ip_lower)[13:])
+            icmp6 = dpkt.icmp6.ICMP6(   type=143,
+                                        code=0,
+                                        data=mld
+                                        )
+            icmp6_str = str(icmp6)
+            ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(ip_lower),
+                                dst=dnet.ip6_aton("ff02::16"),
+                                nxt=dpkt.ip.IP_PROTO_HOPOPTS,
+                                hlim=1,
+                                data=icmp6,
+                                plen=len(icmp6_str) + 8
+                                )
+            ip6.extension_hdrs={}
+            for i in dpkt.ip6.ext_hdrs:
+                ip6.extension_hdrs[i]=None
+            ip6.extension_hdrs[dpkt.ip.IP_PROTO_HOPOPTS] = dpkt.ip6.IP6HopOptsHeader(nxt=dpkt.ip.IP_PROTO_ICMP6, data=struct.pack("!BBHBB", 5, 2, 0, 1, 0))
+            
+            ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, len(icmp6_str), 
+            dpkt.ip.IP_PROTO_ICMP6)
+            icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
+            eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("33:33:00:00:00:16"),
+                                            src=self.mac,
+                                            data=str(ip6),
+                                            type=dpkt.ethernet.ETH_TYPE_IP6
+                                            )
+            self.dnet.send(str(eth))
+            self.log("ICMP6: Joined multicast group " + dnet.ip6_ntoa(dnet.ip6_aton("ff02::1:ff00:0000")[:13] + dnet.ip6_aton(ip_lower)[13:]))
         self.spoofs[cur] = (False, data, org_data, hosts)
         self.upper_add = {}
         self.lower_add = {}
@@ -622,6 +685,27 @@ class mod_class(object):
                                         type=dpkt.ethernet.ETH_TYPE_IP6
                                         )
         self.dnet.send(str(eth))
+
+    def on_invalid_header_scan_button_clicked(self, data):
+        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
+                            dst=dnet.ip6_aton("ff02::1"),
+                            nxt=254,
+                            hlim=64,
+                            data="ABCDFFFFFFFFFFFFFFFFFFFFF",
+                            plen=25
+                            )
+        ip6.extension_hdrs={}
+        for i in dpkt.ip6.ext_hdrs:
+            ip6.extension_hdrs[i]=None
+        eth = dpkt.ethernet.Ethernet(   src=self.mac,
+                                        dst=dnet.eth_aton("33:33:00:00:00:01"),
+                                        data=str(ip6),
+                                        type=dpkt.ethernet.ETH_TYPE_IP6
+                                        )
+        self.dnet.send(str(eth))
+
+    def on_invalid_option_scan_button_clicked(self, data):
+        pass
 
     def get_config_dict(self):
         return {    "spoof_delay" : {   "value" : self.spoof_delay,
