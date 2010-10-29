@@ -429,6 +429,30 @@ class pcap_thread(threading.Thread):
                         call(copy.copy(eth), copy.copy(ip), copy.copy(udp), timestamp)
                         if stop:
                             return
+        elif eth.type == dpkt.ethernet.ETH_TYPE_IP6:
+            ip6 = dpkt.ip6.IP6(str(eth.data))
+            for (check, call, name) in self.parent.ip6_checks:
+                (ret, stop) = check(ip6)
+                if ret:
+                    call(copy.copy(eth), copy.copy(ip6), timestamp)
+                    if stop:
+                        return
+            if ip6.p == dpkt.ip.IP_PROTO_TCP:
+                tcp = dpkt.tcp.TCP(str(ip6.data))
+                for (check, call, name) in self.parent.tcp_checks:
+                    (ret, stop) = check(tcp)
+                    if ret:
+                        call(copy.copy(eth), copy.copy(ip6), copy.copy(tcp), timestamp)
+                        if stop:
+                            return
+            elif ip6.p == dpkt.ip.IP_PROTO_UDP:
+                udp = dpkt.udp.UDP(str(ip6.data))
+                for (check, call, name) in self.parent.udp_checks:
+                    (ret, stop) = check(udp)
+                    if ret:
+                        call(copy.copy(eth), copy.copy(ip6), copy.copy(udp), timestamp)
+                        if stop:
+                            return
 
 class pcap_thread_offline(pcap_thread):
     def __init__(self, parent, filename):
@@ -492,6 +516,7 @@ class codename_loki(object):
 
         self.eth_checks = []
         self.ip_checks = []
+        self.ip6_checks = []
         self.tcp_checks = []
         self.udp_checks = []
 
@@ -632,6 +657,9 @@ class codename_loki(object):
             if "get_ip_checks" in dir(mod):
                 (check, call) = mod.get_ip_checks()
                 self.ip_checks.append((check, call, mod.name))
+            if "get_ip6_checks" in dir(mod):
+                (check, call) = mod.get_ip6_checks()
+                self.ip6_checks.append((check, call, mod.name))
             if "get_tcp_checks" in dir(mod):
                 (check, call) = mod.get_tcp_checks()
                 self.tcp_checks.append((check, call, mod.name))
@@ -726,7 +754,7 @@ class codename_loki(object):
                     print '-'*60
             try:
                 if "set_ip6" in dir(mod):
-                    mod.set_ip(self.ip6, self.mask6, self.ip6_ll, self.mask6_ll)
+                    mod.set_ip6(self.ip6, self.mask6, self.ip6_ll, self.mask6_ll)
             except Exception, e:
                 print e
                 if DEBUG:
@@ -805,6 +833,11 @@ class codename_loki(object):
                 (check, call, name) = i
                 if name == mod.name:
                     self.ip_checks.remove(i)
+        if "get_ip6_checks" in dir(mod):
+            for i in self.ip6_checks:
+                (check, call, name) = i
+                if name == mod.name:
+                    self.ip6_checks.remove(i)
         if "get_tcp_checks" in dir(mod):
             for i in self.tcp_checks:
                 (check, call, name) = i
@@ -906,6 +939,7 @@ class codename_loki(object):
                             self.devices[name]['ip6'].append(dict)
                         except:
                             pass
+        print self.devices
 
     ### EVENTS ###
 
@@ -1104,15 +1138,15 @@ class codename_loki(object):
                         self.mask6 = self.devices[self.interface]['ip6'][0]['mask']
                         if self.ip6.startswith("fe80:"):
                             self.ip6_ll = self.ip6
-                            self.mask_ll = self.mask6
+                            self.mask6_ll = self.mask6
                     else:
                         self.ip6 = "::"
                         self.mask6 ="::"
                         self.ip6_ll = "::"
                         self.mask6_ll = "::"
             else:
-                self.ip6 = box6.get_active_text().split(" ")[0]
-                self.mask6 = box6.get_active_text().split(" ")[1]
+                self.ip6_ll = self.ip6 = box6.get_active_text().split(" ")[0]
+                self.mask6_ll = self.mask6 = box6.get_active_text().split(" ")[1]
             self.configured = True
 
     def on_about_button_clicked(self, data):
