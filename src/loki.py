@@ -376,7 +376,8 @@ class pcap_thread(threading.Thread):
         p = pcap.pcapObject()
         #check to_ms = 100 for non linux
         p.open_live(self.interface, 1600, 1, 100)
-        p.setnonblock(1)
+        if not PLATFORM == "Darwin":
+            p.setnonblock(1)
         while self.running:
             try:
                 p.dispatch(1, self.dispatch_packet)
@@ -461,7 +462,6 @@ class pcap_thread_offline(pcap_thread):
 
     def run(self):
         p = pcap.pcapObject()
-        #check to_ms = 100 for non linux
         p.open_offline(self.filename)
         while self.running:
             try:
