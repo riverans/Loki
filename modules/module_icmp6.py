@@ -332,10 +332,10 @@ class mod_class(object):
                                                                 )
                                 self.dnet.send(str(_eth))
                                 break
-                if icmp6.type == dpkt.icmp6.ND_ROUTER_ADVERT:
-                    if mac in self.hosts:
-                        (ip, random_mac, iter, reply) = self.hosts[mac]
-                        self.hosts_liststore.set(iter, 2, "R")
+            if icmp6.type == dpkt.icmp6.ND_ROUTER_ADVERT:
+                if mac in self.hosts:
+                    (ip, random_mac, iter, reply) = self.hosts[mac]
+                    self.hosts_liststore.set(iter, 2, "R")
             for h in self.hosts:
                 if mac == h:
                     return

@@ -1013,10 +1013,10 @@ class codename_loki(object):
                             j.set_property("sensitive", True)
                     i.set_property("sensitive", True)
                 self.run_togglebutton.set_property("sensitive", False)
+                self.pcap_thread.start()
             else:
                 btn.set_active(False)
             dialog.destroy()
-            self.pcap_thread.start()
         else:
             for i in self.modules:
                 (mod, en) = self.modules[i]
@@ -1152,7 +1152,7 @@ class codename_loki(object):
         window = about_window(self)
         window.show_all()
 
-    def on_quit_button_clicked(self, data):
+    def on_quit_button_clicked(self, data, foo=None):
         self.delete_event(None, None)
         self.destroy_event(None)
     
