@@ -329,7 +329,7 @@ class eigrp_hello_thread(threading.Thread):
             if timer == DEFAULT_HOLD_TIME:
                 timer = 0
                 params = eigrp_param(1, 0, 1, 0, 0, 15)
-                version = eigrp_version() #(0xc02, 0x300)
+                version = eigrp_version(self.parent.ios_ver, self.parent.eigrp_ver) #(0xc02, 0x300)
                 args = [params, version]
                 if self.auth:
                     args.insert(0, self.auth)
@@ -515,6 +515,9 @@ class mod_class(object):
         self.hello_thread = None
         self.goodbye_thread = None
         self.peers = None
+        #(0xc02, 0x300)
+        self.ios_ver = 0xc04
+        self.eigrp_ver = 0x102
 
     def start_mod(self):
         self.hello_thread = None
@@ -895,3 +898,21 @@ class mod_class(object):
     def on_stop_button_clicked(self, data):
         self.goodbye_thread.quit()
         self.goodbye_window.hide_all()
+
+    def get_config_dict(self):
+        return {    "ios_ver" : {   "value" : "0x%x" % self.ios_ver,
+                                    "type" : "str",
+                                    "min" : 3,
+                                    "max" : 6
+                                    },
+                    "eigrp_ver" : {   "value" : "0x%x" % self.eigrp_ver,
+                                      "type" : "str",
+                                      "min" : 3,
+                                      "max" : 6
+                                      }
+                    }
+
+    def set_config_dict(self, dict):
+        if dict:
+            self.ios_ver = int(dict["ios_ver"]["value"], 0)
+            self.eigrp_ver = int(dict["eigrp_ver"]["value"], 0)
