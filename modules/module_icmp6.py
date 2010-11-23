@@ -698,16 +698,29 @@ class mod_class(object):
         self.dnet.send(str(eth))
 
     def on_invalid_header_scan_button_clicked(self, data):
+        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
+                                        seq=56789,
+                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        )
+        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
+                                    code=0,
+                                    data=echo6
+                                    )
+        icmp6_str = str(icmp6)
+        rand = "".join([ chr(random.randint(0x00, 0xff)) for i in xrange(14) ])
+        data_str = struct.pack("!BB14s", dpkt.ip.IP_PROTO_ICMP6, 1, rand) + icmp6_str
         ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
                             dst=dnet.ip6_aton("ff02::1"),
-                            nxt=254,
+                            nxt=230,
                             hlim=64,
-                            data="ABCDFFFFFFFFFFFFFFFFFFFFF",
-                            plen=25
+                            plen=len(data_str)
                             )
         ip6.extension_hdrs={}
         for i in dpkt.ip6.ext_hdrs:
             ip6.extension_hdrs[i]=None
+        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
+        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
+        ip6.data = data_str
         eth = dpkt.ethernet.Ethernet(   src=self.mac,
                                         dst=dnet.eth_aton("33:33:00:00:00:01"),
                                         data=str(ip6),
@@ -716,7 +729,35 @@ class mod_class(object):
         self.dnet.send(str(eth))
 
     def on_invalid_option_scan_button_clicked(self, data):
-        pass
+        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
+                                        seq=56789,
+                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        )
+        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
+                                    code=0,
+                                    data=echo6
+                                    )
+        icmp6_str = str(icmp6)
+        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
+                            dst=dnet.ip6_aton("ff02::1"),
+                            nxt=dpkt.ip.IP_PROTO_HOPOPTS,
+                            hlim=1,
+                            data=icmp6,
+                            plen=len(icmp6_str)
+                            )
+        ip6.extension_hdrs={}
+        for i in dpkt.ip6.ext_hdrs:
+            ip6.extension_hdrs[i]=None
+        rand = "".join([ chr(random.randint(0x00, 0xff)) for i in xrange(13) ])
+        ip6.extension_hdrs[dpkt.ip.IP_PROTO_HOPOPTS] = dpkt.ip6.IP6HopOptsHeader(nxt=dpkt.ip.IP_PROTO_ICMP6, len=1, data=struct.pack("!B13s", 1, rand))
+        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, len(icmp6_str), dpkt.ip.IP_PROTO_ICMP6)
+        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
+        eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("33:33:00:00:00:01"),
+                                        src=self.mac,
+                                        data=str(ip6),
+                                        type=dpkt.ethernet.ETH_TYPE_IP6
+                                        )
+        self.dnet.send(str(eth))
 
     def get_config_dict(self):
         return {    "spoof_delay" : {   "value" : self.spoof_delay,
