@@ -625,7 +625,16 @@ class codename_loki(object):
             print "init %s" % module
         (mod, enabled) = self.modules[module]
         mod.set_log(self.log)
-        root = mod.get_root()
+        try:
+            root = mod.get_root()
+        except Exception, e:
+            print e
+            if DEBUG:
+                print '-'*60
+                traceback.print_exc(file=sys.stdout)
+                print '-'*60
+            print "failed to get root from module %s" % mod
+            root = None
         if not root:
             root = gtk.Label(mod.name)
         group = getattr(mod, "group", "")
@@ -1004,6 +1013,10 @@ class codename_loki(object):
                 self.interface = "null"
                 self.ip = "0.0.0.0"
                 self.mask = "0.0.0.0"
+                self.ip6 = "::"
+                self.mask6 = "::"
+                self.ip6_ll = "::"
+                self.mask6_ll = "::"
                 for i in self.modules:
                     self.start_module(i)
                 for i in self.notebook:
