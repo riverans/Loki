@@ -47,11 +47,11 @@ DOT1X_TYPE_EAPOL_LOGOFF = 0x2
 DOT1X_TYPE_EAPOL_KEY = 0x3
 DOT1X_TYPE_EAPOL_ASF_ALERT = 0x4
 
-DOT1X_TYPE_TO_STR = {   0x0 :   "DOT1X_TYPE_EAP_PACKET",
-                        0x1 :   "DOT1X_TYPE_EAPOL_START",
-                        0x2 :   "DOT1X_TYPE_EAPOL_LOGOFF",
-                        0x3 :   "DOT1X_TYPE_EAPOL_KEY",
-                        0x4 :   "DOT1X_TYPE_EAPOL_ASF_ALERT"
+DOT1X_TYPE_TO_STR = {   DOT1X_TYPE_EAP_PACKET   :   "DOT1X_TYPE_EAP_PACKET",
+                        DOT1X_TYPE_EAPOL_START  :   "DOT1X_TYPE_EAPOL_START",
+                        DOT1X_TYPE_EAPOL_LOGOFF :   "DOT1X_TYPE_EAPOL_LOGOFF",
+                        DOT1X_TYPE_EAPOL_KEY    :   "DOT1X_TYPE_EAPOL_KEY",
+                        DOT1X_TYPE_EAPOL_ASF_ALERT  :   "DOT1X_TYPE_EAPOL_ASF_ALERT"
                         }
 
 class dot1x_header(object):
@@ -71,10 +71,10 @@ EAP_CODE_RESPONSE = 0x2
 EAP_CODE_SUCCESS = 0x3
 EAP_CODE_FAILURE = 0x4
 
-EAP_CODE_TO_STR = { 0x1 :   "EAP_CODE_REQUEST",
-                    0x2 :   "EAP_CODE_RESPONSE",
-                    0x3 :   "EAP_CODE_SUCCESS",
-                    0x4 :   "EAP_CODE_FAILURE"
+EAP_CODE_TO_STR = { EAP_CODE_REQUEST    :   "EAP_CODE_REQUEST",
+                    EAP_CODE_RESPONSE   :   "EAP_CODE_RESPONSE",
+                    EAP_CODE_SUCCESS    :   "EAP_CODE_SUCCESS",
+                    EAP_CODE_FAILURE    :   "EAP_CODE_FAILURE"
                     }
 
 EAP_TYPE_IDENTITY = 0x1
@@ -87,15 +87,15 @@ EAP_TYPE_GENERIC_TOKEN_CARD = 0x6
 EAP_TYPE_EXPANDED_TYPES = 0xfe
 EAP_TYPE_EXPERIMENTAL = 0xff
 
-EAP_TYPE_TO_STR = { 0x1 :   "EAP_TYPE_IDENTITY",
-                    0x2 :   "EAP_TYPE_NOTIFICATION",
-                    0x3 :   "EAP_TYPE_NAK",
-                    0x4 :   "EAP_TYPE_MD5_CHALLENGE",
-                    0x5 :   "EAP_TYPE_ONE_TIME_PASSWORD",
-                    0x6 :   "EAP_TYPE_GENERIC_TOKEN_CARD",
+EAP_TYPE_TO_STR = { EAP_TYPE_IDENTITY       :   "EAP_TYPE_IDENTITY",
+                    EAP_TYPE_NOTIFICATION   :   "EAP_TYPE_NOTIFICATION",
+                    EAP_TYPE_NAK            :   "EAP_TYPE_NAK",
+                    EAP_TYPE_MD5_CHALLENGE  :   "EAP_TYPE_MD5_CHALLENGE",
+                    EAP_TYPE_ONE_TIME_PASSWORD  :   "EAP_TYPE_ONE_TIME_PASSWORD",
+                    EAP_TYPE_GENERIC_TOKEN_CARD :   "EAP_TYPE_GENERIC_TOKEN_CARD",
                     #...
-                    0xfe    :   "EAP_TYPE_EXPANDED_TYPES",
-                    0xff    :   "EAP_TYPE_EXPERIMENTAL"
+                    EAP_TYPE_EXPANDED_TYPES :   "EAP_TYPE_EXPANDED_TYPES",
+                    EAP_TYPE_EXPERIMENTAL   :   "EAP_TYPE_EXPERIMENTAL"
                     }
                     
 class eap_identity(object):
@@ -263,5 +263,8 @@ class mod_class(object):
             dst = dnet.eth_ntoa(eth.dst)
             self.connection_list[src] = connection(self, src, dst)
         hdr = dot1x_header()
+        #try:
         data = hdr.parse(eth.data)
         self.connection_list[src].dissect(hdr, data)
+        #except:
+        #    pass
