@@ -133,9 +133,25 @@ class eap_notification(object):
     def dissect(self, store, iter, data):
         if self.msg:
             store.append(iter, ["EAP_NOTIFICATION", "", self.msg])
+
+class eap_md5_challenge(object):
+    def __init__(self, value = None):
+        self.value = value
+    
+    def render(self):
+        return struct.pack("!B16s", 16, self.value)
+    
+    def parse(self, data):
+        (self.value,) = struct.unpack("!x16s", data[:17])
+        return data[17:]
+    
+    def dissect(self, store, iter, data):
+        if self.value:
+            store.append(iter, ["EAP_MD5_CHALLENGE", "", self.value.encode("hex")])
         
 EAP_TYPE_TO_OBJECT = { EAP_TYPE_IDENTITY    :   eap_identity,
-                       EAP_TYPE_NOTIFICATION    :   eap_notification 
+                       EAP_TYPE_NOTIFICATION    :   eap_notification ,
+                       EAP_TYPE_MD5_CHALLENGE   :   eap_md5_challenge
                        }
         
 class eap_packet(object):
