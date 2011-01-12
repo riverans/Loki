@@ -59,9 +59,12 @@ class rip_message(object):
     COMMAND_REQUEST = 1
     COMMAND_RESPONSE = 2
     
-    def __init__(self, command=None, entries=[]):
+    def __init__(self, command=None, entries=None):
         self.command = command
-        self.entries = entries
+        if not entries:
+            self.entries = []
+        else:
+            self.entries = entries
 
     def render(self):
         data = struct.pack("!BBxx", self.command, RIP_VERSION)
@@ -302,8 +305,24 @@ class mod_class(object):
                     nh = dnet.ip_ntoa(i.nh)
                     if nh == "0.0.0.0":
                         nh = src
-                    self.host_treestore.append(iter, [dnet.ip_ntoa(i.addr) + "/" + dnet.ip_ntoa(i.mask) + " via " + nh])
-
+                    self.host_treestore.append(iter, ["%s/%s via %s metric %d" % (dnet.ip_ntoa(i.addr), dnet.ip_ntoa(i.mask), nh, i.metric)])
+            else:
+                (iter, src) = self.hosts[ip.src]
+                msg = rip_message(None, [])
+                msg.parse(udp.data)
+                path = self.host_treestore.get_path(iter)
+                expanded = self.host_treeview.row_expanded(path)
+                child = self.host_treestore.iter_children(iter)
+                while child:
+                  self.host_treestore.remove(child)
+                  child = self.host_treestore.iter_children(iter)
+                for i in msg.entries:
+                    nh = dnet.ip_ntoa(i.nh)
+                    if nh == "0.0.0.0":
+                        nh = src
+                    self.host_treestore.append(iter, ["%s/%s via %s metric %d" % (dnet.ip_ntoa(i.addr), dnet.ip_ntoa(i.mask), nh, i.metric)])
+                if expanded:
+                    self.host_treeview.expand_row(path, False)
     # SIGNALS #
 
     def on_add_button_clicked(self, btn):
