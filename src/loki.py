@@ -406,6 +406,15 @@ class pcap_thread(threading.Thread):
                 call(copy.copy(eth), timestamp)
                 if stop:
                     return
+        if eth.type == dpkt.ethernet.ETH_TYPE_8021Q:
+            eth = dpkt.ethernet.Ethernet(data)
+            for (check, call, name) in self.parent.eth_checks:
+                (ret, stop) = check(eth)
+                if ret:
+                    call(copy.copy(eth), timestamp)
+                    if stop:
+                        return
+
         if eth.type == dpkt.ethernet.ETH_TYPE_IP:
             ip = dpkt.ip.IP(str(eth.data))
             for (check, call, name) in self.parent.ip_checks:
@@ -430,6 +439,14 @@ class pcap_thread(threading.Thread):
                         call(copy.copy(eth), copy.copy(ip), copy.copy(udp), timestamp)
                         if stop:
                             return
+            elif ip.p == dpkt.ip.IP_PROTO_SCTP:
+                sctp = dpkt.sctp.SCTP(str(ip.data))
+                for (check, call, name) in self.parent.sctp_checks:
+                    (ret, stop) = check(sctp)
+                    if ret:
+                        call(copy.copy(eth), copy.copy(ip), copy.copy(sctp), timestamp)
+                        if stop:
+                            return
         elif eth.type == dpkt.ethernet.ETH_TYPE_IP6:
             ip6 = dpkt.ip6.IP6(str(eth.data))
             for (check, call, name) in self.parent.ip6_checks:
@@ -452,6 +469,14 @@ class pcap_thread(threading.Thread):
                     (ret, stop) = check(udp)
                     if ret:
                         call(copy.copy(eth), copy.copy(ip6), copy.copy(udp), timestamp)
+                        if stop:
+                            return
+            elif ip6.p == dpkt.ip.IP_PROTO_SCTP:
+                sctp = dpkt.sctp.SCTP(str(ip6.data))
+                for (check, call, name) in self.parent.sctp_checks:
+                    (ret, stop) = check(sctp)
+                    if ret:
+                        call(copy.copy(eth), copy.copy(ip6), copy.copy(sctp), timestamp)
                         if stop:
                             return
 
@@ -519,6 +544,7 @@ class codename_loki(object):
         self.ip6_checks = []
         self.tcp_checks = []
         self.udp_checks = []
+        self.sctp_checks = []
 
         self.module_active = []
         
@@ -675,6 +701,9 @@ class codename_loki(object):
             if "get_udp_checks" in dir(mod):
                 (check, call) = mod.get_udp_checks()
                 self.udp_checks.append((check, call, mod.name))
+            if "get_sctp_checks" in dir(mod):
+                (check, call) = mod.get_sctp_checks()
+                self.sctp_checks.append((check, call, mod.name))
             if "set_config_dict" in dir(mod):
                 cdict = self.load_mod_config(module)
                 if cdict:
@@ -857,6 +886,11 @@ class codename_loki(object):
                 (check, call, name) = i
                 if name == mod.name:
                     self.udp_checks.remove(i)
+        if "get_sctp_checks" in dir(mod):
+            for i in self.sctp_checks:
+                (check, call, name) = i
+                if name == mod.name:
+                    self.sctp_checks.remove(i)
         self.modules[module] = (mod, False)
         if delete:
             del self.modules[modules]
