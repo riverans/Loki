@@ -711,7 +711,7 @@ class mod_class(object):
         data_str = struct.pack("!BB14s", dpkt.ip.IP_PROTO_ICMP6, 1, rand) + icmp6_str
         ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
                             dst=dnet.ip6_aton("ff02::1"),
-                            nxt=230,
+                            nxt=159,
                             hlim=64,
                             plen=len(data_str)
                             )

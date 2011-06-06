@@ -406,7 +406,7 @@ class pcap_thread(threading.Thread):
                 call(copy.copy(eth), timestamp)
                 if stop:
                     return
-        if eth.type == dpkt.ethernet.ETH_TYPE_8021Q:
+        if eth.type == dpkt.ethernet.ETH_TYPE_8021Q or eth.type == dpkt.ethernet.ETH_TYPE_MPLS:
             eth = dpkt.ethernet.Ethernet(data)
             for (check, call, name) in self.parent.eth_checks:
                 (ret, stop) = check(eth)

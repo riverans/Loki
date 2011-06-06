@@ -1,8 +1,8 @@
 # To generate the configure files
 aclocal && automake --add-missing && autoconf
-# No you can configure:
+# Now you can configure:
 ./configure
-# No you can build:
+# Now you can build:
 make
 # Now you can install the compiled binaries:
 make install

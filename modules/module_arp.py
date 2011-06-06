@@ -381,12 +381,12 @@ class mod_class(object):
 
     def parse_macs(self, file):
         macs = {}
-        f = open(file, "r")
-        for l in f:
-            s = l.split()
-            if len(s) < 2:
-                continue
-            macs[s[0]] = " ".join(s[1:])
+        with open(file, "r") as f:
+            for l in f:
+                s = l.split()
+                if len(s) < 2:
+                    continue
+                macs[s[0]] = " ".join(s[1:])
         return macs
 
     def mac_to_vendor(self, mac):

@@ -1,6 +1,6 @@
 #       module_8021Q.py
 #       
-#       Copyright 2010 Daniel Mende <dmende@ernw.de>
+#       Copyright 2011 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
@@ -39,6 +39,10 @@ import gtk
 import gtk.glade
 
 class mod_class(object):
+    TAG_SOURCE_ROW = 0
+    TAG_DESTINATION_ROW = 1
+    TAG_TAG_ROW = 2
+    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -51,16 +55,35 @@ class mod_class(object):
         self.tags = {}
 
     def shut_mod(self):
-        pass
+        self.tag_treestore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = {}
         self.glade_xml.signal_autoconnect(dic)
 
-        self.hosts_treeview = self.glade_xml.get_widget("tag_treeview")
-        self.hosts_treeview.set_model(self.hosts_liststore)
-        self.hosts_treeview.set_headers_visible(True)
+        self.tag_treeview = self.glade_xml.get_widget("tag_treeview")
+        self.tag_treeview.set_model(self.tag_treestore)
+        self.tag_treeview.set_headers_visible(True)
+
+        column = gtk.TreeViewColumn()
+        column.set_title("Source")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.TAG_SOURCE_ROW)
+        self.tag_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Destination")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.TAG_DESTINATION_ROW)
+        self.tag_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Tag")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.TAG_TAG_ROW)
+        self.tag_treeview.append_column(column)
 
         return self.glade_xml.get_widget("root")
 
@@ -95,8 +118,6 @@ class mod_class(object):
                 self.log("DOT1Q: Got new tag %d: %s -> %s" % (id, src, dst))
             cur_tag = cur_tag[id]
             data = data[4:]
-            
-            
 
     #~ def get_config_dict(self):
         #~ return {    "foo" : {   "value" : self.foo,

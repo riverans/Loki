@@ -194,7 +194,7 @@ class mod_class(object):
 
     def check_eth(self, eth):
         if eth.type == dpkt.ethernet.ETH_TYPE_MPLS:
-            return (True, True)
+            return (True, False)
         return (False, False)
 
     def input_eth(self, eth, timestamp):
