@@ -324,6 +324,7 @@ class mod_class(object):
                                                                 )
                                 self.dnet.send(str(_eth))
                                 break
+                #return #???
         for h in self.hosts:
             if mac == h:
                 return

@@ -64,6 +64,10 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
         fprintf(stderr, "Couldn't set promisc mode: %s\n", pcap_geterr(pcap_handle));
         return 2;
     }
+    if (pcap_set_timeout(pcap_handle, TIMEOUT_SEC * 1000 + TIMEOUT_USEC) {
+        fprintf(stderr, "Couldn't set read timeout: %s\n", pcap_geterr(pcap_handle));
+        return 2;
+    }
     if (pcap_activate(pcap_handle)) {
         fprintf(stderr, "Couldn't activate pcap: %s\n", pcap_geterr(pcap_handle));
         return 2;
@@ -96,7 +100,7 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     if (verbose)
         printf("Injecting on device %s\n", out_device);
     if (verbose)
-        printf("Redirecting to MPLS label %i\n", out_label);
+        printf("Redirecting from MPLS label %i to MPLS label %i\n", in_label, out_label);
 
     fm = pcap_fd + 1;
     FD_ZERO(&fds);
@@ -116,7 +120,7 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
             run = 1;
         }
         
-        if( FD_ISSET(pcap_fd, &fds) ) {
+        //if( FD_ISSET(pcap_fd, &fds) ) {
             if(pcap_next_ex(pcap_handle, &pcap_header, &pcap_packet) > 0) {
                 len = pcap_header->len > MAX_PACKET_LEN ? MAX_PACKET_LEN : pcap_header->len;
                 if (pcap_packet[12] != 0x88 || pcap_packet[13] != 0x47)
@@ -147,7 +151,7 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
                     return 2;
                 }
             }
-        }
+        //}
     }
 
     pcap_close(pcap_handle);

@@ -395,6 +395,7 @@ class pcap_thread(threading.Thread):
         self.running = False
 
     def dispatch_packet(self, pktlen, data, timestamp):
+        got_tag = False
         if not data:
             return
         #parse and build dpkt.eth on myself, as dpkt parsing method strips dot1q, mpls, etc...
@@ -407,17 +408,29 @@ class pcap_thread(threading.Thread):
                 if stop:
                     return
         if eth.type == dpkt.ethernet.ETH_TYPE_8021Q or eth.type == dpkt.ethernet.ETH_TYPE_MPLS:
-            eth = dpkt.ethernet.Ethernet(data)
+            got_tag = True
+            eth_new = dpkt.ethernet.Ethernet(data)
             for (check, call, name) in self.parent.eth_checks:
-                (ret, stop) = check(eth)
+                (ret, stop) = check(eth_new)
                 if ret:
-                    call(copy.copy(eth), timestamp)
+                    call(copy.copy(eth_new), timestamp)
                     if stop:
                         return
+            if eth_new.type == dpkt.ethernet.ETH_TYPE_IP:
+                ip = dpkt.ip.IP(str(eth_new.data))
+                for (check, call, name) in self.parent.ip_checks:
+                    (ret, stop) = check(ip)
+                    if ret:
+                        call(copy.copy(eth), copy.copy(ip), timestamp)
+                        if stop:
+                            return
+            eth = eth_new
 
         if eth.type == dpkt.ethernet.ETH_TYPE_IP:
             ip = dpkt.ip.IP(str(eth.data))
             for (check, call, name) in self.parent.ip_checks:
+                if name == "arp" and got_tag:
+                    continue
                 (ret, stop) = check(ip)
                 if ret:
                     call(copy.copy(eth), copy.copy(ip), timestamp)
