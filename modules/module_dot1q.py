@@ -1,4 +1,4 @@
-#       module_8021Q.py
+#       module_dot1q.py
 #       
 #       Copyright 2011 Daniel Mende <dmende@ernw.de>
 #
@@ -99,8 +99,8 @@ class mod_class(object):
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
-        self.name = "DOT1Q"
-        self.gladefile = "/modules/module_DOT1Q.glade"
+        self.name = "dot1q"
+        self.gladefile = "/modules/module_dot1q.glade"
         self.peers = {}
         self.redirects = {}
         self.peer_treestore = gtk.TreeStore(str, str, str, int)
