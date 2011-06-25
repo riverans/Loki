@@ -21,7 +21,7 @@
                 <property name="hscrollbar_policy">automatic</property>
                 <property name="vscrollbar_policy">automatic</property>
                 <child>
-                  <widget class="GtkTreeView" id="tag_treeview">
+                  <widget class="GtkTreeView" id="peer_treeview">
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <signal name="row_activated" handler="on_peer_treeview_row_activated"/>

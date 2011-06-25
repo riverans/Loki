@@ -410,6 +410,9 @@ class pcap_thread(threading.Thread):
         if eth.type == dpkt.ethernet.ETH_TYPE_8021Q or eth.type == dpkt.ethernet.ETH_TYPE_MPLS:
             got_tag = True
             eth_new = dpkt.ethernet.Ethernet(data)
+            #dpkt only removes first dot1q tag
+            while eth_new.type == dpkt.ethernet.ETH_TYPE_8021Q:
+                eth_new = dpkt.ethernet.Ethernet(eth_new.data)
             for (check, call, name) in self.parent.eth_checks:
                 (ret, stop) = check(eth_new)
                 if ret:
