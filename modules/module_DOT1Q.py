@@ -56,9 +56,7 @@ class redirect_thread(threading.Thread):
         threading.Thread.__init__(self)
 
     def dispatch(self, pktlen, data, timestamp):
-        print "got packet %s" % data.encode("hex")
         (tag,) = struct.unpack("!H", data[14 + 4 * self.num_label:14 + 4 * self.num_label + 2])
-        print "got tag %x" % tag
         if tag & 0xfff == self.from_label:
             data = data[:14 + 4 * self.num_label] + struct.pack("!H", self.to_label) + data[14 + 4 * self.num_label + 2:]
             self.d.send(data)
