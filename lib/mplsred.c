@@ -64,7 +64,7 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
         fprintf(stderr, "Couldn't set promisc mode: %s\n", pcap_geterr(pcap_handle));
         return 2;
     }
-    if (pcap_set_timeout(pcap_handle, TIMEOUT_SEC * 1000 + TIMEOUT_USEC) {
+    if (pcap_set_timeout(pcap_handle, TIMEOUT_SEC * 1000 + TIMEOUT_USEC)) {
         fprintf(stderr, "Couldn't set read timeout: %s\n", pcap_geterr(pcap_handle));
         return 2;
     }
