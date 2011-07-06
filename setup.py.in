@@ -88,7 +88,7 @@ asleap_incdirs = [ '@top_srcdir@' ]
 asleap_libdirs = []
 asleap_libs = ['dnet', 'pcap']
 asleap_extargs = [ '@PCAPINC@', '@DNETINC@' ]
-asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o']
+asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o', '@top_srcdir@/lib/asleap/md4.o']
 asleap_extobj += '@LIBS@'.split()
 
 ospfmd5bf_srcs = [ '@top_srcdir@/loki_bindings/ospfmd5/ospfmd5bf.c', '@top_srcdir@/lib/md5.c' ]
