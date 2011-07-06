@@ -57,7 +57,7 @@ import dnet
 
 DEBUG = True
 
-VERSION = "v0.2.5"
+VERSION = "0.2.5"
 PLATFORM = platform.system()
 
 MODULE_PATH="/modules"
