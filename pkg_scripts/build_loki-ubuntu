@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+
+BUILDROOT=/home/user/packaging
+SVNPATH="svn+ssh://svn/home/greif/svn/"
+REPNAME=codename_loki
+PKGNAME=loki
+WORKDIR=$BUILDROOT/loki-build-`date +%F_%H-%M`
+NONRELEASE=`cat<<-EOF
+	build.sh
+	misc
+	test
+	modules/module_test.py
+	modules/module_snmp.py
+	modules/module_snmp.glade
+EOF`
+
+echo "**************************"
+echo "**** creating workdir ****"
+echo "**************************"
+mkdir $WORKDIR
+
+echo "***********************"
+echo "**** exporting svn ****"
+echo "***********************"
+cd $WORKDIR
+svn export $SVNPATH/$REPNAME/trunk
+
+echo "**************************************"
+echo -n "**** getting version ... "
+VERSION=`grep "VERSION =" trunk/src/loki.py | cut -d\" -f2`
+echo "$VERSION ****"
+echo "**************************************"
+
+echo "***********************************"
+echo "**** removing non-release data ****"
+echo "***********************************"
+for i in $NONRELEASE; do
+	echo "deleting $i"
+	rm -rf trunk/$i
+done
+
+echo "*************************************************"
+echo "**** replacing dnet with dumbnet in .h files ****"
+echo "*************************************************"
+find trunk -name "*.h" -exec sed -i "s/dnet\.h/dumbnet\.h/g" {} ";"
+
+echo "**************************************************"
+echo "**** replacing dnet with dumbnet in .py files ****"
+echo "**************************************************"
+find trunk -name "*.py" -exec sed -i "s/dnet/dumbnet/g" {} ";"
+sed -i "s/dnet/dumbnet/g" trunk/setup.py.in
+
+echo "*************************"
+echo "**** moving in place ****"
+echo "*************************"
+mv trunk $PKGNAME-$VERSION
+
+echo "***************************"
+echo "**** creating tar file ****"
+echo "***************************"
+tar -cvzf ${PKGNAME}_${VERSION}.orig.tar.gz $PKGNAME-$VERSION
+
+
+echo "********************************"
+echo "**** configuring build root ****"
+echo "********************************"
+cd $PKGNAME-$VERSION
+aclocal
+autoconf
+automake --add-missing --copy
+./configure
+
+echo "********************************"
+echo "**** building pkg for amd64 ****"
+echo "********************************"
+debuild -us -uc
+
+echo "*******************************"
+echo "**** building pkg for i386 ****"
+echo "*******************************"
+sudo chroot /chroot32 /usr/bin/sudo -u user /bin/sh -c "cd $WORKDIR/$PKGNAME-$VERSION && /usr/bin/debuild -us -uc"
+
