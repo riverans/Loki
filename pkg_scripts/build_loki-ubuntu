@@ -9,9 +9,12 @@ NONRELEASE=`cat<<-EOF
 	build.sh
 	misc
 	test
+	pkg_scripts
 	modules/module_test.py
 	modules/module_snmp.py
 	modules/module_snmp.glade
+	modules/module_802_1X.py
+	modules/module_802_1X.glade
 EOF`
 
 echo "**************************"
