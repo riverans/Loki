@@ -43,7 +43,12 @@
                       <widget class="GtkEventBox" id="eventbox1">
                         <property name="visible">True</property>
                         <child>
-                          <placeholder/>
+                          <widget class="GtkEventBox" id="eventbox4">
+                            <property name="visible">True</property>
+                            <child>
+                              <placeholder/>
+                            </child>
+                          </widget>
                         </child>
                       </widget>
                       <packing>
@@ -51,12 +56,11 @@
                       </packing>
                     </child>
                     <child>
-                      <widget class="GtkToggleButton" id="hello_togglebutton">
-                        <property name="label" translatable="yes">Hello</property>
+                      <widget class="GtkEntry" id="hello_dst_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
-                        <property name="receives_default">True</property>
-                        <signal name="toggled" handler="on_hello_togglebutton_toggled"/>
+                        <property name="invisible_char">&#x25CF;</property>
+                        <property name="text" translatable="yes">224.0.0.2</property>
                       </widget>
                       <packing>
                         <property name="expand">False</property>
@@ -76,12 +80,12 @@
                       </packing>
                     </child>
                     <child>
-                      <widget class="GtkToggleButton" id="listen_togglebutton">
-                        <property name="label" translatable="yes">Listen</property>
+                      <widget class="GtkToggleButton" id="hello_togglebutton">
+                        <property name="label" translatable="yes">Hello</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
-                        <signal name="toggled" handler="on_listen_togglebutton_toggled"/>
+                        <signal name="toggled" handler="on_hello_togglebutton_toggled"/>
                       </widget>
                       <packing>
                         <property name="expand">False</property>
@@ -98,6 +102,31 @@
                       </widget>
                       <packing>
                         <property name="position">4</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <widget class="GtkToggleButton" id="listen_togglebutton">
+                        <property name="label" translatable="yes">Listen</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="receives_default">True</property>
+                        <signal name="toggled" handler="on_listen_togglebutton_toggled"/>
+                      </widget>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">False</property>
+                        <property name="position">5</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <widget class="GtkEventBox" id="eventbox3">
+                        <property name="visible">True</property>
+                        <child>
+                          <placeholder/>
+                        </child>
+                      </widget>
+                      <packing>
+                        <property name="position">6</property>
                       </packing>
                     </child>
                   </widget>

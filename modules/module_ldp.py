@@ -219,7 +219,7 @@ class ldp_vc_interface_param_vccv(object):
         return struct.pack("!BBBB", self.VC_INTERFACE_PARAM_VCCV, 4, self.cc_type, self.cv_type)
 
 class ldp_hello_thread(threading.Thread):
-    def __init__(self, parent, addr, interface, hold_time = DEFAULT_HOLD_TIME):
+    def __init__(self, parent, addr, interface, dst_addr, hold_time = DEFAULT_HOLD_TIME):
         threading.Thread.__init__(self)
         self.parent = parent
         self.addr = addr
@@ -227,6 +227,7 @@ class ldp_hello_thread(threading.Thread):
         self.sock = None
         self.running = True
         self.interface = interface
+        self.dst_addr = dst_addr
 
     def hello(self):
         msg = ldp_msg(socket.inet_aton(self.addr), 0, [ ldp_hello_msg(0, [ ldp_common_hello_tlv(self.hold_time), ldp_ipv4_transport_tlv(self.addr) ] ) ] )
@@ -239,7 +240,10 @@ class ldp_hello_thread(threading.Thread):
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(('', LDP_PORT))
         while self.running:
-            self.sock.sendto(data, ("224.0.0.2", LDP_PORT))
+            if self.dst_addr == "224.0.0.2":
+                self.sock.sendto(data, (self.dst_addr, LDP_PORT))
+            else:
+                self.sock.sendto(t_data, (self.dst_addr, LDP_PORT))
             for x in self.parent.peers:
                 self.sock.sendto(t_data, (x, LDP_PORT))
             time.sleep(self.hold_time / 3)
@@ -388,6 +392,7 @@ class mod_class(object):
         self.treeview.append_column(column)
 
         self.msg_textview = self.glade_xml.get_widget("msg_textview")
+        self.hello_dst_entry = self.glade_xml.get_widget("hello_dst_entry")
 
         return self.glade_xml.get_widget("root")
 
@@ -439,7 +444,7 @@ class mod_class(object):
     def on_hello_togglebutton_toggled(self, btn):
         active = btn.get_active()
         if active:
-            self.hello_thread = ldp_hello_thread(self, self.ip, self.interface)
+            self.hello_thread = ldp_hello_thread(self, self.ip, self.interface, self.hello_dst_entry.get_text())
             self.hello_thread.start()
         else:
             if self.hello_thread:
