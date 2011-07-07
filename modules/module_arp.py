@@ -108,21 +108,6 @@ class flood_thread(threading.Thread):
         self.running = False
 
 class mod_class(object):
-    HOSTS_MAC_ROW = 0
-    HOSTS_IP_ROW = 1
-    HOSTS_VENDOR_ROW = 2
-
-    ADD_MAC_ROW = 0
-    ADD_IP_ROW = 1
-
-    SPOOF_STATUS_ROW = 0
-    SPOOF_SRC_ROW = 1
-    SPOOF_DST_ROW = 2
-    SPOOF_COUNT_ROW = 3
-
-    MAPPING_MAC_ROW = 0
-    MAPPING_RAND_ROW = 1
-    
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -184,19 +169,19 @@ class mod_class(object):
         column.set_title("MAC address")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.HOSTS_MAC_ROW)
+        column.add_attribute(render_text, 'text', 0)
         self.hosts_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("IP address")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.HOSTS_IP_ROW)
+        column.add_attribute(render_text, 'text', 1)
         self.hosts_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("Vendor")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.HOSTS_VENDOR_ROW)
+        column.add_attribute(render_text, 'text', 2)
         self.hosts_treeview.append_column(column)
         self.hosts_treeview.get_selection().set_mode(gtk.SELECTION_MULTIPLE)
 
@@ -208,13 +193,13 @@ class mod_class(object):
         column.set_title("MAC address")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.ADD_MAC_ROW)
+        column.add_attribute(render_text, 'text', 0)
         self.upper_add_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("IP address")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.ADD_IP_ROW)
+        column.add_attribute(render_text, 'text', 1)
         self.upper_add_treeview.append_column(column)
 
         self.lower_add_treeview = self.glade_xml.get_widget("lower_add_treeview")
@@ -225,13 +210,13 @@ class mod_class(object):
         column.set_title("MAC address")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.ADD_MAC_ROW)
+        column.add_attribute(render_text, 'text', 0)
         self.lower_add_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("IP address")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.ADD_IP_ROW)
+        column.add_attribute(render_text, 'text', 1)
         self.lower_add_treeview.append_column(column)
 
         self.spoof_treeview = self.glade_xml.get_widget("spoof_treeview")
@@ -241,7 +226,7 @@ class mod_class(object):
         column = gtk.TreeViewColumn()
         render_pixbuf = gtk.CellRendererPixbuf()
         column.pack_start(render_pixbuf, expand=False)
-        column.add_attribute(render_pixbuf, 'pixbuf', self.SPOOF_STATUS_ROW)
+        column.add_attribute(render_pixbuf, 'pixbuf', 0)
         self.spoof_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         render_text = gtk.CellRendererText()
@@ -266,13 +251,13 @@ class mod_class(object):
         column = gtk.TreeViewColumn()
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=False)
-        column.add_attribute(render_text, 'text', self.MAPPING_MAC_ROW)
+        column.add_attribute(render_text, 'text', 0)
         column.set_title("Real MAC")
         self.mappings_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.MAPPING_RAND_ROW)
+        column.add_attribute(render_text, 'text', 1)
         column.set_title("Random MAC")
         self.mappings_treeview.append_column(column)
 
@@ -389,9 +374,9 @@ class mod_class(object):
         if model.iter_has_child(iter):
             return False
         (ref_src, ref_dst) = user_data
-        (src, dst, count) = model.get(iter, self.SPOOF_SRC_ROW, self.SPOOF_DST_ROW, self.SPOOF_COUNT_ROW)
+        (src, dst, count) = model.get(iter, 1, 2, 3)
         if (src == ref_src and dst == ref_dst) or (dst == ref_src and src == ref_dst):
-            self.spoof_treestore.set(iter, self.SPOOF_COUNT_ROW, str(int(count) + 1))
+            self.spoof_treestore.set(iter, 3, str(int(count) + 1))
             return True
         return False
 
@@ -419,7 +404,7 @@ class mod_class(object):
         select = self.hosts_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
-            host = model.get_value(model.get_iter(i), self.HOSTS_MAC_ROW)
+            host = model.get_value(model.get_iter(i), 0)
             if host not in self.upper_add:
                 if host not in self.lower_add:
                     (ip, rand_mac, iter, reply) = self.hosts[host]
@@ -430,7 +415,7 @@ class mod_class(object):
         select = self.hosts_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
-            host = model.get_value(model.get_iter(i), self.HOSTS_MAC_ROW)
+            host = model.get_value(model.get_iter(i), 0)
             if host not in self.upper_add:
                 if host not in self.lower_add:
                     (ip, rand_mac, iter, reply) = self.hosts[host]
@@ -538,7 +523,7 @@ class mod_class(object):
             parent = model.iter_parent(model.get_iter(i))
             if not parent:
                 parent = model.get_iter(i)
-            self.spoof_treestore.set_value(parent, self.SPOOF_STATUS_ROW, self.offline)
+            self.spoof_treestore.set_value(parent, 0, self.offline)
             cur = self.spoof_treestore.get_string_from_iter(parent)
             (run, data, org_data, hosts) = self.spoofs[cur]
             if run:
@@ -556,7 +541,7 @@ class mod_class(object):
             parent = model.iter_parent(model.get_iter(i))
             if not parent:
                 parent = model.get_iter(i)
-            self.spoof_treestore.set_value(parent, self.SPOOF_STATUS_ROW, self.online)
+            self.spoof_treestore.set_value(parent, 0, self.online)
             cur = self.spoof_treestore.get_string_from_iter(parent)
             (run, data, org_data, hosts) = self.spoofs[cur]
             self.spoofs[cur] = (True, data, org_data, hosts)
