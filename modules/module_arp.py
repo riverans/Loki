@@ -141,6 +141,7 @@ class mod_class(object):
         self.mac = None
         self.spoof_delay = 30
         self.flood_delay = 0.001
+        self.forward_constrain = "a=True"
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self)
@@ -357,7 +358,12 @@ class mod_class(object):
         return (self.check_ip, self.input_ip)
 
     def check_ip(self, ip):
-        return (True, False)
+        a = False
+        exec(self.forward_constrain)
+        if a:
+            return (True, False)
+        else:
+            return (False, False)
 
     def input_ip(self, eth, ip, timestamp):
         src = dnet.eth_ntoa(str(eth.src))
@@ -603,10 +609,16 @@ class mod_class(object):
                                         "type" : "float",
                                         "min" : 0,
                                         "max" : 100
-                                        }
+                                        },
+                    "forward_constrain" :   {   "value" :   self.forward_constrain,
+                                                "type"  :   "str",
+                                                "min"   :   0,
+                                                "max"   :   1000
+                                                }
                     }
 
     def set_config_dict(self, dict):
         if dict:
             self.spoof_delay = dict["spoof_delay"]["value"]
             self.flood_delay = dict["flood_delay"]["value"]
+            self.forward_constrain = dict["forward_constrain"]["value"]
