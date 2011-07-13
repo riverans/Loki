@@ -61,7 +61,7 @@ VERSION = "0.2.7"
 PLATFORM = platform.system()
 
 MODULE_PATH="/modules"
-CONFIG_PATH=os.path.expanduser("~./loki")
+CONFIG_PATH=os.path.expanduser("~/.loki")
 DATA_DIR="."
 #~ For OSX Bundeling
 #~ DATA_DIR=os.path.expandvars("$bundle_data/loki")
