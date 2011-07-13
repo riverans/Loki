@@ -613,7 +613,7 @@ class mod_class(object):
                     "forward_constrain" :   {   "value" :   self.forward_constrain,
                                                 "type"  :   "str",
                                                 "min"   :   0,
-                                                "max"   :   1000
+                                                "max"   :   10000
                                                 }
                     }
 
