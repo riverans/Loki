@@ -471,7 +471,7 @@ class pcap_thread(threading.Thread):
                     call(copy.copy(eth), copy.copy(ip6), timestamp)
                     if stop:
                         return
-            if ip6.p == dpkt.ip.IP_PROTO_TCP:
+            if ip6.nxt == dpkt.ip.IP_PROTO_TCP:
                 tcp = dpkt.tcp.TCP(str(ip6.data))
                 for (check, call, name) in self.parent.tcp_checks:
                     (ret, stop) = check(tcp)
@@ -479,7 +479,7 @@ class pcap_thread(threading.Thread):
                         call(copy.copy(eth), copy.copy(ip6), copy.copy(tcp), timestamp)
                         if stop:
                             return
-            elif ip6.p == dpkt.ip.IP_PROTO_UDP:
+            elif ip6.nxt == dpkt.ip.IP_PROTO_UDP:
                 udp = dpkt.udp.UDP(str(ip6.data))
                 for (check, call, name) in self.parent.udp_checks:
                     (ret, stop) = check(udp)
@@ -487,7 +487,7 @@ class pcap_thread(threading.Thread):
                         call(copy.copy(eth), copy.copy(ip6), copy.copy(udp), timestamp)
                         if stop:
                             return
-            elif ip6.p == dpkt.ip.IP_PROTO_SCTP:
+            elif ip6.nxt == dpkt.ip.IP_PROTO_SCTP:
                 sctp = dpkt.sctp.SCTP(str(ip6.data))
                 for (check, call, name) in self.parent.sctp_checks:
                     (ret, stop) = check(sctp)
