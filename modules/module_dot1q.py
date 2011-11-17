@@ -105,6 +105,7 @@ class mod_class(object):
         self.redirects = {}
         self.peer_treestore = gtk.TreeStore(str, str, str, int)
         self.redirect_treestore = gtk.TreeStore(str, str, str)
+        self.forward_constrain = "a=True"
 
     def start_mod(self):
         self.peers = {}
@@ -190,7 +191,10 @@ class mod_class(object):
 
     def check_eth(self, eth):
         if eth.type == dpkt.ethernet.ETH_TYPE_8021Q:
-            return (True, False)
+            a = False
+            exec(self.forward_constrain)
+            if a:
+                return (True, False)
         return (False, False)
 
     def input_eth(self, eth, timestamp):
@@ -275,3 +279,15 @@ class mod_class(object):
                 thread.quit()
         self.redirect_treestore.clear()
         self.redirects = {}
+        
+    def get_config_dict(self):
+        return {   "forward_constrain" :   {   "value" :   self.forward_constrain,
+                                                "type"  :   "str",
+                                                "min"   :   0,
+                                                "max"   :   10000
+                                                }
+                    }
+
+    def set_config_dict(self, dict):
+        if dict:
+            self.forward_constrain = dict["forward_constrain"]["value"]
