@@ -10,7 +10,7 @@ print ""
 try:
     import gobject
 except Exception, e:
-    print "'import gobject' failed:" + e
+    print "'import gobject' failed:" + str(e)
     print "******************************************************"
     print "*** You need the python module 'gobject' installed ***"
     print "***                See REQUIREMENTS                ***"
@@ -20,7 +20,7 @@ try:
     import pygtk
     pygtk.require("2.0")
 except Exception, e:
-    print "'import gobject' failed:" + e
+    print "'import gobject' failed:" + str(e)
     print "******************************************************"
     print "*** You need the python module 'gobject' installed ***"
     print "***                See REQUIREMENTS                ***"
@@ -29,7 +29,7 @@ except Exception, e:
 try:
     import gtk
 except Exception, e:
-    print "'import gtk' failed:" + e
+    print "'import gtk' failed:" + str(e)
     print "**************************************************"
     print "*** You need the python module 'gtk' installed ***"
     print "***              See REQUIREMENTS              ***"
@@ -38,7 +38,7 @@ except Exception, e:
 try:
     import gtk.glade
 except Exception, e:
-    print "'import gtk.glade' failed:" + e
+    print "'import gtk.glade' failed:" + str(e)
     print "********************************************************"
     print "*** You need the python module 'gtk.glade' installed ***"
     print "***                 See REQUIREMENTS                 ***"
@@ -47,7 +47,7 @@ except Exception, e:
 try:
     import pcap
 except Exception, e:
-    print "'import pcap' failed:" + e
+    print "'import pcap' failed:" + str(e)
     print "***************************************************"
     print "*** You need the python module 'pcap' installed ***"
     print "***               See REQUIREMENTS              ***"
@@ -56,7 +56,7 @@ except Exception, e:
 try:
     import dnet
 except Exception, e:
-    print "'import dnet' failed:" + e
+    print "'import dnet' failed:" + str(e)
     print "***************************************************"
     print "*** You need the python module 'dnet' installed ***"
     print "***               See REQUIREMENTS              ***"
@@ -65,7 +65,7 @@ except Exception, e:
 try:
     import dpkt
 except Exception, e:
-    print "'import dpkt' failed:" + e
+    print "'import dpkt' failed:" + str(e)
     print "***************************************************"
     print "*** You need the python module 'dpkt' installed ***"
     print "***               See REQUIREMENTS              ***"
@@ -74,7 +74,7 @@ except Exception, e:
 try:
     import IPy
 except Exception, e:
-    print "'import IPy' failed:" + e
+    print "'import IPy' failed:" + str(e)
     print "**************************************************"
     print "*** You need the python module 'IPy' installed ***"
     print "***               See REQUIREMENTS             ***"
@@ -85,9 +85,13 @@ from distutils.core import setup, Extension
 
 asleap_srcs = [ '@top_srcdir@/loki_bindings/asleap/asleap.c', '@top_srcdir@/lib/asleap/asleap.c']
 asleap_incdirs = [ '@top_srcdir@' ]
-asleap_libdirs = []
-asleap_libs = ['dnet', 'pcap']
-asleap_extargs = [ '@PCAPINC@', '@DNETINC@' ]
+asleap_incdirs += [v[2:] for v in '@PCAPINC@'.split() if v.startswith('-I')]
+asleap_incdirs += [v[2:] for v in '@DNETINC@'.split() if v.startswith('-I')]
+asleap_libdirs = [v[2:] for v in '@PCAPLIB@'.split() if v.startswith('-L')]
+asleap_libdirs += [v[2:] for v in '@DNETLIB@'.split() if v.startswith('-L')]
+asleap_libs = [v[2:] for v in '@PCAPLIB@'.split() if v.startswith('-l')]
+asleap_libs += [v[2:] for v in '@DNETLIB@'.split() if v.startswith('-l')]
+asleap_extargs = []
 asleap_extobj = ['@top_srcdir@/lib/asleap/common.o', '@top_srcdir@/lib/asleap/utils.o', '@top_srcdir@/lib/asleap/sha1.o', '@top_srcdir@/lib/asleap/md4.o']
 asleap_extobj += '@LIBS@'.split()
 
@@ -114,17 +118,25 @@ tcpmd5bf_extobj = []
 
 mplstun_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplstun.c', '@top_srcdir@/lib/mplstun.c' ]
 mplstun_incdirs = [ '@top_srcdir@' ]
-mplstun_libdirs = []
-mplstun_libs = ['dnet', 'pcap']
-mplstun_extargs = ['@DNETINC@', '@PCAPINC@']
+mplstun_incdirs += [v[2:] for v in '@PCAPINC@'.split() if v.startswith('-I')]
+mplstun_incdirs += [v[2:] for v in '@DNETINC@'.split() if v.startswith('-I')]
+mplstun_libdirs = [v[2:] for v in '@PCAPLIB@'.split() if v.startswith('-L')]
+mplstun_libdirs += [v[2:] for v in '@DNETLIB@'.split() if v.startswith('-L')]
+mplstun_libs = [v[2:] for v in '@PCAPLIB@'.split() if v.startswith('-l')]
+mplstun_libs += [v[2:] for v in '@DNETLIB@'.split() if v.startswith('-l')]
+mplstun_extargs = []
 mplstun_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplstun_extobj = []
 
 mplsred_srcs = [ '@top_srcdir@/loki_bindings/mpls/mplsred.c', '@top_srcdir@/lib/mplsred.c' ]
 mplsred_incdirs = [ '@top_srcdir@' ]
-mplsred_libdirs = []
-mplsred_libs = ['dnet', 'pcap']
-mplsred_extargs = ['@DNETINC@', '@PCAPINC@']
+mplsred_incdirs += [v[2:] for v in '@PCAPINC@'.split() if v.startswith('-I')]
+mplsred_incdirs += [v[2:] for v in '@DNETINC@'.split() if v.startswith('-I')]
+mplsred_libdirs = [v[2:] for v in '@PCAPLIB@'.split() if v.startswith('-L')]
+mplsred_libdirs += [v[2:] for v in '@DNETLIB@'.split() if v.startswith('-L')]
+mplsred_libs = [v[2:] for v in '@PCAPLIB@'.split() if v.startswith('-l')]
+mplsred_libs += [v[2:] for v in '@DNETLIB@'.split() if v.startswith('-l')]
+mplsred_extargs = []
 mplsred_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplsred_extobj = []
 
