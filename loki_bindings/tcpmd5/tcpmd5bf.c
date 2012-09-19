@@ -160,7 +160,7 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
 {
     int bf, full, len;
     const char *wl, *data;
-    FILE *wlist;
+    FILE *wlist, *lock;
     char brute_pw[MAX_BRUTE_PW_LEN];
     char line[512];
     char *pw = NULL;
@@ -185,17 +185,23 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
         Py_BEGIN_ALLOW_THREADS
             
         while(fgets(line, 512, wlist)) {
-            if(count % CHECK_FOR_LOCKFILE == 0) {
-                if(stat(lockfile, &fcheck))
-                    break;
-                count = 0;
-            }
             char *tmp = strchr(line, '\n');
             if(tmp)
                 *tmp = '\0';
             tmp = strchr(line, '\r');
             if(tmp)
                 *tmp = '\0';
+            if(count % CHECK_FOR_LOCKFILE == 0) {
+                if(stat(lockfile, &fcheck))
+                    break;
+                if(!(lock = fopen(lockfile, "w"))) {
+                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
+                    return NULL;
+                }
+                fprintf(lock, "%s", line);
+                fclose(lock);
+                count = 0;
+            }
             memcpy(&cur, &state, sizeof(md5_state_t));
             md5_append(&cur, (const md5_byte_t *) line, strlen(line));
             md5_finish(&cur, digest);
@@ -217,6 +223,12 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
             if(count % CHECK_FOR_LOCKFILE == 0) {
                 if(stat(lockfile, &fcheck))
                     break;
+                if(!(lock = fopen(lockfile, "w"))) {
+                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
+                    return NULL;
+                }
+                fprintf(lock, "%s", brute_pw);
+                fclose(lock);
                 count = 0;
             }
             memcpy(&cur, &state, sizeof(md5_state_t));

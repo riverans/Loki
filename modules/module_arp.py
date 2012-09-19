@@ -315,8 +315,8 @@ class mod_class(object):
             return
         if self.mac:
             if not eth.src == self.mac:
-                if arp.op == dpkt.arp.ARP_OP_REQUEST:
-                    ip_dst = dnet.eth_ntoa(str(arp.tha))
+                if arp.op == dpkt.arp.ARP_OP_REQUEST and arp.spa != arp.tpa:
+                    ip_dst = dnet.ip_ntoa(str(arp.tpa))
                     for h in self.hosts:
                         if mac == h:
                             (ip_src, rand_mac_src, iter_src, reply_src) = self.hosts[mac]
@@ -324,6 +324,8 @@ class mod_class(object):
                                 (ip, rand_mac_dst, iter_dst, reply_dst) = self.hosts[i]
                                 if ip_dst == ip:
                                     break
+                                else:
+                                    reply_dst = None
                             if reply_src and reply_dst:
                                 _arp = dpkt.arp.ARP(    hrd=dpkt.arp.ARP_HRD_ETH,
                                                         pro=dpkt.arp.ARP_PRO_IP,
@@ -348,6 +350,8 @@ class mod_class(object):
             if mac == random_mac:
                 return
         ip = dnet.ip_ntoa(str(arp.spa))
+        if ip == "0.0.0.0":
+            return
         rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
         rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
         iter = self.hosts_liststore.append([mac, ip, self.mac_to_vendor(mac)])
@@ -589,6 +593,7 @@ class mod_class(object):
                                             data=str(arp)
                                             )
             self.dnet.eth.send(str(eth))
+            time.sleep(0.0001)
 
     def on_flood_togglebutton_toggled(self, btn):
         if btn.get_active():
