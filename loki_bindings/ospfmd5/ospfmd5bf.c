@@ -110,8 +110,8 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
 {
     int bf, full, len, foo;
     const char *wl, *data;
-    FILE *wlist;
-    char brute_pw[MAX_BRUTE_PW_LEN];
+    FILE *wlist, *lock;
+    char brute_pw[MAX_BRUTE_PW_LEN+1];
     char line[512];
     char *pw = NULL;
     char *md5sum;
@@ -136,11 +136,6 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
         Py_BEGIN_ALLOW_THREADS
             
         while(fgets(line, 512, wlist)) {
-            if(count % CHECK_FOR_LOCKFILE == 0) {
-                if(stat(lockfile, &fcheck))
-                    break;
-                count = 0;
-            }
             char *tmp = strchr(line, '\n');
             if(tmp)
                 *tmp = '\0';
@@ -149,11 +144,24 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
                 *tmp = '\0';
             len = strlen(line);
             bzero(line + len, 16 - len);
+            if(count % CHECK_FOR_LOCKFILE == 0) {
+                if(stat(lockfile, &fcheck))
+                    fprintf(stderr, "No lockfile, exiting.\n");
+                    break;
+                if(!(lock = fopen(lockfile, "w"))) {
+                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
+                    return NULL;
+                }
+                fprintf(lock, "%s", line);
+                fclose(lock);
+                count = 0;
+            }
             memcpy(&cur, &base, sizeof(md5_state_t));
             md5_append(&cur, (const md5_byte_t *) line, 16);
             md5_finish(&cur, digest);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = line;
+                fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
                 break;
             }
             count++;
@@ -162,14 +170,21 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
         Py_END_ALLOW_THREADS
     }
     else {
-        bzero(brute_pw, MAX_BRUTE_PW_LEN);
+        bzero(brute_pw, MAX_BRUTE_PW_LEN+1);
 
         Py_BEGIN_ALLOW_THREADS
 
         do {
             if(count % CHECK_FOR_LOCKFILE == 0) {
                 if(stat(lockfile, &fcheck))
+                    fprintf(stderr, "No lockfile, exiting.\n");
                     break;
+                if(!(lock = fopen(lockfile, "w"))) {
+                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
+                    return NULL;
+                }
+                fprintf(lock, "%s", brute_pw);
+                fclose(lock);
                 count = 0;
             }
             memcpy(&cur, &base, sizeof(md5_state_t));
@@ -177,6 +192,7 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
             md5_finish(&cur, digest);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = brute_pw;
+                fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
                 break;
             }
             count++;

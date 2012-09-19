@@ -191,6 +191,8 @@ class ospf_header(object):
                                 )
             ret = ret[:12] + struct.pack("!H", ichecksum_func(ret)) + ret[14:]
             if self.auth_type == self.AUTH_SIMPLE:
+                if len(self.auth_data) < 8:
+                    self.auth_data += "\x00" * (8 - len(self.auth_data))
                 ret = ret[:16] + self.auth_data + ret[24:]
         return ret
 
@@ -1036,6 +1038,7 @@ class ospf_thread(threading.Thread):
                                     self.parent.nets[i] = (net, mask, type, False, removed)
                                 else:
                                     if removed:
+                                        #send update to neigh to remove route entry !!!
                                         del self.parent.nets[i]
                                         del self.parent.network_liststore[i]
                         
@@ -1060,19 +1063,21 @@ class ospf_md5bf(threading.Thread):
     def run(self):
         if self.bf and not self.wl:
             self.wl = ""
-        #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest, self.data)
+        print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest.encode('hex'), self.data.encode('hex'))
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
+        print self.tmpfile
         os.close(handle)
         pw = loki_bindings.ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
-        src = self.parent.neighbor_liststore.get_value(self.iter, self.parent.NEIGH_IP_ROW)
-        if pw:
-            self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
-            self.parent.log("OSPF: Found password '%s' for host %s" % (pw, src))
-        else:
-            self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, "NOT FOUND")
-            self.parent.log("OSPF: No password found for host %s" % (src))
         if os.path.exists(self.tmpfile):
-            os.remove(self.tmpfile)
+            if self.parent.neighbor_liststore.iter_is_valid(self.iter):
+                src = self.parent.neighbor_liststore.get_value(self.iter, self.parent.NEIGH_IP_ROW)
+                if pw != None:
+                    self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
+                    self.parent.log("OSPF: Found password '%s' for host %s" % (pw, src))
+                else:
+                    self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, "NOT FOUND")
+                    self.parent.log("OSPF: No password found for host %s" % (src))
+                os.remove(self.tmpfile)
 
     def quit(self):
         if os.path.exists(self.tmpfile):
