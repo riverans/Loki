@@ -998,6 +998,9 @@ class codename_loki(object):
                             self.devices[name]['ip6'].append(dict)
                         except:
                             pass
+                else:
+                    #????
+                    pass
 
     ### EVENTS ###
 
@@ -1106,18 +1109,19 @@ class codename_loki(object):
     def on_network_combobox_changed(self, box, label):
         dev = box.get_active_text()
         str = ""
-        if len(self.devices[dev]['ip4']) > 0:
-            str += "\nIPv4:"
-            for i in self.devices[dev]['ip4']:
-                str += "\n\t%s\n\t\t%s" % (i['ip'], i['mask'])
-        else:
-            str += "\nNo IPv4 Address"
-        if len(self.devices[dev]['ip6']) > 0:
-            str += "\nIPv6:"
-            for i in self.devices[dev]['ip6']:
-                str += "\n\t%s\n\t\t%s" % (i['ip'], i['mask'])
-        else:
-            str += "\nNo IPv6 Address"
+        if dev:
+            if len(self.devices[dev]['ip4']) > 0:
+                str += "\nIPv4:"
+                for i in self.devices[dev]['ip4']:
+                    str += "\n\t%s\n\t\t%s" % (i['ip'], i['mask'])
+            else:
+                str += "\nNo IPv4 Address"
+            if len(self.devices[dev]['ip6']) > 0:
+                str += "\nIPv6:"
+                for i in self.devices[dev]['ip6']:
+                    str += "\n\t%s\n\t\t%s" % (i['ip'], i['mask'])
+            else:
+                str += "\nNo IPv6 Address"
         label.set_text(str)
         
     def on_network_button_clicked(self, data):
