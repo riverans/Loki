@@ -37,10 +37,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <sys/stat.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <time.h>
+#else
+#include <unistd.h>
 #include <sys/time.h>
+#endif
 
 #include <dnet.h>
 #include <pcap.h>

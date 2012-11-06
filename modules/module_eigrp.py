@@ -37,7 +37,6 @@ import socket
 import struct
 import time
 import cmd
-import fcntl
 #import md5
 
 import dnet

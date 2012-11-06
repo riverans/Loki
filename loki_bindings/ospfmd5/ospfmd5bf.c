@@ -39,7 +39,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#define bzero(b,len) (memset((b), '\0', (len)), (void) 0)  
+#else
 #include <arpa/inet.h>
+#endif
 
 #ifndef ARCH_IS_BIG_ENDIAN
 #define ARCH_IS_BIG_ENDIAN 0

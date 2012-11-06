@@ -39,6 +39,56 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#define bzero(b,len) (memset((b), '\0', (len)), (void) 0)
+typedef unsigned char     __uint8_t;
+typedef unsigned short    __uint16_t;
+typedef unsigned int      __uint32_t;
+typedef unsigned long int __uint64_t;
+
+struct ip {
+	u_int	ip_hl:4,		/* header length */
+		ip_v:4;			/* version */
+	u_char	ip_tos;			/* type of service */
+	u_short	ip_len;			/* total length */
+	u_short	ip_id;			/* identification */
+	u_short	ip_off;			/* fragment offset field */
+#define	IP_RF 0x8000			/* reserved fragment flag */
+#define	IP_DF 0x4000			/* dont fragment flag */
+#define	IP_MF 0x2000			/* more fragments flag */
+#define	IP_OFFMASK 0x1fff		/* mask for fragmenting bits */
+	u_char	ip_ttl;			/* time to live */
+	u_char	ip_p;			/* protocol */
+	u_short	ip_sum;			/* checksum */
+	struct	in_addr ip_src,ip_dst;	/* source and dest address */
+};
+
+typedef	__uint32_t tcp_seq;
+struct tcphdr {
+	u_short	th_sport;		/* source port */
+	u_short	th_dport;		/* destination port */
+	tcp_seq	th_seq;			/* sequence number */
+	tcp_seq	th_ack;			/* acknowledgement number */
+	u_int	th_x2:4,		/* (unused) */
+		th_off:4;		/* data offset */
+	u_char	th_flags;
+#define	TH_FIN	0x01
+#define	TH_SYN	0x02
+#define	TH_RST	0x04
+#define	TH_PUSH	0x08
+#define	TH_ACK	0x10
+#define	TH_URG	0x20
+#define	TH_ECE	0x40
+#define	TH_CWR	0x80
+#define	TH_FLAGS	(TH_FIN|TH_SYN|TH_RST|TH_ACK|TH_URG|TH_ECE|TH_CWR)
+
+	u_short	th_win;			/* window */
+	u_short	th_sum;			/* checksum */
+	u_short	th_urp;			/* urgent pointer */
+};
+#else
 #include <netinet/in.h>
 
 #ifndef __USE_BSD
@@ -50,6 +100,7 @@
 #define __FAVOR_BSD
 #endif
 #include <netinet/tcp.h>
+#endif
 
 #ifndef ARCH_IS_BIG_ENDIAN
 #define ARCH_IS_BIG_ENDIAN 0
@@ -127,6 +178,7 @@ void pre_calc_md5(const u_char *packet, int len, md5_state_t *state) {
     struct ip ip;
     struct tcphdr tcp;
     struct tcp4_pseudohdr phdr;
+    unsigned int head_len, data_len;
 
     memcpy(&ip, packet, sizeof(struct ip));
     memcpy(&tcp, packet + sizeof(struct ip), sizeof(struct tcphdr));
@@ -150,8 +202,8 @@ void pre_calc_md5(const u_char *packet, int len, md5_state_t *state) {
     md5_append(state, (const md5_byte_t *) &tcp, sizeof(struct tcphdr));
     
 //3. the TCP segment data (if any)
-    unsigned head_len = sizeof(struct ip) + (tcp.th_off << 2);
-    unsigned data_len = len > head_len ? len - head_len : 0;
+    head_len = sizeof(struct ip) + (tcp.th_off << 2);
+    data_len = len > head_len ? len - head_len : 0;
     md5_append(state, (const md5_byte_t *) packet + head_len, data_len);
 }
 

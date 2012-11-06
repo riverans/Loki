@@ -1241,6 +1241,8 @@ if __name__ == '__main__':
         if os.geteuid() != 0:
             print "You must be root to run this script."
             sys.exit(1)
+    elif PLATFORM == "Windows":
+		pass
     else:
         print "%s is not supported yet." % (PLATFORM)
         sys.exit(1)
