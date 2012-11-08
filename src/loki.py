@@ -52,7 +52,6 @@ import gtk
 gtk.gdk.threads_init()
 
 import dpkt
-import pcap
 import dnet
 
 DEBUG = True
@@ -1107,7 +1106,14 @@ class codename_loki(object):
         l_window.show_all()
     
     def on_network_combobox_changed(self, box, label):
-        dev = box.get_active_text()
+        if PLATFORM == "Windows":
+            descr = box.get_active_text()
+            dev = None
+            for i in self.devices:
+                if self.devices[i]['descr'] == descr:
+                    dev = i
+        else:
+            dev = box.get_active_text()
         str = ""
         if dev:
             if len(self.devices[dev]['ip4']) > 0:
@@ -1130,7 +1136,10 @@ class codename_loki(object):
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
         box = gtk.combo_box_new_text()
         for dev in self.devices:
-            box.append_text(dev)
+            if PLATFORM == "Windows":
+                box.append_text(self.devices[dev]['descr'])
+            else:
+                box.append_text(dev)
         dialog.vbox.pack_start(box)
         label = gtk.Label()
         dialog.vbox.pack_start(label)
@@ -1141,7 +1150,14 @@ class codename_loki(object):
         ret = dialog.run()
         dialog.destroy()
         if ret == gtk.RESPONSE_OK:
-            self.interface = box.get_active_text()
+            if PLATFORM == "Windows":
+                self.interface = None
+                descr = box.get_active_text()
+                for i in self.devices:
+                    if self.devices[i]['descr'] == descr:
+                        self.interface = i
+            else:
+                self.interface = box.get_active_text()
             select4 = len(self.devices[self.interface]['ip4']) > 1
             select6 = len(self.devices[self.interface]['ip6']) > 1
             v6done = False
@@ -1241,8 +1257,18 @@ if __name__ == '__main__':
         if os.geteuid() != 0:
             print "You must be root to run this script."
             sys.exit(1)
+        import pcap
     elif PLATFORM == "Windows":
-		pass
+        def error():
+            dialog = gtk.MessageDialog(gtk.Window(gtk.WINDOW_TOPLEVEL), gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, "Please install WinPcap to run Loki.")
+            ret = dialog.run()
+            dialog.destroy()
+            sys.exit(1)
+        try:
+            import pcap
+        except:
+            gobject.timeout_add(100, error)
+            gtk.main()
     else:
         print "%s is not supported yet." % (PLATFORM)
         sys.exit(1)
