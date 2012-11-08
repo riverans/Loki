@@ -88,7 +88,7 @@ atk_leap(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef AsleapMethods[] = {
-    {"attack_leap", atk_leap, METH_VARARGS, "Bruteforce cacking of asleap"},
+    {"attack_leap", atk_leap, METH_VARARGS, "Bruteforce cracking of asleap"},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

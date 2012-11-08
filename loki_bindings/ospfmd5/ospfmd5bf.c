@@ -211,7 +211,7 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef Ospfmd5bfMethods[] = {
-    {"bf", ospfmd5bf_bf, METH_VARARGS, "Bruteforce cacking of ospfmd5 auth"},
+    {"bf", ospfmd5bf_bf, METH_VARARGS, "Bruteforce cracking of ospfmd5 auth"},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 

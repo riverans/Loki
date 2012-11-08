@@ -300,7 +300,7 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
 }
 
 static PyMethodDef Tcpmd5bfMethods[] = {
-    {"bf", tcpmd5bf_bf, METH_VARARGS, "Bruteforce cacking of tcpmd5 auth"},
+    {"bf", tcpmd5bf_bf, METH_VARARGS, "Bruteforce cracking of tcpmd5 auth"},
     {NULL, NULL, 0, NULL}        /* Sentinel */
 };
 
