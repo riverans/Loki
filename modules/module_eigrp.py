@@ -543,6 +543,8 @@ class mod_class(object):
                     os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q delete 31335")
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall del rule name=eigrp")
                 else:
                     self.fw.delete(self.ospf_filter)
                 self.filter = False
@@ -723,9 +725,11 @@ class mod_class(object):
             if not self.filter:
                 self.log("EIGRP: Setting lokal packet filter for EIGRP")
                 if self.platform == "Linux":
-                    os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, EIGRP_PROTOCOL_NUMBER))
+                    os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q add 31335 deny eigrp from any to any")
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall add rule name=eigrp dir=in protocol=%i action=block" % dpkt.ip.IP_PROTO_EIGRP)
                 else:
                     self.fw.add(self.eigrp_filter)
                 self.filter = True
@@ -751,6 +755,8 @@ class mod_class(object):
                     os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_EIGRP))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q delete 31335")
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall del rule name=eigrp")
                 else:
                     self.fw.delete(self.eigrp_filter)
                 self.filter = False

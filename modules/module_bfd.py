@@ -187,6 +187,8 @@ class mod_class(object):
                 os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
             elif self.platform == "Darwin":
                 os.system("ipfw -q delete 31336")
+            elif self.platform == "Windows":
+                os.system("netsh advfirewall firewall del rule name=bfd")
             else:
                 self.fw.delete(self.bfd_filter)
             self.filter = False
@@ -314,6 +316,8 @@ class mod_class(object):
                     os.system("iptables -A INPUT -i %s -p udp --dport %i -j DROP" % (self.interface, BFD_PORT))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q add 31336 deny udp from any to any %d" % (BFD_PORT))
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall add rule name=bfd dir=in protocol=UDP localport=%d action=block" % BFD_PORT)
                 else:
                     self.fw.add(self.bfd_filter)
                 self.filter = True
@@ -323,8 +327,9 @@ class mod_class(object):
             self.neighbors[id] = (iter, random.randint(0x1, 0x7fffffff), self.auto_answer, False)
         if id in self.neighbors:
             (iter, discrim, answer, dos) = self.neighbors[id]
-            self.neighbor_treestore.set_value(iter, self.NEIGH_STATE_ROW, bfd_control_packet.state_to_str[packet.state])
-            self.neighbor_treestore.set_value(iter, self.NEIGH_DIAG_ROW, bfd_control_packet.diag_to_str[packet.diag])
+            if self.neighbor_treestore.iter_is_valid(iter):
+                self.neighbor_treestore.set_value(iter, self.NEIGH_STATE_ROW, bfd_control_packet.state_to_str[packet.state])
+                self.neighbor_treestore.set_value(iter, self.NEIGH_DIAG_ROW, bfd_control_packet.diag_to_str[packet.diag])
             if answer and packet.diag == bfd_control_packet.DIAG_NO:
                 if packet.state == bfd_control_packet.STATE_DOWN:
                     packet.state = bfd_control_packet.STATE_INIT
@@ -388,6 +393,8 @@ class mod_class(object):
                     os.system("iptables -A INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q add 31336 deny udp from any to any %d" % (BFD_PORT))
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall add rule name=bfd dir=in protocol=UDP localport=%d action=block" % BFD_PORT)
                 else:
                     self.fw.add(self.bfd_filter)
                 self.filter = True
@@ -398,6 +405,8 @@ class mod_class(object):
                     os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q delete 31336")
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall del rule name=bfd")
                 else:
                     self.fw.delete(self.bfd_filter)
                 self.filter = False

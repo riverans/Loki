@@ -38,8 +38,6 @@ import tempfile
 import threading
 import time
 
-import loki_bindings
-
 import dnet
 import dpkt
 import IPy
@@ -1067,7 +1065,12 @@ class ospf_md5bf(threading.Thread):
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
         print self.tmpfile
         os.close(handle)
-        pw = loki_bindings.ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        if self.platform == "Windows":
+            import ospfmd5bf
+            ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        else:
+            import loki_bindings
+            pw = loki_bindings.ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         if os.path.exists(self.tmpfile):
             if self.parent.neighbor_liststore.iter_is_valid(self.iter):
                 src = self.parent.neighbor_liststore.get_value(self.iter, self.parent.NEIGH_IP_ROW)
@@ -1147,6 +1150,8 @@ class mod_class(object):
                 os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
             elif self.platform == "Darwin":
                 os.system("ipfw -q delete 31334")
+            elif self.platform == "Windows":
+                os.system("netsh advfirewall firewall del rule name=ospf")
             else:
                 self.fw.delete(self.ospf_filter)
             self.filter = False
@@ -1439,6 +1444,8 @@ class mod_class(object):
                     os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q add 31334 deny ospf from any to any")
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall add rule name=ospf dir=in protocol=%i action=block" % dpkt.ip.IP_PROTO_OSPF)
                 else:
                     self.fw.add(self.ospf_filter)
                 self.filter = True
@@ -1477,6 +1484,8 @@ class mod_class(object):
                     os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
                 elif self.platform == "Darwin":
                     os.system("ipfw -q delete 31334")
+                elif self.platform == "Windows":
+                    os.system("netsh advfirewall firewall del rule name=ospf")
                 else:
                     self.fw.delete(self.ospf_filter)
                 self.filter = False

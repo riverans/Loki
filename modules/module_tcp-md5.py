@@ -36,8 +36,6 @@ import threading
 import dpkt
 import dnet
 
-import loki_bindings
-
 import gobject
 import gtk
 import gtk.glade
@@ -59,7 +57,12 @@ class bgp_md5bf(threading.Thread):
             self.wl = ""
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="tcp-md5-", suffix="-lock")
         os.close(handle)
-        pw = loki_bindings.tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        if self.platform == "Windows":
+            import tcpmd5bf
+            tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        else:
+            import loki_bindings
+            pw = loki_bindings.tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         if self.running:
             src = self.parent.liststore.get_value(self.iter, self.parent.SOURCE_ROW)
             dst = self.parent.liststore.get_value(self.iter, self.parent.DESTINATION_ROW)
