@@ -468,7 +468,7 @@
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                         <property name="has_tooltip">True</property>
-                        <property name="tooltip" translatable="yes">Start ARP scan</property>
+                        <property name="tooltip" translatable="yes">Ping all nodes</property>
                         <signal name="clicked" handler="on_scan_start_button_clicked"/>
                         <child>
                           <widget class="GtkHBox" id="hbox2">
