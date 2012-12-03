@@ -1061,7 +1061,7 @@ class ospf_md5bf(threading.Thread):
     def run(self):
         if self.bf and not self.wl:
             self.wl = ""
-        print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest.encode('hex'), self.data.encode('hex'))
+        #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest.encode('hex'), self.data.encode('hex'))
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
         print self.tmpfile
         os.close(handle)
