@@ -74,7 +74,7 @@ int inc_brute_pw_r(char *cur, int pos) {
     }
 }
 
-int inc_brute_pw(char *cur, int pos, int full) {
+int inc_brute_pw(char *cur, int pos, int full) {    
     if(full)
         return inc_brute_pw_r(cur, pos);
 
@@ -151,9 +151,10 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
             len = strlen(line);
             bzero(line + len, 16 - len);
             if(count % CHECK_FOR_LOCKFILE == 0) {
-                if(stat(lockfile, &fcheck))
+                if(stat(lockfile, &fcheck)) {
                     fprintf(stderr, "No lockfile, exiting.\n");
                     break;
+                }
                 if(!(lock = fopen(lockfile, "w"))) {
                     fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
                     return NULL;
@@ -182,9 +183,10 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
 
         do {
             if(count % CHECK_FOR_LOCKFILE == 0) {
-                if(stat(lockfile, &fcheck))
+                if(stat(lockfile, &fcheck)) {
                     fprintf(stderr, "No lockfile, exiting.\n");
                     break;
+                }
                 if(!(lock = fopen(lockfile, "w"))) {
                     fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
                     return NULL;

@@ -1065,7 +1065,7 @@ class ospf_md5bf(threading.Thread):
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="ospf-md5-", suffix="-lock")
         print self.tmpfile
         os.close(handle)
-        if self.platform == "Windows":
+        if self.parent.platform == "Windows":
             import ospfmd5bf
             ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         else:
