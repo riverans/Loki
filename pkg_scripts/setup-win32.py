@@ -7,8 +7,8 @@ options = {
   'build_exe': {
     'includes': [ 'gtk.keysyms', 'dumbdbm', 'dbhash', 'new', 'numbers',
                   'hashlib', 'gtk.glade', 'hmac', 'IPy', 'dnet' ],
-    'base': 'Console',
-#    'base': 'Win32GUI',
+#    'base': 'Console',
+    'base': 'Win32GUI',
     'include_files': [ 'modules' ]
     }
   }
