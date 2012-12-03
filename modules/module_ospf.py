@@ -1067,7 +1067,7 @@ class ospf_md5bf(threading.Thread):
         os.close(handle)
         if self.parent.platform == "Windows":
             import ospfmd5bf
-            ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+            pw = ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         else:
             import loki_bindings
             pw = loki_bindings.ospfmd5.ospfmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
