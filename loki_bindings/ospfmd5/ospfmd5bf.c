@@ -201,7 +201,8 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
             md5_finish(&cur, digest);
             if(!memcmp(md5sum, digest, 16)) {
                 pw = brute_pw;
-                fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
+                fprintf(stderr, "Found pw '%s'.\n", pw);
+                //fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
                 break;
             }
             count++;
