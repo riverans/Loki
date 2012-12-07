@@ -24,4 +24,4 @@ setup(
   executables=[Executable('src/loki.py')],
 ) 
 
-os.system("mt.exe -manifest pkg_scripts\\loki.exe.manifest -outputresource:\"build\\exe.win32-2.6\\loki.exe;#1\"")
+#os.system("mt.exe -manifest pkg_scripts\\loki.exe.manifest -outputresource:\"build\\exe.win32-2.6\\loki.exe;#1\"")
