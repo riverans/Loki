@@ -38,5 +38,5 @@ Name: "{commondesktop}\Loki"; Filename: "{app}\loki.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{tmp}\WinPcap_4_1_2.exe"
-Filename: "{app}\loki.exe"; Description: "{cm:LaunchProgram,Loki}"; Flags: nowait postinstall skipifsilent
+;Filename: "{app}\loki.exe"; Description: "{cm:LaunchProgram,Loki}"; Flags: nowait postinstall skipifsilent
 
