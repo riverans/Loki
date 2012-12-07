@@ -16,7 +16,7 @@ AppUpdatesURL=http://www.c0decafe.de
 DefaultDirName={pf}\Loki
 DefaultGroupName=Loki
 AllowNoIcons=yes
-LicenseFile=C:\Users\greif\Desktop\codename_loki\trunk\LICENSE
+LicenseFile=C:\loki_temp\trunk\LICENSE
 Compression=lzma
 SolidCompression=yes
 
@@ -27,8 +27,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "C:\Users\greif\Desktop\codename_loki\packages\win32\loki-win32\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "C:\Users\greif\Desktop\codename_loki\packages\win32\deps\WinPcap_4_1_2.exe"; DestDir: "{tmp}"
+Source: "C:\loki_temp\out\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\loki_temp\deps\WinPcap_4_1_2.exe"; DestDir: "{tmp}"
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
