@@ -975,26 +975,26 @@ class codename_loki(object):
                     for (ip, mask, net, gw) in addr:
                         try:
                             dnet.ip_aton(ip)
-                            dict = {}
-                            dict['ip'] = ip
-                            dict['mask'] = mask
-                            dict['net'] = net
-                            dict['gw'] = gw
-                            self.devices[name]['ip4'].append(dict)
+                            addr_dict = {}
+                            addr_dict['ip'] = ip
+                            addr_dict['mask'] = mask
+                            addr_dict['net'] = net
+                            addr_dict['gw'] = gw
+                            self.devices[name]['ip4'].append(addr_dict)
                         except:
                             pass                            
                         try:
                             dnet.ip6_aton(ip)
-                            dict = {}
-                            dict['ip'] = ip
-                            dict['mask'] = mask
-                            dict['net'] = net
-                            dict['gw'] = gw
+                            addr_dict = {}
+                            addr_dict['ip'] = ip
+                            addr_dict['mask'] = mask
+                            addr_dict['net'] = net
+                            addr_dict['gw'] = gw
                             if ip.startswith("fe80:"):
-                                dict['linklocal'] = True
+                                addr_dict['linklocal'] = True
                             else:
-                                dict['linklocal'] = False
-                            self.devices[name]['ip6'].append(dict)
+                                addr_dict['linklocal'] = False
+                            self.devices[name]['ip6'].append(addr_dict)
                         except:
                             pass
                 else:
@@ -1171,6 +1171,14 @@ class codename_loki(object):
                         box4.append_text("%s %s" % (i['ip'], i['mask']))
                     dialog.vbox.pack_start(box4)
                     box4.set_active(0)
+                    dialog.vbox.show_all()
+                    ret = dialog.run()
+                    dialog.destroy()
+                    if ret != gtk.RESPONSE_OK:
+                        return
+                    active = box4.get_active()
+                    self.ip = self.devices[self.interface]['ip4'][active]['ip']
+                    self.mask = self.devices[self.interface]['ip4'][active]['mask']
                 if select6:
                     nl = 0
                     ip = None
@@ -1198,6 +1206,12 @@ class codename_loki(object):
                         dialog.destroy()
                         if ret != gtk.RESPONSE_OK:
                             return
+                        active = box6.get_active()
+                        self.ip6 = self.devices[self.interface]['ip6'][active]['ip']
+                        self.mask6 = self.devices[self.interface]['ip6'][active]['mask']
+                        if self.ip6.startswith("fe80:"):
+                            self.ip6_ll = self.ip6
+                            self.mask6_ll = self.mask6
                     else:
                         self.ip6 = ip
                         self.mask6 = mask
