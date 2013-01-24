@@ -1112,6 +1112,7 @@ class codename_loki(object):
             for i in self.devices:
                 if self.devices[i]['descr'] == descr:
                     dev = i
+            assert(dev != None)
         else:
             dev = box.get_active_text()
         str = ""
@@ -1156,6 +1157,7 @@ class codename_loki(object):
                 for i in self.devices:
                     if self.devices[i]['descr'] == descr:
                         self.interface = i
+                assert(self.interface != None)
             else:
                 self.interface = box.get_active_text()
             select4 = len(self.devices[self.interface]['ip4']) > 1
@@ -1224,9 +1226,9 @@ class codename_loki(object):
                 else:
                     self.ip = "0.0.0.0"
                     self.mask ="0.0.0.0"
-            else:
-                self.ip = box4.get_active_text().split(" ")[0]
-                self.mask = box4.get_active_text().split(" ")[1]
+            #~ else:
+                #~ self.ip = box4.get_active_text().split(" ")[0]
+                #~ self.mask = box4.get_active_text().split(" ")[1]
             if not select6:
                 if not v6done:
                     if len(self.devices[self.interface]['ip6']) > 0:
