@@ -28,6 +28,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "C:\loki_temp\out\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\loki_temp\deps\vcredist_x86.exe"; DestDir: "{tmp}"
 Source: "C:\loki_temp\deps\WinPcap_4_1_2.exe"; DestDir: "{tmp}"
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
@@ -37,6 +38,7 @@ Name: "{group}\{cm:UninstallProgram,Loki}"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\Loki"; Filename: "{app}\loki.exe"; Tasks: desktopicon
 
 [Run]
+Filename: "{tmp}\vcredist_x86.exe"
 Filename: "{tmp}\WinPcap_4_1_2.exe"
 ;Filename: "{app}\loki.exe"; Description: "{cm:LaunchProgram,Loki}"; Flags: nowait postinstall skipifsilent
 
