@@ -2,7 +2,6 @@ $version = "0.2.7"
 $svn = "C:\Program Files\TortoiseSVN\bin\svn"
 $repo = "http://c0decafe.de/svn/codename_loki"
 $python = "c:\Python26\python.exe"
-;$tmp = resolve-path .
 $tmp = "C:\loki_temp\"
 $vsc = "C:\Program Files (x86)\Microsoft Visual Studio 9.0\VC\vcvarsall.bat"
 $mt = "C:\Program Files\Microsoft SDKs\Windows\v6.0A\Bin\mt.exe"
@@ -48,7 +47,10 @@ set_acl $tmp\out
 &$svn export $repo/packages/win32/loki-win32/lib $tmp\out\lib
 
 "Getting dependencies";
-&$svn export $repo/packages/win32/deps $tmp\deps
+New-Item $tmp\deps  -type directory
+set_acl $tmp\deps
+&$svn export $repo/packages/win32/deps/vcredist_x86.exe $tmp\deps\
+&$svn export $repo/packages/win32/deps/WinPcap_4_1_2.exe $tmp\deps\
 
 "Building Lib";
 &$python setup-win32_lib.py build
@@ -96,8 +98,8 @@ $file = "$tmp\loki-$version.exe"
 $url  = "http://c0decafe.de/cal"  
 
 #Provide User and Pwd for Webdav Access
-$user = "loki_upload"
-$pass = "luOF-p99gsYpHt_!"
+$user = "***********"
+$pass = "***********"
 
 ########################################
 #Script
