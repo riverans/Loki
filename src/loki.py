@@ -1160,76 +1160,74 @@ class codename_loki(object):
                 assert(self.interface != None)
             else:
                 self.interface = box.get_active_text()
+            
             select4 = len(self.devices[self.interface]['ip4']) > 1
-            select6 = len(self.devices[self.interface]['ip6']) > 1
-            v6done = False
-            if select4 or select6:
-                if select4:
-                    dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
-                    label = gtk.Label("Select the IPv4 address to use:")
-                    dialog.vbox.pack_start(label)
-                    box4 = gtk.combo_box_new_text()
-                    for i in self.devices[self.interface]['ip4']:
-                        box4.append_text("%s %s" % (i['ip'], i['mask']))
-                    dialog.vbox.pack_start(box4)
-                    box4.set_active(0)
-                    dialog.vbox.show_all()
-                    ret = dialog.run()
-                    dialog.destroy()
-                    if ret != gtk.RESPONSE_OK:
-                        return
-                    active = box4.get_active()
-                    self.ip = self.devices[self.interface]['ip4'][active]['ip']
-                    self.mask = self.devices[self.interface]['ip4'][active]['mask']
-                if select6:
-                    nl = 0
-                    ip = None
-                    mask = None
-                    for i in self.devices[self.interface]['ip6']:
-                        if i['linklocal']:
-                            self.ip6_ll = i['ip']
-                            self.mask6_ll = i['mask']
-                        else:
-                            ip = i['ip']
-                            mask = i['mask']
-                            nl += 1
-                    if nl > 1:
-                        dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
-                        label = gtk.Label("Select the IPv6 address to use:")
-                        dialog.vbox.pack_start(label)
-                        box6 = gtk.combo_box_new_text()
-                        for i in self.devices[self.interface]['ip6']:
-                            if not i['linklocal']:
-                                box6.append_text("%s %s" % (i['ip'], i['mask']))
-                        dialog.vbox.pack_start(box6)
-                        box6.set_active(0)                        
-                        dialog.vbox.show_all()
-                        ret = dialog.run()
-                        dialog.destroy()
-                        if ret != gtk.RESPONSE_OK:
-                            return
-                        active = box6.get_active()
-                        self.ip6 = self.devices[self.interface]['ip6'][active]['ip']
-                        self.mask6 = self.devices[self.interface]['ip6'][active]['mask']
-                        if self.ip6.startswith("fe80:"):
-                            self.ip6_ll = self.ip6
-                            self.mask6_ll = self.mask6
-                    else:
-                        self.ip6 = ip
-                        self.mask6 = mask
-                        select6 = False
-                        v6done = True
-            if not select4:
+            if select4:
+                dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
+                label = gtk.Label("Select the IPv4 address to use:")
+                dialog.vbox.pack_start(label)
+                box4 = gtk.combo_box_new_text()
+                for i in self.devices[self.interface]['ip4']:
+                    box4.append_text("%s %s" % (i['ip'], i['mask']))
+                dialog.vbox.pack_start(box4)
+                box4.set_active(0)
+                dialog.vbox.show_all()
+                ret = dialog.run()
+                dialog.destroy()
+                if ret != gtk.RESPONSE_OK:
+                    return
+                active = box4.get_active()
+                self.ip = self.devices[self.interface]['ip4'][active]['ip']
+                self.mask = self.devices[self.interface]['ip4'][active]['mask']
+            else:
                 if len(self.devices[self.interface]['ip4']) > 0:
                         self.ip = self.devices[self.interface]['ip4'][0]['ip']
                         self.mask = self.devices[self.interface]['ip4'][0]['mask']
                 else:
                     self.ip = "0.0.0.0"
                     self.mask ="0.0.0.0"
-            #~ else:
-                #~ self.ip = box4.get_active_text().split(" ")[0]
-                #~ self.mask = box4.get_active_text().split(" ")[1]
-            if not select6:
+
+            select6 = len(self.devices[self.interface]['ip6']) > 1
+            v6done = False
+            if select6:
+                nl = 0
+                ip = None
+                mask = None
+                for i in self.devices[self.interface]['ip6']:
+                    if i['linklocal']:
+                        self.ip6_ll = i['ip']
+                        self.mask6_ll = i['mask']
+                    else:
+                        ip = i['ip']
+                        mask = i['mask']
+                        nl += 1
+                if nl > 1:
+                    dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
+                    label = gtk.Label("Select the IPv6 address to use:")
+                    dialog.vbox.pack_start(label)
+                    box6 = gtk.combo_box_new_text()
+                    for i in self.devices[self.interface]['ip6']:
+                        if not i['linklocal']:
+                            box6.append_text("%s %s" % (i['ip'], i['mask']))
+                    dialog.vbox.pack_start(box6)
+                    box6.set_active(0)                        
+                    dialog.vbox.show_all()
+                    ret = dialog.run()
+                    dialog.destroy()
+                    if ret != gtk.RESPONSE_OK:
+                        return
+                    active = box6.get_active()
+                    self.ip6 = self.devices[self.interface]['ip6'][active]['ip']
+                    self.mask6 = self.devices[self.interface]['ip6'][active]['mask']
+                    if self.ip6.startswith("fe80:"):
+                        self.ip6_ll = self.ip6
+                        self.mask6_ll = self.mask6
+                else:
+                    self.ip6 = ip
+                    self.mask6 = mask
+                    select6 = False
+                    v6done = True
+            else:
                 if not v6done:
                     if len(self.devices[self.interface]['ip6']) > 0:
                         self.ip6 = self.devices[self.interface]['ip6'][0]['ip']
@@ -1242,9 +1240,6 @@ class codename_loki(object):
                         self.mask6 ="::"
                         self.ip6_ll = "::"
                         self.mask6_ll = "::"
-            else:
-                self.ip6_ll = self.ip6 = box6.get_active_text().split(" ")[0]
-                self.mask6_ll = self.mask6 = box6.get_active_text().split(" ")[1]
             self.configured = True
 
     def on_about_button_clicked(self, data):
