@@ -7,8 +7,8 @@ License:        BSD
 URL:            http://codecafe.de
 Source0:        http://codecafe.de/loki/loki-0.2.7.tar.gz
 
-BuildRequires:  automake autoconf python-devel libpcap-devel libdnet-devel 
-Requires:       python pylibpcap libdnet python-IPy python-dpkt pygtk2
+BuildRequires:  automake autoconf python-devel libpcap-devel libdnet-devel openssl-devel
+Requires:       python pylibpcap libdnet-python python-IPy python-dpkt pygtk2 openssl pygtk2-libglade
 
 %description
 
