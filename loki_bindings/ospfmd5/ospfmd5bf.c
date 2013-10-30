@@ -52,7 +52,7 @@
 #endif
 #include "lib/md5.h"
 
-#define VERSION "0.1"
+#define VERSION "0.3"
 #define MAX_BRUTE_PW_LEN 16
 #define CHECK_FOR_LOCKFILE 100000
 
@@ -129,6 +129,10 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
 
     if(!PyArg_ParseTuple(args, "iiss#s#s", &bf, &full, &wl, &md5sum, &foo, &data, &len, &lockfile))
         return NULL;
+    if(foo != 16) {
+        fprintf(stderr, "md5sum must have len 16!\n");
+        return NULL;
+    }
 
     md5_init(&base);
     md5_append(&base, (const md5_byte_t *) data, len);
