@@ -72,6 +72,11 @@ class glbp_packet(object):
         return data[12:]
 
 class glbp_tlv(object):
+    #~                     1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |     Type      |     Length    |           Value ...           |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     TYPE_HELLO = 1
     TYPE_REQ_RESP = 2
     
@@ -86,6 +91,21 @@ class glbp_tlv(object):
         return data[2:]
         
 class glbp_tlv_hello(glbp_tlv):
+    #~                     1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |   Unknown1    |     State     |   Unknown2    |    Priority   |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |            Unknown3           |        Hello Intervall        |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |        Hello Intervall        |         Hold Intervall        |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |         Hold Intervall        |           Redirect            |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |            Timeout            |           Unknown4            |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |  Address Type | Address Length|          Address ...          |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     STATE_LISTEN = 4
     STATE_SPEAK = 8
     STATE_STANDBY = 16
@@ -152,41 +172,42 @@ class glbp_thread(threading.Thread):
                                                         data=str(ip_hdr)
                                                         )
                     self.parent.dnet.send(str(eth_hdr))
-                    #~ if arp:
-                        #~ src_mac = dnet.eth_aton("00:00:0c:07:ac:%02x" % (pkg.group))
-                        #~ brdc_mac = dnet.eth_aton("ff:ff:ff:ff:ff:ff")
-                        #~ stp_uplf_mac = dnet.eth_aton("01:00:0c:cd:cd:cd")
-                        #~ ip = struct.pack("!I", pkg.ip)
-                        #~ arp_hdr = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
-                                            #~ pro=dpkt.arp.ARP_PRO_IP,
-                                            #~ op=dpkt.arp.ARP_OP_REPLY,
-                                            #~ sha=src_mac,
-                                            #~ spa=ip,
-                                            #~ tha=brdc_mac,
-                                            #~ tpa=ip
-                                            #~ )
-                        #~ eth_hdr = dpkt.ethernet.Ethernet(   dst=brdc_mac,
-                                                            #~ src=src_mac,
-                                                            #~ type=dpkt.ethernet.ETH_TYPE_ARP,
-                                                            #~ data=str(arp_hdr)
-                                                            #~ )
-                        #~ self.parent.dnet.send(str(eth_hdr))
-#~ 
-                        #~ arp_hdr = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
-                                            #~ pro=dpkt.arp.ARP_PRO_IP,
-                                            #~ op=dpkt.arp.ARP_OP_REPLY,
-                                            #~ sha=src_mac,
-                                            #~ spa=ip,
-                                            #~ tha=stp_uplf_mac,
-                                            #~ tpa=ip
-                                            #~ )
-                        #~ eth_hdr = dpkt.ethernet.Ethernet(   dst=stp_uplf_mac,
-                                                            #~ src=src_mac,
-                                                            #~ type=dpkt.ethernet.ETH_TYPE_ARP,
-                                                            #~ data=str(arp_hdr)
-                                                            #~ )
-                        #~ self.parent.dnet.send(str(eth_hdr))
-                        #~ self.parent.peers[i] = (iter, pkg, state, arp - 1)
+                    if arp:
+                        if arp < 4:
+                            src_mac = self.parent.mac
+                            brdc_mac = dnet.eth_aton("ff:ff:ff:ff:ff:ff")
+                            stp_uplf_mac = dnet.eth_aton("01:00:0c:cd:cd:cd")
+                            ip = hello.addr #struct.pack("!I", hello.addr)
+                            arp_hdr = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                                pro=dpkt.arp.ARP_PRO_IP,
+                                                op=dpkt.arp.ARP_OP_REPLY,
+                                                sha=src_mac,
+                                                spa=ip,
+                                                tha=brdc_mac,
+                                                tpa=ip
+                                                )
+                            eth_hdr = dpkt.ethernet.Ethernet(   dst=brdc_mac,
+                                                                src=src_mac,
+                                                                type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                                data=str(arp_hdr)
+                                                                )
+                            self.parent.dnet.send(str(eth_hdr))
+
+                            arp_hdr = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                                pro=dpkt.arp.ARP_PRO_IP,
+                                                op=dpkt.arp.ARP_OP_REPLY,
+                                                sha=src_mac,
+                                                spa=ip,
+                                                tha=stp_uplf_mac,
+                                                tpa=ip
+                                                )
+                            eth_hdr = dpkt.ethernet.Ethernet(   dst=stp_uplf_mac,
+                                                                src=src_mac,
+                                                                type=dpkt.ethernet.ETH_TYPE_ARP,
+                                                                data=str(arp_hdr)
+                                                                )
+                            self.parent.dnet.send(str(eth_hdr))
+                        self.parent.peers[i] = (iter, pkg, hello, state, arp - 1)
             time.sleep(1)
         self.parent.log("GLBP: Thread terminated")
 
@@ -308,7 +329,7 @@ class mod_class(object):
             peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
             (iter, pkg, hello, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
-                arp = 3
+                arp = 13
             else:
                 arp = 0
             self.peers[peer] = (iter, pkg, hello, True, arp)
