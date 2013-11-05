@@ -79,15 +79,16 @@ class glbp_tlv(object):
     #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     TYPE_HELLO = 1
     TYPE_REQ_RESP = 2
+    TYPE_AUTH = 3
     
-    def __init__(self, type=None):
-        self.type = type
+    def __init__(self, tlv_type=None):
+        self.tlv_type = tlv_type
         
     def render(self, data):
-        return struct.pack("!BB", self.type, len(data)+2) + data
+        return struct.pack("!BB", self.tlv_type, len(data)+2) + data
     
     def parse(self, data):
-        (self.type, self.length) = struct.unpack("!BB", data[:2])
+        (self.tlv_type, self.tlv_length) = struct.unpack("!BB", data[:2])
         return data[2:]
         
 class glbp_tlv_hello(glbp_tlv):
@@ -130,13 +131,35 @@ class glbp_tlv_hello(glbp_tlv):
                                                  self.redirect, self.timeout, self.addr_type, self.addr_len) + self.addr)
     
     def parse(self, data):
-        print data.encode("hex")
         data = glbp_tlv.parse(self, data)
-        print data.encode("hex")
         (self.state, self.prio, self.hello_int, self.hold_int, self.redirect, self.timeout, self.addr_type, self.addr_len) = \
             struct.unpack("!xBxBxxIIHHxxBB", data[:22])
         self.addr = data[22:22+self.addr_len]
         return data[22+self.addr_len:]
+        
+class glbp_tlv_auth(glbp_tlv):
+    #~                     1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |     Type      |     Length    |           Secret ...          |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    TYPE_PLAIN = 1
+    TYPE_MD5_STRING = 2
+    TYPE_MD5_CHAIN = 3
+    
+    def __init__(self, auth_type=None, secret=None):
+        self.auth_type = auth_type
+        self.secret = secret
+        glbp_tlv.__init__(self, glbp_tlv.TYPE_AUTH)
+        
+    def render(self):
+        return glbp_tlv.render(self, struct.pack("!BB", self.auth_type, len(self.secret)) + self.secret)
+        
+    def parse(self, data):
+        data = glbp_tlv.parse(self, data)
+        (self.auth_type, length) = struct.unpack("!BB", data[:2])
+        self.secret = data[2:2+length]
+        return data[self.tlv_length-2:]
 
 class glbp_thread(threading.Thread):
     def __init__(self, parent):
@@ -148,12 +171,12 @@ class glbp_thread(threading.Thread):
         self.parent.log("GLBP: Thread started")
         while self.running:
             for i in self.parent.peers:
-                (iter, pkg, hello, state, arp) = self.parent.peers[i]
+                (iter, pkg, hello, auth, state, arp) = self.parent.peers[i]
                 if state:
                     glbp = glbp_packet(pkg.group, self.parent.mac)
                     glbp_hello = glbp_tlv_hello(glbp_tlv_hello.STATE_ACTIVE, 255, hello.hello_int, hello.hold_int,
                                         hello.redirect, hello.timeout, hello.addr_type, hello.addr_len, hello.addr)
-                    data = glbp.render() + glbp_hello.render()
+                    data = glbp.render() + auth.render() + glbp_hello.render()
                     udp_hdr = dpkt.udp.UDP( sport=GLBP_PORT,
                                             dport=GLBP_PORT,
                                             data=data
@@ -207,7 +230,7 @@ class glbp_thread(threading.Thread):
                                                                 data=str(arp_hdr)
                                                                 )
                             self.parent.dnet.send(str(eth_hdr))
-                        self.parent.peers[i] = (iter, pkg, hello, state, arp - 1)
+                        self.parent.peers[i] = (iter, pkg, hello, auth, state, arp - 1)
             time.sleep(1)
         self.parent.log("GLBP: Thread terminated")
 
@@ -227,7 +250,7 @@ class mod_class(object):
         self.name = "glbp"
         self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_glbp.glade"
-        self.liststore = gtk.ListStore(str, str, int, str)
+        self.liststore = gtk.ListStore(str, str, int, str, str)
         self.thread = None
 
     def start_mod(self):
@@ -275,12 +298,12 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.STORE_STATE_ROW)
         self.treeview.append_column(column)
-        #~ column = gtk.TreeViewColumn()
-        #~ column.set_title("Auth")
-        #~ render_text = gtk.CellRendererText()
-        #~ column.pack_start(render_text, expand=True)
-        #~ column.add_attribute(render_text, 'text', self.STORE_AUTH_ROW)
-        #~ self.treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("Auth")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.STORE_AUTH_ROW)
+        self.treeview.append_column(column)
 
         self.arp_checkbutton = self.glade_xml.get_widget("arp_checkbutton")
 
@@ -312,11 +335,32 @@ class mod_class(object):
             if ip.src not in self.peers:
                 pkg = glbp_packet()
                 data = pkg.parse(str(udp.data))
-                hello = glbp_tlv_hello()
-                hello.parse(data)
+                auth = None
+                auth_str = "Unauthenticated"
+                while len(data) > 0:
+                    print "len: %d data: %s" % (len(data), data.encode("hex"))
+                    tlv = glbp_tlv()
+                    tlv.parse(data)
+                    if tlv.tlv_type == glbp_tlv.TYPE_HELLO:                    
+                        hello = glbp_tlv_hello()
+                        data = hello.parse(data)
+                    elif tlv.tlv_type == glbp_tlv.TYPE_AUTH:
+                        auth = glbp_tlv_auth()
+                        data = auth.parse(data)
+                        if auth.auth_type == glbp_tlv_auth.TYPE_PLAIN:
+                            auth_str = "Plaintext: '%s'" % auth.secret[:-1]
+                        elif auth.auth_type == glbp_tlv_auth.TYPE_MD5_STRING:
+                            auth_str = "MD5 String: '%s'" % auth.secret.encode("hex")
+                        elif auth.auth_type == glbp_tlv_auth.TYPE_MD5_CHAIN:
+                            auth_str = "MD5 Chain: '%s'" % auth.secret.encode("hex")
+                        else:
+                            auth_str = "Unknown"
+                    else:
+                        print "type: %d len: %d" % (tlv.tlv_type, tlv.tlv_length)
+                        data = data[tlv.tlv_length:]
                 src = dnet.ip_ntoa(ip.src)
-                iter = self.liststore.append([src, dnet.ip_ntoa(hello.addr), hello.prio, "Seen"])
-                self.peers[ip.src] = (iter, pkg, hello, False, False)
+                iter = self.liststore.append([src, dnet.ip_ntoa(hello.addr), hello.prio, "Seen", auth_str])
+                self.peers[ip.src] = (iter, pkg, hello, auth, False, False)
                 self.log("GLBP: Got new peer %s" % (src))
 
     # SIGNALS #
@@ -327,12 +371,12 @@ class mod_class(object):
         for i in paths:
             iter = model.get_iter(i)
             peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            (iter, pkg, hello, run, arp) = self.peers[peer]
+            (iter, pkg, hello, auth, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
                 arp = 13
             else:
                 arp = 0
-            self.peers[peer] = (iter, pkg, hello, True, arp)
+            self.peers[peer] = (iter, pkg, hello, auth, True, arp)
             model.set_value(iter, self.STORE_STATE_ROW, "Taken")
         if not self.thread.is_alive():
             self.thread.start()
@@ -343,8 +387,8 @@ class mod_class(object):
         for i in paths:
             iter = model.get_iter(i)
             peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            (iter, pkg, hello, run, arp) = self.peers[peer]
-            self.peers[peer] = (iter, pkg, hello, False, arp)
+            (iter, pkg, hello, auth, run, arp) = self.peers[peer]
+            self.peers[peer] = (iter, pkg, hello, auth, False, arp)
             model.set_value(iter, self.STORE_STATE_ROW, "Released")
 
 
