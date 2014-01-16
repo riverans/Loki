@@ -36,6 +36,7 @@ import time
 
 import dnet
 import dpkt
+import IPy
 
 import gobject
 import gtk
@@ -84,6 +85,16 @@ class isis_pdu_lan_hello(isis_pdu_header):
             isis_pdu_header.__init__(self, 0, level, 0, 0)
         else:
             isis_pdu_header.__init__(self)
+    
+    def __repr__(self):
+        return "ISIS-HELLO CircT(%x) SysID(%s) HoldT(%d) Prio(%d) LanID(%s) TLVs(%s)" % \
+                    (self.circuit_type,
+                     self.source_id.encode("hex"),
+                     self.hold_timer,
+                     self.priority,
+                     self.lan_id.encode("hex"),
+                     ", ".join([ str(i) for i in self.tlvs ])
+                    )
     
     def render(self):
         tlv_data = ""
@@ -194,6 +205,7 @@ def parse_tlvs(data):
 class isis_tlv(object):
     TYPE_AREA_ADDRESS =     0x01
     TYPE_IS_REACH =         0x02
+    TYPE_ES_NEIGHBOUR =     0x03
     TYPE_IS_NEIGHBOURS =    0x06
     TYPE_PADDING =          0x08
     TYPE_LSP_ENTRIES =      0x09
@@ -258,61 +270,105 @@ class isis_thread(threading.Thread):
                                             )
         self.parent.dnet.send(str(eth_hdr))
     
+    def refresh_lsps(self, level, tblock):
+        #neighbors
+        is_reach = "\x00" + struct.pack("!BBBB", 0x00, 0x80, 0x80, 0x80) + self.parent.sysid + "\x00"
+        for i in self.parent.neighbors:
+            is_reach += struct.pack("!BBBB", 0x00, 0x80, 0x80, 0x80) + self.parent.neighbors[i]["hello"].source_id + "\x00"
+        es_neigh = struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80)
+        tlvs = [    isis_tlv(isis_tlv.TYPE_IS_REACH, is_reach),
+                    isis_tlv(isis_tlv.TYPE_ES_NEIGHBOUR, es_neigh)
+                    ]
+        lsp = isis_pdu_link_state(level, 1199, self.parent.sysid + "\x01\x00", self.sequence, tblock, tlvs)
+        self.parent.lsps[0x0100] = lsp
+        self.send_multicast(lsp.render())
+        self.sequence = self.sequence + 1
+        #local routes
+        local_net = IPy.IP("%s/%s" % (dnet.ip_ntoa(self.parent.ip), dnet.ip_ntoa(self.parent.mask)), make_net=True)
+        ip_int_reach = "%s%s%s" % (struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80),
+                                   dnet.ip_aton(str(local_net.net())),
+                                   dnet.ip_aton(str(local_net.netmask()))
+                                   )
+        for i in self.parent.nets:
+            ip_int_reach += "%s%s%s" % (struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80),
+                                        dnet.ip_aton(self.parent.nets[i]["net"]),
+                                        dnet.ip_aton(self.parent.nets[i]["mask"])
+                                        )
+        ip_int_reach += "%s%s%s" % (struct.pack("!BBBB", 0x00, 0x80, 0x80, 0x80),
+                                   self.parent.loopback, #"\x0a\x0a\x0a\x01",  #loopback addr, get from gui FIXME
+                                   "\xff\xff\xff\xff"
+                                   )
+        is_reach = "\x00"
+        is_reach += struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80) + self.parent.sysid + "\x01"
+        tlvs = [    isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area), #"\x03\x01\x00\x02"), #get from gui FIXME
+                    isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, "\xcc"), #IP
+                    isis_tlv(isis_tlv.TYPE_HOSTNAME, self.parent.hostname),
+                    isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.loopback), #"\x0a\x0a\x0a\x01"),  #loopback addr, get from gui FIXME
+                    isis_tlv(isis_tlv.TYPE_IP_INT_REACH, ip_int_reach),
+                    isis_tlv(isis_tlv.TYPE_IS_REACH, is_reach)      #only in L1 ? FIXME
+                    ]
+        lsp = isis_pdu_link_state(level, 1199, self.parent.sysid + "\x00\x00", self.sequence, tblock, tlvs)
+        self.parent.lsps[0x0000] = lsp
+        self.send_multicast(lsp.render())
+        self.sequence = self.sequence + 1
+    
     def run(self):
         while(self.running):
             if self.parent.dnet:
+                if self.parent.level == isis_pdu_header.TYPE_L1_HELLO:
+                    level = isis_pdu_header.TYPE_L1_LINK_STATE
+                    tblock = 0x01
+                elif self.parent.level == isis_pdu_header.TYPE_L2_HELLO:
+                    level = isis_pdu_header.TYPE_L2_LINK_STATE
+                    tblock = 0x02
+                else:
+                    level = isis_pdu_header.TYPE_L1_LINK_STATE
+                    tblock = 0x01
                 if self.hello and len(self.parent.neighbors) > 0 and self.count % 3 == 0:
                     tlvs = [    isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, "\xcc"), #IP
-                                isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, "\x03\x01\x00\x02"), #get from gui
+                                isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area), #"\x03\x01\x00\x02"), #get from gui FIXME
                                 isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.ip),
                                 isis_tlv(isis_tlv.TYPE_RESTART_SIGNALING, "\x00\x00\x00"),
                                 isis_tlv(isis_tlv.TYPE_IS_NEIGHBOURS, "".join(self.parent.neighbors.keys())),
                                 ]
-                    hello = isis_pdu_lan_hello(self.parent.level, 3, "loki4u", 30, 64, "loki4u\x01", tlvs, self.parent.mtu - 3 - 14)
+                    if self.parent.level == isis_pdu_header.TYPE_L1_HELLO:
+                        ctype = 0x01
+                    elif self.parent.level == isis_pdu_header.TYPE_L2_HELLO:
+                        ctype = 0x02
+                    hello = isis_pdu_lan_hello(self.parent.level, ctype, self.parent.sysid, 30, 64, self.parent.sysid + "\x01", tlvs, self.parent.mtu - 3 - 14)
                     self.send_multicast(hello.render())
                     
-                if self.exchange and self.parent.nets_changed:
-                    ip_int_reach = ""
-                    for i in self.parent.nets:
-                        ip_int_reach += "%s%s%s" % (struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80),
-                                                    dnet.ip_aton(self.parent.nets[i]["net"]),
-                                                    dnet.ip_aton(self.parent.nets[i]["mask"])
-                                                    )
-                    tlvs = [    isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, "\x03\x01\x00\x02"), #get from gui
-                                isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, "\xcc"), #IP
-                                isis_tlv(isis_tlv.TYPE_HOSTNAME, "loki4u"),
-                                isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.ip),
-                                isis_tlv(isis_tlv.TYPE_IP_INT_REACH, ip_int_reach),
-                                isis_tlv(isis_tlv.TYPE_IS_REACH, 
-                                            "\x00" + \
-                                            struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80) + \
-                                            "loki4u\x01"
-                                        )
-                                ]
-                    if self.parent.level == isis_pdu_header.TYPE_L1_HELLO:
-                        level = isis_pdu_header.TYPE_L1_LINK_STATE
-                    elif self.parent.level == isis_pdu_header.TYPE_L2_HELLO:
-                        level = isis_pdu_header.TYPE_L2_LINK_STATE
-                    lsp = isis_pdu_link_state(level, 1200, "loki4u\x00\x00", self.sequence, 0x03, tlvs)
-                    self.parent.lsp = lsp
-                    self.send_multicast(lsp.render())
-                    self.sequence = self.sequence + 1
-                    self.parent.nets_changed = False
+                if self.exchange and (self.init or self.parent.nets_changed or self.count % 600 == 0):
+                    self.refresh_lsps(level, tblock)                    
+                    self.parent.nets_changed = False      
+                    self.init = False        
                 
-                if not self.parent.lsp is None and self.count % 9 == 0:
-                    tlvs = [    isis_tlv(isis_tlv.TYPE_LSP_ENTRIES,
-                                            struct.pack("!H8sI2s",
-                                                        1200, 
-                                                        self.parent.lsp.lsp_id,
-                                                        self.parent.lsp.sequence,
-                                                        self.parent.lsp.checksum))
-                                ]
-                    if self.parent.level == isis_pdu_header.TYPE_L1_HELLO:
-                        level = isis_pdu_header.TYPE_L1_COMPLETE_SEQUENCE
-                    elif self.parent.level == isis_pdu_header.TYPE_L2_HELLO:
-                        level = isis_pdu_header.TYPE_L2_COMPLETE_SEQUENCE
-                    csnp = isis_pdu_complete_sequence(level, "loki4u\x00", "\x00" * 8, "\xff" * 8, tlvs)
+                if not len(self.parent.lsps) == 0 and self.count % 10 == 0:
+                    entries = []
+                    refresh_needed = False
+                    for i in self.parent.lsps:
+                        self.parent.lsps[i].lifetime -= 10
+                        if self.parent.lsps[i].lifetime <= 300:
+                            refresh_needed = True
+                        entries += [struct.pack("!H8sI2s",
+                                                self.parent.lsps[i].lifetime, 
+                                                self.parent.lsps[i].lsp_id,
+                                                self.parent.lsps[i].sequence,
+                                                self.parent.lsps[i].checksum)]
+                    for n in self.parent.neighbors:
+                        cur = self.parent.neighbors[n]
+                        for l in cur["lsps"]:
+                            lsp = cur["lsps"][l]["lsp"]
+                            lsp.lifetime -= 10
+                            entries += [struct.pack("!H8sIH", lsp.lifetime, lsp.lsp_id, lsp.sequence, lsp.checksum)]
+                    
+                    entries = "".join(sorted(set(entries)))
+                    tlvs = [ isis_tlv(isis_tlv.TYPE_LSP_ENTRIES, entries) ]
+                    csnp = isis_pdu_complete_sequence(level, self.parent.sysid + "\x00", "\x00" * 8, "\xff" * 8, tlvs)
                     self.send_multicast(csnp.render())
+                    
+                    if refresh_needed:
+                        self.refresh_lsps(level, tblock)
             
             if not self.running:
                 return
@@ -342,20 +398,23 @@ class mod_class(object):
         self.neighbor_treestore = gtk.TreeStore(str, str, str, str, str)
         self.network_liststore = gtk.ListStore(str, str)
         self.level_liststore = gtk.ListStore(str, int)
-        self.level_liststore.append(["level 1", isis_pdu_header.TYPE_L1_HELLO])
-        self.level_liststore.append(["level 2", isis_pdu_header.TYPE_L2_HELLO])
-        #self.level_liststore.append(["Peer to Peer", isis_pdu_header.TYPE_P2P_HELLO])
+        self.level_liststore.append(["Level 1", isis_pdu_header.TYPE_L1_HELLO])
+        self.level_liststore.append(["Level 2", isis_pdu_header.TYPE_L2_HELLO])
         self.dnet = None
         self.thread = None
         self.mtu = 1514
         self.sleep_time = 1
-
+        self.level = None
+        self.area = None
+        self.loopback = None
+        self.sysid = "loki4u"
+        self.hostname = "loki4u"
 
     def start_mod(self):
         self.thread = isis_thread(self)
         self.neighbors = {}
         self.nets = {}
-        self.lsp = None
+        self.lsps = {}
         self.nets_changed = False
         self.thread.start()
 
@@ -376,7 +435,7 @@ class mod_class(object):
         self.neighbor_treeview.set_headers_visible(True)
 
         column = gtk.TreeViewColumn()
-        column.set_title("IP")
+        column.set_title("HOST")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.NEIGH_IP_ROW)
@@ -429,6 +488,7 @@ class mod_class(object):
         
         self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
         self.area_entry = self.glade_xml.get_widget("area_entry")
+        self.loopback_entry = self.glade_xml.get_widget("loopback_entry")
         self.network_entry = self.glade_xml.get_widget("network_entry")
         self.netmask_entry = self.glade_xml.get_widget("netmask_entry")
 
@@ -486,25 +546,28 @@ class mod_class(object):
                         
                         self.log("ISIS: Got new peer %s" % (dnet.eth_ntoa(eth.src)))
                         self.neighbors[eth.src] = cur
+                    else:
+                        self.neighbors[eth.src]["hello"] = hello
                 elif header.pdu_type == isis_pdu_header.TYPE_L1_LINK_STATE or \
                         header.pdu_type == isis_pdu_header.TYPE_L2_LINK_STATE:
                     if eth.src in self.neighbors:
                         cur = self.neighbors[eth.src]
-                        ls = isis_pdu_link_state()
-                        ls.parse(data)
-                        if ls.lsp_id in cur["lsps"]:
-                            self.neighbor_treestore.remove(cur["lsps"][ls.lsp_id]["iter"])
-                            del cur["lsps"][ls.lsp_id]
+                        lsp = isis_pdu_link_state()
+                        lsp.parse(data)
+                        if lsp.lsp_id in cur["lsps"]:
+                            self.neighbor_treestore.remove(cur["lsps"][lsp.lsp_id]["iter"])
+                            del cur["lsps"][lsp.lsp_id]
                         new = {}
                         new["iter"] = self.neighbor_treestore.append(cur["iter"], [
                                                                         "",
-                                                                        ls.lsp_id.encode("hex"),
+                                                                        lsp.lsp_id.encode("hex"),
                                                                         "",
                                                                         "",
                                                                         ""
                                                                     ])
-                        cur["lsps"][ls.lsp_id] = new
-                        tlv = get_tlv(ls, isis_tlv.TYPE_IP_INT_REACH)
+                        new["lsp"] = lsp
+                        cur["lsps"][lsp.lsp_id] = new
+                        tlv = get_tlv(lsp, isis_tlv.TYPE_IP_INT_REACH)
                         if not tlv is None:
                             prefixes = tlv.v
                             while len(prefixes) > 0:
@@ -517,6 +580,7 @@ class mod_class(object):
                                                                 ])
                                 prefixes = prefixes[12:]
                         self.thread.exchange = True
+                        self.thread.init = True
                     
     #SIGNALS
     
@@ -524,11 +588,16 @@ class mod_class(object):
         if btn.get_active():
             self.level_combobox.set_property("sensitive", False)
             self.area_entry.set_property("sensitive", False)
-            self.level = self.level_liststore[self.level_combobox.get_active()][1]
+            self.loopback_entry.set_property("sensitive", False)
+            self.level = self.level_liststore[self.level_combobox.get_active()][1]            
+            area = self.area_entry.get_text().decode("hex")
+            self.area = struct.pack("!B", len(area)) + area
+            self.loopback = dnet.ip_aton(self.loopback_entry.get_text())
             self.log("ISIS: Hello thread activated")
         else:
             self.area_entry.set_property("sensitive", True)
             self.level_combobox.set_property("sensitive", True)
+            self.loopback_entry.set_property("sensitive", True)
             self.log("ISIS: Hello thread deactivated")
         self.thread.hello = btn.get_active()
         
@@ -557,7 +626,19 @@ class mod_class(object):
                                 "min" : 1,
                                 "max" : 1514
                                 },
+                    "sysid" : { "value" : self.sysid.encode("hex"),
+                                "type" : "str",
+                                "min" : 12,
+                                "max" : 12
+                                },
+                    "hostname":{"value" : self.hostname,
+                                "type" : "str",
+                                "min" : 1,
+                                "max" : 1514
+                                },
                     }
     def set_config_dict(self, dict):
         if dict:
             self.mtu = dict["mtu"]["value"]
+            self.sysid = dict["sysid"]["value"].decode("hex")
+            self.hostname = dict["hostname"]["value"]
