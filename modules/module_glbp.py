@@ -338,7 +338,7 @@ class mod_class(object):
                 auth = None
                 auth_str = "Unauthenticated"
                 while len(data) > 0:
-                    print "len: %d data: %s" % (len(data), data.encode("hex"))
+                    #~ print "len: %d data: %s" % (len(data), data.encode("hex"))
                     tlv = glbp_tlv()
                     tlv.parse(data)
                     if tlv.tlv_type == glbp_tlv.TYPE_HELLO:                    
@@ -356,12 +356,16 @@ class mod_class(object):
                         else:
                             auth_str = "Unknown"
                     else:
-                        print "type: %d len: %d" % (tlv.tlv_type, tlv.tlv_length)
+                        #~ print "type: %d len: %d" % (tlv.tlv_type, tlv.tlv_length)
                         data = data[tlv.tlv_length:]
-                src = dnet.ip_ntoa(ip.src)
-                iter = self.liststore.append([src, dnet.ip_ntoa(hello.addr), hello.prio, "Seen", auth_str])
-                self.peers[ip.src] = (iter, pkg, hello, auth, False, False)
-                self.log("GLBP: Got new peer %s" % (src))
+                try:
+                    src = dnet.ip_ntoa(ip.src)
+                except:
+                    pass
+                else:
+                    iter = self.liststore.append([src, dnet.ip_ntoa(hello.addr), hello.prio, "Seen", auth_str])
+                    self.peers[ip.src] = (iter, pkg, hello, auth, False, False)
+                    self.log("GLBP: Got new peer %s" % (src))
 
     # SIGNALS #
 
