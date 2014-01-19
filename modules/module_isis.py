@@ -29,6 +29,8 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import copy
+import hmac
 import math
 import struct
 import threading
@@ -88,7 +90,8 @@ class isis_pdu_lan_hello(isis_pdu_header):
     
     def __repr__(self):
         return "ISIS-HELLO CircT(%x) SysID(%s) HoldT(%d) Prio(%d) LanID(%s) TLVs(%s)" % \
-                    (self.circuit_type,
+                    (
+                     self.circuit_type,
                      self.source_id.encode("hex"),
                      self.hold_timer,
                      self.priority,
@@ -119,10 +122,21 @@ class isis_pdu_link_state(isis_pdu_header):
         self.sequence = sequence
         self.type_block = type_block
         self.tlvs = tlvs
+        self.checksum = None
         if level is not None:
             isis_pdu_header.__init__(self, 0, level, 0, 0)
         else:
             isis_pdu_header.__init__(self)
+    
+    def __repr__(self):
+        return "ISIS-LSP Live(%d) ID(%s) Seq(%d) Type(%x) TLVs(%s)" % \
+                (
+                 self.lifetime,
+                 self.lsp_id.encode("hex"),
+                 self.sequence,
+                 self.type_block,
+                 ", ".join([ str(i) for i in self.tlvs ])
+                )
         
     def render(self):
         tlv_data = ""
@@ -130,7 +144,8 @@ class isis_pdu_link_state(isis_pdu_header):
             tlv_data += t.render()
         data = isis_pdu_header.render(self, struct.pack("!HH8sIHB", len(tlv_data) + 27, self.lifetime, self.lsp_id,
                                     self.sequence, 0, self.type_block)) + tlv_data
-        self.checksum = self.lsp_checksum(data[12:], 12)
+        if self.checksum is None:
+            self.checksum = self.lsp_checksum(data[12:], 12)
         return data[:24] + self.checksum + data[26:]
         
     def parse(self, data):
@@ -197,6 +212,9 @@ def parse_tlvs(data):
         if tlv.t == isis_tlv.TYPE_AREA_ADDRESS:
             tlv = isis_tlv_area_address()
             data = tlv.parse(data)
+        elif tlv.t == isis_tlv.TYPE_AUTHENTICATION:
+            tlv = isis_tlv_authentication()
+            data = tlv.parse(data)
         else:
             data = data_new
         tlvs.append(tlv)
@@ -209,6 +227,7 @@ class isis_tlv(object):
     TYPE_IS_NEIGHBOURS =    0x06
     TYPE_PADDING =          0x08
     TYPE_LSP_ENTRIES =      0x09
+    TYPE_AUTHENTICATION =   0x0a
     TYPE_IP_INT_REACH =     0x80
     TYPE_PROTOCOL_SUPPORT = 0x81
     TYPE_IP_INT_ADDRESS =   0x84
@@ -229,19 +248,61 @@ class isis_tlv(object):
         self.v = data[2:2+self.l]
         return data[2+self.l:]
 
+class isis_tlv_authentication(isis_tlv):
+    AUTH_TYPE_NONE =        0x00 
+    AUTH_TYPE_CLEAR_TEXT =  0x01
+    AUTH_TYPE_HMAC_MD5 =    0x36
+    
+    def __init__(self):
+        self.auth_type = None
+        self.secret = None
+        self.digest = None
+        isis_tlv.__init__(self, isis_tlv.TYPE_AUTHENTICATION)
+    
+    def __repr__(self):
+        if self.auth_type == self.AUTH_TYPE_CLEAR_TEXT:
+            return "Clear Text: '%s'" % self.secret
+        elif self.auth_type == self.AUTH_TYPE_HMAC_MD5:
+            if not self.secret is None:
+                return "HMAC-MD5: '%s'" % self.secret
+            else:
+                return "HMAC-MD5"
+        return ""
+    
+    def render(self):
+        if self.auth_type == self.AUTH_TYPE_CLEAR_TEXT:
+            data = chr(self.auth_type) + self.secret
+        elif self.auth_type == self.AUTH_TYPE_HMAC_MD5:
+            if self.digest is None:
+                data = chr(self.auth_type) + "\x00" * 16
+            else:
+                data = chr(self.auth_type) + self.digest
+        else:
+            return ""
+        return isis_tlv.render(self, data)
+    
+    def parse(self, data):
+        data = isis_tlv.parse(self, data)
+        self.auth_type, = struct.unpack("!B", self.v[0])
+        if self.auth_type == self.AUTH_TYPE_CLEAR_TEXT:
+            self.secret = self.v[1:]
+        elif self.auth_type == self.AUTH_TYPE_HMAC_MD5:
+            self.digest = self.v[1:]
+        return data
+
 class isis_tlv_area_address(isis_tlv):
-    def __init__(self, addresses = []):
-        self.addresses = addresses
+    def __init__(self):
+        self.addresses = []
         isis_tlv.__init__(self, isis_tlv.TYPE_AREA_ADDRESS)
         
     def __repr__(self):
         return ", ".join([a.encode("hex") for a in self.addresses])
     
-    def render(self):
-        data = ""
-        for i in self.addresses:
-            data += struct.pack("!B", len(i)) + i
-        return isis_tlv.render(self, data)
+    #~ def render(self):
+        #~ data = ""
+        #~ for i in self.addresses:
+            #~ data += struct.pack("!B", len(i)) + i
+        #~ return isis_tlv.render(self, data)
         
     def parse(self, data):
         data = isis_tlv.parse(self, data)
@@ -261,7 +322,25 @@ class isis_thread(threading.Thread):
         self.count = 0
         threading.Thread.__init__(self)
     
-    def send_multicast(self, data):
+    def send_multicast(self, pdu):
+        if not self.parent.auth is None and not self.parent.auth_secret is None:
+            if self.parent.auth.auth_type == isis_tlv_authentication.AUTH_TYPE_HMAC_MD5:
+                local = copy.deepcopy(pdu)
+                if local.pdu_type == isis_pdu_header.TYPE_L1_HELLO or local.pdu_type == isis_pdu_header.TYPE_L2_HELLO:
+                    pass #does cisco auth hellos with hmac?
+                elif local.pdu_type == isis_pdu_header.TYPE_L1_LINK_STATE or local.pdu_type == isis_pdu_header.TYPE_L2_LINK_STATE:
+                    local.lifetime = 0
+                    local.checksum = "\x00\x00"
+                    get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest = None
+                    mac = hmac.new(self.parent.auth_secret)
+                    mac.update(local.render())
+                    get_tlv(pdu, isis_tlv.TYPE_AUTHENTICATION).digest = struct.pack("!16s", mac.digest())
+                elif local.pdu_type == isis_pdu_header.TYPE_L1_COMPLETE_SEQUENCE or local.pdu_type == isis_pdu_header.TYPE_L2_COMPLETE_SEQUENCE:
+                    get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest = None
+                    mac = hmac.new(self.parent.auth_secret)
+                    mac.update(local.render())
+                    get_tlv(pdu, isis_tlv.TYPE_AUTHENTICATION).digest = struct.pack("!16s", mac.digest())
+        data = pdu.render()
         llc = "\xfe\xfe\x03" + data
         eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(ISIS_ALL_L1_IS_MAC if self.parent.level == isis_pdu_header.TYPE_L1_HELLO else ISIS_ALL_L2_IS_MAC),
                                             src=self.parent.mac,
@@ -279,9 +358,17 @@ class isis_thread(threading.Thread):
         tlvs = [    isis_tlv(isis_tlv.TYPE_IS_REACH, is_reach),
                     isis_tlv(isis_tlv.TYPE_ES_NEIGHBOUR, es_neigh)
                     ]
-        lsp = isis_pdu_link_state(level, 1199, self.parent.sysid + "\x01\x00", self.sequence, tblock, tlvs)
+        if not self.parent.auth is None:
+            tlvs = [self.parent.auth] + tlvs
+        lsp = isis_pdu_link_state(level,
+                                  1199,
+                                  self.parent.sysid + "\x01\x00",
+                                  self.sequence,
+                                  tblock,
+                                  tlvs
+                                  )
         self.parent.lsps[0x0100] = lsp
-        self.send_multicast(lsp.render())
+        self.send_multicast(lsp)
         self.sequence = self.sequence + 1
         #local routes
         local_net = IPy.IP("%s/%s" % (dnet.ip_ntoa(self.parent.ip), dnet.ip_ntoa(self.parent.mask)), make_net=True)
@@ -295,53 +382,76 @@ class isis_thread(threading.Thread):
                                         dnet.ip_aton(self.parent.nets[i]["mask"])
                                         )
         ip_int_reach += "%s%s%s" % (struct.pack("!BBBB", 0x00, 0x80, 0x80, 0x80),
-                                   self.parent.loopback, #"\x0a\x0a\x0a\x01",  #loopback addr, get from gui FIXME
+                                   self.parent.loopback,
                                    "\xff\xff\xff\xff"
                                    )
         is_reach = "\x00"
-        is_reach += struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80) + self.parent.sysid + "\x01"
-        tlvs = [    isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area), #"\x03\x01\x00\x02"), #get from gui FIXME
+        is_reach += struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80) + self.parent.lan_id
+        tlvs = [    isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area),
                     isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, "\xcc"), #IP
                     isis_tlv(isis_tlv.TYPE_HOSTNAME, self.parent.hostname),
-                    isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.loopback), #"\x0a\x0a\x0a\x01"),  #loopback addr, get from gui FIXME
+                    isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.loopback),
                     isis_tlv(isis_tlv.TYPE_IP_INT_REACH, ip_int_reach),
                     isis_tlv(isis_tlv.TYPE_IS_REACH, is_reach)      #only in L1 ? FIXME
                     ]
-        lsp = isis_pdu_link_state(level, 1199, self.parent.sysid + "\x00\x00", self.sequence, tblock, tlvs)
+        if not self.parent.auth is None:
+            tlvs = [self.parent.auth] + tlvs
+        lsp = isis_pdu_link_state(level,
+                                  1199,
+                                  self.parent.sysid + "\x00\x00",
+                                  self.sequence,
+                                  tblock,
+                                  tlvs
+                                  )
         self.parent.lsps[0x0000] = lsp
-        self.send_multicast(lsp.render())
+        self.send_multicast(lsp)
         self.sequence = self.sequence + 1
     
     def run(self):
         while(self.running):
             if self.parent.dnet:
                 if self.parent.level == isis_pdu_header.TYPE_L1_HELLO:
-                    level = isis_pdu_header.TYPE_L1_LINK_STATE
+                    lsp_level = isis_pdu_header.TYPE_L1_LINK_STATE
+                    csnp_level = isis_pdu_header.TYPE_L1_COMPLETE_SEQUENCE
                     tblock = 0x01
                 elif self.parent.level == isis_pdu_header.TYPE_L2_HELLO:
-                    level = isis_pdu_header.TYPE_L2_LINK_STATE
+                    lsp_level = isis_pdu_header.TYPE_L2_LINK_STATE
+                    csnp_level = isis_pdu_header.TYPE_L2_COMPLETE_SEQUENCE
                     tblock = 0x02
                 else:
-                    level = isis_pdu_header.TYPE_L1_LINK_STATE
+                    lsp_level = isis_pdu_header.TYPE_L1_LINK_STATE
+                    csnp_level = isis_pdu_header.TYPE_L1_COMPLETE_SEQUENCE
                     tblock = 0x01
                 if self.hello and len(self.parent.neighbors) > 0 and self.count % 3 == 0:
                     tlvs = [    isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, "\xcc"), #IP
-                                isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area), #"\x03\x01\x00\x02"), #get from gui FIXME
+                                isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area),
                                 isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.ip),
                                 isis_tlv(isis_tlv.TYPE_RESTART_SIGNALING, "\x00\x00\x00"),
                                 isis_tlv(isis_tlv.TYPE_IS_NEIGHBOURS, "".join(self.parent.neighbors.keys())),
                                 ]
+                    if not self.parent.auth is None:
+                        tlvs = [self.parent.auth] + tlvs
                     if self.parent.level == isis_pdu_header.TYPE_L1_HELLO:
                         ctype = 0x01
                     elif self.parent.level == isis_pdu_header.TYPE_L2_HELLO:
                         ctype = 0x02
-                    hello = isis_pdu_lan_hello(self.parent.level, ctype, self.parent.sysid, 30, 64, self.parent.sysid + "\x01", tlvs, self.parent.mtu - 3 - 14)
-                    self.send_multicast(hello.render())
+                    if self.parent.lan_id == None:
+                        self.parent.lan_id = self.parent.sysid + "\x01"
+                    hello = isis_pdu_lan_hello( self.parent.level,
+                                                ctype,
+                                                self.parent.sysid,
+                                                self.parent.hold_time,
+                                                self.parent.priority,
+                                                self.parent.lan_id,
+                                                tlvs,
+                                                self.parent.mtu - 3 - 14
+                                                )
+                    self.send_multicast(hello)
                     
                 if self.exchange and (self.init or self.parent.nets_changed or self.count % 600 == 0):
-                    self.refresh_lsps(level, tblock)                    
-                    self.parent.nets_changed = False      
-                    self.init = False        
+                    self.refresh_lsps(lsp_level, tblock)              
+                    self.parent.nets_changed = False
+                    self.init = False
                 
                 if not len(self.parent.lsps) == 0 and self.count % 10 == 0:
                     entries = []
@@ -355,20 +465,38 @@ class isis_thread(threading.Thread):
                                                 self.parent.lsps[i].lsp_id,
                                                 self.parent.lsps[i].sequence,
                                                 self.parent.lsps[i].checksum)]
-                    for n in self.parent.neighbors:
-                        cur = self.parent.neighbors[n]
-                        for l in cur["lsps"]:
-                            lsp = cur["lsps"][l]["lsp"]
-                            lsp.lifetime -= 10
-                            entries += [struct.pack("!H8sIH", lsp.lifetime, lsp.lsp_id, lsp.sequence, lsp.checksum)]
-                    
-                    entries = "".join(sorted(set(entries)))
-                    tlvs = [ isis_tlv(isis_tlv.TYPE_LSP_ENTRIES, entries) ]
-                    csnp = isis_pdu_complete_sequence(level, self.parent.sysid + "\x00", "\x00" * 8, "\xff" * 8, tlvs)
-                    self.send_multicast(csnp.render())
+                    #~ import pprint
+                    #~ print "#" * 80
+                    #~ pprint.pprint(self.parent.neighbors)
+                    #~ print "#" * 80
+                    if self.parent.lan_id == self.parent.sysid + "\x01":
+                        #we are DR
+                        for n in self.parent.neighbors:
+                            cur = self.parent.neighbors[n]
+                            for l in cur["lsps"]:
+                                lsp = cur["lsps"][l]["lsp"]
+                                if lsp.lifetime > 10:
+                                    lsp.lifetime -= 10
+                                else:
+                                    lsp.lifetime = 0
+                                    del cur["lsps"][l]
+                                entries += [struct.pack("!H8sIH", lsp.lifetime, lsp.lsp_id, lsp.sequence, lsp.checksum)]
+                        
+                        entries = "".join(sorted(set(entries)))
+                        tlvs = [ isis_tlv(isis_tlv.TYPE_LSP_ENTRIES, entries) ]
+                        if not self.parent.auth is None:
+                            tlvs = [self.parent.auth] + tlvs
+                        csnp = isis_pdu_complete_sequence(csnp_level,
+                                                          self.parent.sysid + "\x00",
+                                                          "\x00" * 8,
+                                                          "\xff" * 8,
+                                                          tlvs
+                                                          )
+                        ##CSNP only if DR
+                        self.send_multicast(csnp)
                     
                     if refresh_needed:
-                        self.refresh_lsps(level, tblock)
+                        self.refresh_lsps(lsp_level, tblock)
             
             if not self.running:
                 return
@@ -379,7 +507,7 @@ class isis_thread(threading.Thread):
         self.running = False
         
 class mod_class(object):
-    NEIGH_IP_ROW = 0
+    NEIGH_HOST_ROW = 0
     NEIGH_ID_ROW = 1
     NEIGH_level_ROW = 2
     NEIGH_AUTH_ROW = 3
@@ -400,6 +528,11 @@ class mod_class(object):
         self.level_liststore = gtk.ListStore(str, int)
         self.level_liststore.append(["Level 1", isis_pdu_header.TYPE_L1_HELLO])
         self.level_liststore.append(["Level 2", isis_pdu_header.TYPE_L2_HELLO])
+        self.auth_type_liststore = gtk.ListStore(str, int)
+        for i in dir(isis_tlv_authentication):
+            if i.startswith("AUTH_"):
+                exec("val = isis_tlv_authentication." + i)
+                self.auth_type_liststore.append([i, val])
         self.dnet = None
         self.thread = None
         self.mtu = 1514
@@ -409,6 +542,11 @@ class mod_class(object):
         self.loopback = None
         self.sysid = "loki4u"
         self.hostname = "loki4u"
+        self.priority = 0x40
+        self.lan_id = None
+        self.hold_time = 30
+        self.auth = None
+        self.auth_secret = None
 
     def start_mod(self):
         self.thread = isis_thread(self)
@@ -438,7 +576,7 @@ class mod_class(object):
         column.set_title("HOST")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.NEIGH_IP_ROW)
+        column.add_attribute(render_text, 'text', self.NEIGH_HOST_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("ID")
@@ -452,12 +590,12 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.NEIGH_level_ROW)
         self.neighbor_treeview.append_column(column)
-        #~ column = gtk.TreeViewColumn()
-        #~ column.set_title("AUTH")
-        #~ render_text = gtk.CellRendererText()
-        #~ column.pack_start(render_text, expand=True)
-        #~ column.add_attribute(render_text, 'text', self.NEIGH_AUTH_ROW)
-        #~ self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("AUTH")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.NEIGH_AUTH_ROW)
+        self.neighbor_treeview.append_column(column)
         #~ column = gtk.TreeViewColumn()
         #~ column.set_title("CRACK")
         #~ render_text = gtk.CellRendererText()
@@ -489,6 +627,11 @@ class mod_class(object):
         self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
         self.area_entry = self.glade_xml.get_widget("area_entry")
         self.loopback_entry = self.glade_xml.get_widget("loopback_entry")
+        self.auth_data_entry = self.glade_xml.get_widget("auth_data_entry")
+        self.id_spinbutton = self.glade_xml.get_widget("id_spinbutton")
+        self.auth_type_combobox = self.glade_xml.get_widget("auth_type_combobox")
+        self.auth_type_combobox.set_model(self.auth_type_liststore)
+        self.auth_type_combobox.set_active(0)
         self.network_entry = self.glade_xml.get_widget("network_entry")
         self.netmask_entry = self.glade_xml.get_widget("netmask_entry")
 
@@ -533,13 +676,19 @@ class mod_class(object):
                     hello = isis_pdu_lan_hello()
                     hello.parse(data)
                     if eth.src not in self.neighbors:
+                        auth = get_tlv(hello, isis_tlv.TYPE_AUTHENTICATION)
+                        if not auth is None:
+                            self.auth = auth
+                            auth = str(auth)
+                        else:
+                            auth = "None"
                         cur = {}
                         cur["hello"] = hello
                         cur["iter"] = self.neighbor_treestore.append(None, [
                                                                         dnet.eth_ntoa(eth.src), 
                                                                         hello.source_id.encode("hex"), 
                                                                         str(get_tlv(hello, isis_tlv.TYPE_AREA_ADDRESS)),
-                                                                        "...", 
+                                                                        auth, 
                                                                         "..."
                                                                     ])
                         cur["lsps"] = {}
@@ -548,21 +697,36 @@ class mod_class(object):
                         self.neighbors[eth.src] = cur
                     else:
                         self.neighbors[eth.src]["hello"] = hello
+                    if self.lan_id == None:
+                        print "helloP %d selfP %d" % (hello.priority, self.priority)
+                        if hello.priority > self.priority:
+                            self.lan_id = hello.lan_id
+                        elif hello.priority == self.priority:
+                            remote, = struct.unpack("!Q", "\x00\x00" + eth.src)
+                            local, = struct.unpack("!Q", "\x00\x00" + self.mac)
+                            if remote > local:
+                                self.lan_id = hello.lan_id
                 elif header.pdu_type == isis_pdu_header.TYPE_L1_LINK_STATE or \
                         header.pdu_type == isis_pdu_header.TYPE_L2_LINK_STATE:
                     if eth.src in self.neighbors:
                         cur = self.neighbors[eth.src]
                         lsp = isis_pdu_link_state()
                         lsp.parse(data)
+                        auth = get_tlv(lsp, isis_tlv.TYPE_AUTHENTICATION)
+                        if not auth is None:
+                            self.auth = auth
+                            auth = str(self.auth)
+                        else:
+                            auth = "None"
                         if lsp.lsp_id in cur["lsps"]:
                             self.neighbor_treestore.remove(cur["lsps"][lsp.lsp_id]["iter"])
                             del cur["lsps"][lsp.lsp_id]
                         new = {}
                         new["iter"] = self.neighbor_treestore.append(cur["iter"], [
-                                                                        "",
+                                                                        "LSP",
                                                                         lsp.lsp_id.encode("hex"),
                                                                         "",
-                                                                        "",
+                                                                        auth,
                                                                         ""
                                                                     ])
                         new["lsp"] = lsp
@@ -572,13 +736,25 @@ class mod_class(object):
                             prefixes = tlv.v
                             while len(prefixes) > 0:
                                 self.neighbor_treestore.append(new["iter"], [
-                                                                    "",
-                                                                    "",
+                                                                    "IP reachability",
+                                                                    "%d" % ord(prefixes[0]),
                                                                     dnet.ip_ntoa(prefixes[4:8]) + " / " + dnet.ip_ntoa(prefixes[8:12]),
                                                                     "",
                                                                     ""
                                                                 ])
                                 prefixes = prefixes[12:]
+                        tlv = get_tlv(lsp, isis_tlv.TYPE_IS_REACH)
+                        if not tlv is None:
+                            ises = tlv.v[1:]
+                            while len(ises) > 0:
+                                self.neighbor_treestore.append(new["iter"], [
+                                                                    "IS reachability",
+                                                                    "%d" % ord(ises[0]),
+                                                                    ises[4:11].encode("hex"),
+                                                                    "",
+                                                                    ""
+                                                                ])
+                                ises = ises[11:]
                         self.thread.exchange = True
                         self.thread.init = True
                     
@@ -589,12 +765,15 @@ class mod_class(object):
             self.level_combobox.set_property("sensitive", False)
             self.area_entry.set_property("sensitive", False)
             self.loopback_entry.set_property("sensitive", False)
+            self.auth_data_entry.set_property("sensitive", False)
             self.level = self.level_liststore[self.level_combobox.get_active()][1]            
             area = self.area_entry.get_text().decode("hex")
             self.area = struct.pack("!B", len(area)) + area
             self.loopback = dnet.ip_aton(self.loopback_entry.get_text())
+            self.auth_secret = self.auth_data_entry.get_text()
             self.log("ISIS: Hello thread activated")
         else:
+            self.auth_data_entry.set_property("sensitive", True)
             self.area_entry.set_property("sensitive", True)
             self.level_combobox.set_property("sensitive", True)
             self.loopback_entry.set_property("sensitive", True)
@@ -626,6 +805,12 @@ class mod_class(object):
                                 "min" : 1,
                                 "max" : 1514
                                 },
+                    "hold_time" : {
+                               "value" : self.hold_time,
+                                "type" : "int",
+                                "min" : 0x0000,
+                                "max" : 0xffff
+                                },
                     "sysid" : { "value" : self.sysid.encode("hex"),
                                 "type" : "str",
                                 "min" : 12,
@@ -636,9 +821,16 @@ class mod_class(object):
                                 "min" : 1,
                                 "max" : 1514
                                 },
+                    "priority":{"value" : self.priority,
+                                "type" : "int",
+                                "min" : 0x01,
+                                "max" : 0xff
+                                },
                     }
     def set_config_dict(self, dict):
         if dict:
             self.mtu = dict["mtu"]["value"]
+            self.hold_time = dict["hold_time"]["value"]
             self.sysid = dict["sysid"]["value"].decode("hex")
             self.hostname = dict["hostname"]["value"]
+            self.priority = dict["priority"]["value"]
