@@ -102,6 +102,13 @@ ospfmd5bf_libs = []
 ospfmd5bf_extargs = []
 ospfmd5bf_extobj = []
 
+isismd5bf_srcs = [ '@top_srcdir@/loki_bindings/isismd5/isismd5bf.c', '@top_srcdir@/lib/md5.c', '@top_srcdir@/lib/hmac_md5.c' ]
+isismd5bf_incdirs = [ '@top_srcdir@' ]
+isismd5bf_libdirs = []
+isismd5bf_libs = []
+isismd5bf_extargs = []
+isismd5bf_extobj = []
+
 tcpmd5_srcs = [ '@top_srcdir@/loki_bindings/tcpmd5/tcpmd5.c' ]
 tcpmd5_incdirs = []
 tcpmd5_libdirs = []
@@ -156,6 +163,14 @@ ospfmd5bf = Extension(  'loki_bindings.ospfmd5.ospfmd5bf',
                         extra_compile_args=ospfmd5bf_extargs,
                         extra_objects=ospfmd5bf_extobj)
 
+isismd5bf = Extension(  'loki_bindings.isismd5.isismd5bf',
+                        isismd5bf_srcs,
+                        include_dirs=isismd5bf_incdirs,
+                        library_dirs=isismd5bf_libdirs,
+                        libraries=isismd5bf_libs,
+                        extra_compile_args=isismd5bf_extargs,
+                        extra_objects=isismd5bf_extobj)
+
 tcpmd5 = Extension( 'loki_bindings.tcpmd5.tcpmd5',
                     tcpmd5_srcs,
                     include_dirs=tcpmd5_incdirs,
@@ -194,6 +209,6 @@ setup(name='loki_bindings',
       author='Daniel Mende',
       author_email='dmende@ernw.de',
       url='https://c0decafe.de',
-      packages=['loki_bindings', 'loki_bindings.asleap', 'loki_bindings.ospfmd5', 'loki_bindings.tcpmd5', 'loki_bindings.mpls'],
-      ext_modules=[asleap, ospfmd5bf, tcpmd5, tcpmd5bf, mplstun, mplsred]
+      packages=['loki_bindings', 'loki_bindings.asleap', 'loki_bindings.ospfmd5', 'loki_bindings.isismd5', 'loki_bindings.tcpmd5', 'loki_bindings.mpls'],
+      ext_modules=[asleap, ospfmd5bf, isismd5bf, tcpmd5, tcpmd5bf, mplstun, mplsred]
      )
