@@ -32,7 +32,9 @@
 import copy
 import hmac
 import math
+import os
 import struct
+import tempfile
 import threading
 import time
 
@@ -150,7 +152,9 @@ class isis_pdu_link_state(isis_pdu_header):
         
     def parse(self, data):
         data = isis_pdu_header.parse(self, data)
-        (self.pdu_length, self.lifetime, self.lsp_id, self.sequence, self.checksum, self.type_block) = struct.unpack("!HH8sIHB", data[:19])
+        (self.pdu_length, self.lifetime, self.lsp_id, self.sequence) = struct.unpack("!HH8sI", data[:16])
+        self.checksum = data[16:18]
+        self.type_block, = struct.unpack("!B", data[18])
         self.tlvs = parse_tlvs(data[19:])
 
     def lsp_checksum(self, data, offset):
@@ -238,6 +242,9 @@ class isis_tlv(object):
         self.t = t
         self.v = v
     
+    def __repr__(self):
+        return "ISIS-TLV t(%x) v(%s)" % (self.t, self.v.encode("hex"))
+    
     def render(self, data=None):
         if data is None:
             data = self.v
@@ -298,11 +305,11 @@ class isis_tlv_area_address(isis_tlv):
     def __repr__(self):
         return ", ".join([a.encode("hex") for a in self.addresses])
     
-    #~ def render(self):
-        #~ data = ""
-        #~ for i in self.addresses:
-            #~ data += struct.pack("!B", len(i)) + i
-        #~ return isis_tlv.render(self, data)
+    def render(self):
+        data = ""
+        for i in self.addresses:
+            data += struct.pack("!B", len(i)) + i
+        return isis_tlv.render(self, data)
         
     def parse(self, data):
         data = isis_tlv.parse(self, data)
@@ -311,6 +318,45 @@ class isis_tlv_area_address(isis_tlv):
             self.addresses.append(self.v[1:1+alen])
             self.v = self.v[1+alen:]
         return data
+        
+class isis_md5bf(threading.Thread):
+    def __init__(self, parent, iter, bf, full, wl, digest, data, identifier):
+        self.parent = parent
+        self.iter = iter
+        self.bf = bf
+        self.full = full
+        self.wl = wl
+        self.digest = digest
+        self.data = data
+        self.identifier = identifier
+        threading.Thread.__init__(self)
+
+    def run(self):
+        if self.bf and not self.wl:
+            self.wl = ""
+        #print "bf:%i full:%i, wl:%s digest:%s data:%s datalen:%i" % (self.bf, self.full, self.wl, self.digest.encode('hex'), self.data.encode('hex'), len(self.data))
+        (handle, self.tmpfile) = tempfile.mkstemp(prefix="isis-md5-", suffix="-lock")
+        print self.tmpfile
+        os.close(handle)
+        if self.parent.platform == "Windows":
+            import isismd5bf
+            pw = isismd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        else:
+            import loki_bindings
+            pw = loki_bindings.isismd5.isismd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        if os.path.exists(self.tmpfile):
+            if self.parent.neighbor_treestore.iter_is_valid(self.iter):
+                if pw != None:
+                    self.parent.neighbor_treestore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
+                    self.parent.log("ISIS: Found password '%s' for %s" % (pw, self.identifier))
+                else:
+                    self.parent.neighbor_treestore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, "NOT FOUND")
+                    self.parent.log("ISIS: No password found for %s" % (self.identifier))
+                os.remove(self.tmpfile)
+
+    def quit(self):
+        if os.path.exists(self.tmpfile):
+            os.remove(self.tmpfile)
         
 class isis_thread(threading.Thread):
     def __init__(self, parent):
@@ -326,6 +372,10 @@ class isis_thread(threading.Thread):
         if not self.parent.auth is None and not self.parent.auth_secret is None:
             if self.parent.auth.auth_type == isis_tlv_authentication.AUTH_TYPE_HMAC_MD5:
                 local = copy.deepcopy(pdu)
+                #~ import pprint
+                #~ print "#" * 80
+                #~ pprint.pprint(local)                
+                #~ print "#" * 80
                 if local.pdu_type == isis_pdu_header.TYPE_L1_HELLO or local.pdu_type == isis_pdu_header.TYPE_L2_HELLO:
                     pass #does cisco auth hellos with hmac?
                 elif local.pdu_type == isis_pdu_header.TYPE_L1_LINK_STATE or local.pdu_type == isis_pdu_header.TYPE_L2_LINK_STATE:
@@ -509,9 +559,10 @@ class isis_thread(threading.Thread):
 class mod_class(object):
     NEIGH_HOST_ROW = 0
     NEIGH_ID_ROW = 1
-    NEIGH_level_ROW = 2
+    NEIGH_AREA_ROW = 2
     NEIGH_AUTH_ROW = 3
     NEIGH_CRACK_ROW = 4
+    NEIGH_DICT_ROW = 5
 
     NET_NET_ROW = 0
     NET_MASK_ROW = 1
@@ -523,16 +574,16 @@ class mod_class(object):
         self.name = "isis"
         self.group = "ROUTING"
         self.gladefile = "/modules/module_isis.glade"
-        self.neighbor_treestore = gtk.TreeStore(str, str, str, str, str)
+        self.neighbor_treestore = gtk.TreeStore(str, str, str, str, str, gobject.TYPE_PYOBJECT)
         self.network_liststore = gtk.ListStore(str, str)
         self.level_liststore = gtk.ListStore(str, int)
         self.level_liststore.append(["Level 1", isis_pdu_header.TYPE_L1_HELLO])
         self.level_liststore.append(["Level 2", isis_pdu_header.TYPE_L2_HELLO])
-        self.auth_type_liststore = gtk.ListStore(str, int)
-        for i in dir(isis_tlv_authentication):
-            if i.startswith("AUTH_"):
-                exec("val = isis_tlv_authentication." + i)
-                self.auth_type_liststore.append([i, val])
+        #~ self.auth_type_liststore = gtk.ListStore(str, int)
+        #~ for i in dir(isis_tlv_authentication):
+            #~ if i.startswith("AUTH_"):
+                #~ exec("val = isis_tlv_authentication." + i)
+                #~ self.auth_type_liststore.append([i, val])
         self.dnet = None
         self.thread = None
         self.mtu = 1514
@@ -543,17 +594,20 @@ class mod_class(object):
         self.sysid = "loki4u"
         self.hostname = "loki4u"
         self.priority = 0x40
-        self.lan_id = None
         self.hold_time = 30
-        self.auth = None
         self.auth_secret = None
 
     def start_mod(self):
         self.thread = isis_thread(self)
-        self.neighbors = {}
+        self.neighbors = None
+        self.neighbors_l1 = {}
+        self.neighbors_l2 = {}
         self.nets = {}
         self.lsps = {}
         self.nets_changed = False
+        self.lan_id = None
+        self.auth = None
+        self.bf = {}
         self.thread.start()
 
     def shut_mod(self):
@@ -563,6 +617,7 @@ class mod_class(object):
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
+                "on_bf_button_clicked"          : self.on_bf_button_clicked,
                 "on_add_button_clicked"         : self.on_add_button_clicked,
                 "on_remove_button_clicked"      : self.on_remove_button_clicked,
             }
@@ -588,7 +643,7 @@ class mod_class(object):
         column.set_title("AREA")
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.NEIGH_level_ROW)
+        column.add_attribute(render_text, 'text', self.NEIGH_AREA_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
         column.set_title("AUTH")
@@ -596,12 +651,12 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.NEIGH_AUTH_ROW)
         self.neighbor_treeview.append_column(column)
-        #~ column = gtk.TreeViewColumn()
-        #~ column.set_title("CRACK")
-        #~ render_text = gtk.CellRendererText()
-        #~ column.pack_start(render_text, expand=True)
-        #~ column.add_attribute(render_text, 'text', self.NEIGH_CRACK_ROW)
-        #~ self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
+        column.set_title("CRACK")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.NEIGH_CRACK_ROW)
+        self.neighbor_treeview.append_column(column)
         
         self.network_treeview = self.glade_xml.get_widget("network_treeview")
         self.network_treeview.set_model(self.network_liststore)
@@ -628,12 +683,16 @@ class mod_class(object):
         self.area_entry = self.glade_xml.get_widget("area_entry")
         self.loopback_entry = self.glade_xml.get_widget("loopback_entry")
         self.auth_data_entry = self.glade_xml.get_widget("auth_data_entry")
-        self.id_spinbutton = self.glade_xml.get_widget("id_spinbutton")
-        self.auth_type_combobox = self.glade_xml.get_widget("auth_type_combobox")
-        self.auth_type_combobox.set_model(self.auth_type_liststore)
-        self.auth_type_combobox.set_active(0)
+        #~ self.id_spinbutton = self.glade_xml.get_widget("id_spinbutton")
+        #~ self.auth_type_combobox = self.glade_xml.get_widget("auth_type_combobox")
+        #~ self.auth_type_combobox.set_model(self.auth_type_liststore)
+        #~ self.auth_type_combobox.set_active(0)
         self.network_entry = self.glade_xml.get_widget("network_entry")
         self.netmask_entry = self.glade_xml.get_widget("netmask_entry")
+
+        self.bf_checkbutton = self.glade_xml.get_widget("bf_checkbutton")
+        self.full_checkbutton = self.glade_xml.get_widget("full_checkbutton")
+        self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
 
         return self.glade_xml.get_widget("root")
 
@@ -669,13 +728,19 @@ class mod_class(object):
         if eth.src != self.mac:
             data = str(eth.data)[3:]
             if eth.dst == dnet.eth_aton(ISIS_ALL_L1_IS_MAC) or eth.dst == dnet.eth_aton(ISIS_ALL_L2_IS_MAC):
+                if eth.dst == dnet.eth_aton(ISIS_ALL_L1_IS_MAC):
+                    neighbors = self.neighbors_l1
+                    level = "L1: "
+                else:
+                    neighbors = self.neighbors_l2
+                    level = "L2: "
                 header = isis_pdu_header()
                 header.parse(data)
                 if header.pdu_type == isis_pdu_header.TYPE_L1_HELLO or \
                         header.pdu_type == isis_pdu_header.TYPE_L2_HELLO:
                     hello = isis_pdu_lan_hello()
                     hello.parse(data)
-                    if eth.src not in self.neighbors:
+                    if eth.src not in neighbors:
                         auth = get_tlv(hello, isis_tlv.TYPE_AUTHENTICATION)
                         if not auth is None:
                             self.auth = auth
@@ -685,20 +750,20 @@ class mod_class(object):
                         cur = {}
                         cur["hello"] = hello
                         cur["iter"] = self.neighbor_treestore.append(None, [
-                                                                        dnet.eth_ntoa(eth.src), 
+                                                                        level + dnet.eth_ntoa(eth.src), 
                                                                         hello.source_id.encode("hex"), 
                                                                         str(get_tlv(hello, isis_tlv.TYPE_AREA_ADDRESS)),
                                                                         auth, 
-                                                                        "..."
+                                                                        "",
+                                                                        cur
                                                                     ])
                         cur["lsps"] = {}
                         
                         self.log("ISIS: Got new peer %s" % (dnet.eth_ntoa(eth.src)))
-                        self.neighbors[eth.src] = cur
+                        neighbors[eth.src] = cur
                     else:
-                        self.neighbors[eth.src]["hello"] = hello
+                        neighbors[eth.src]["hello"] = hello
                     if self.lan_id == None:
-                        print "helloP %d selfP %d" % (hello.priority, self.priority)
                         if hello.priority > self.priority:
                             self.lan_id = hello.lan_id
                         elif hello.priority == self.priority:
@@ -708,8 +773,8 @@ class mod_class(object):
                                 self.lan_id = hello.lan_id
                 elif header.pdu_type == isis_pdu_header.TYPE_L1_LINK_STATE or \
                         header.pdu_type == isis_pdu_header.TYPE_L2_LINK_STATE:
-                    if eth.src in self.neighbors:
-                        cur = self.neighbors[eth.src]
+                    if eth.src in neighbors:
+                        cur = neighbors[eth.src]
                         lsp = isis_pdu_link_state()
                         lsp.parse(data)
                         auth = get_tlv(lsp, isis_tlv.TYPE_AUTHENTICATION)
@@ -727,7 +792,8 @@ class mod_class(object):
                                                                         lsp.lsp_id.encode("hex"),
                                                                         "",
                                                                         auth,
-                                                                        ""
+                                                                        "",
+                                                                        new
                                                                     ])
                         new["lsp"] = lsp
                         cur["lsps"][lsp.lsp_id] = new
@@ -740,7 +806,8 @@ class mod_class(object):
                                                                     "%d" % ord(prefixes[0]),
                                                                     dnet.ip_ntoa(prefixes[4:8]) + " / " + dnet.ip_ntoa(prefixes[8:12]),
                                                                     "",
-                                                                    ""
+                                                                    "",
+                                                                    {}
                                                                 ])
                                 prefixes = prefixes[12:]
                         tlv = get_tlv(lsp, isis_tlv.TYPE_IS_REACH)
@@ -752,7 +819,8 @@ class mod_class(object):
                                                                     "%d" % ord(ises[0]),
                                                                     ises[4:11].encode("hex"),
                                                                     "",
-                                                                    ""
+                                                                    "",
+                                                                    {}
                                                                 ])
                                 ises = ises[11:]
                         self.thread.exchange = True
@@ -766,7 +834,11 @@ class mod_class(object):
             self.area_entry.set_property("sensitive", False)
             self.loopback_entry.set_property("sensitive", False)
             self.auth_data_entry.set_property("sensitive", False)
-            self.level = self.level_liststore[self.level_combobox.get_active()][1]            
+            self.level = self.level_liststore[self.level_combobox.get_active()][1]
+            if self.level == isis_pdu_header.TYPE_L1_HELLO:
+                self.neighbors = self.neighbors_l1
+            else:
+                self.neighbors = self.neighbors_l2
             area = self.area_entry.get_text().decode("hex")
             self.area = struct.pack("!B", len(area)) + area
             self.loopback = dnet.ip_aton(self.loopback_entry.get_text())
@@ -798,6 +870,49 @@ class mod_class(object):
             self.network_liststore.remove(iter)
             del self.nets[self.network_liststore.get_string_from_iter(iter)]
         self.nets_changed = True
+    
+    def on_bf_button_clicked(self, btn):
+        bf = self.bf_checkbutton.get_active()
+        full = self.full_checkbutton.get_active()
+        wl = self.wordlist_filechooserbutton.get_filename()
+        if not wl:
+            if not bf:
+                self.log("ISIS: no wordlist given")
+                return
+            wl = ""
+        select = self.neighbor_treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            iter = model.get_iter(i)
+            obj = model.get_value(iter, self.NEIGH_DICT_ROW)
+            if "lsps" in obj:
+                ident = model.get_value(iter, self.NEIGH_HOST_ROW).split(" ")[1]
+                pdu = obj["hello"]
+            else:
+                ident = model.get_value(iter, self.NEIGH_ID_ROW)
+                pdu = obj["lsp"]
+            if ident in self.bf:
+                if self.bf[ident].is_alive():
+                    return
+            enc = model.get_value(iter, self.NEIGH_AUTH_ROW)
+            if not enc == "HMAC-MD5":
+                self.log("ISIS: Cant crack %s, doesnt use HMAC-MD5 authentication" % ident)
+                return
+            local = copy.deepcopy(pdu)
+            if local.pdu_type == isis_pdu_header.TYPE_L1_HELLO or local.pdu_type == isis_pdu_header.TYPE_L2_HELLO:
+                digest = get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest
+                get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest = None
+                data = local.render()
+            elif local.pdu_type == isis_pdu_header.TYPE_L1_LINK_STATE or local.pdu_type == isis_pdu_header.TYPE_L2_LINK_STATE:
+                local.lifetime = 0
+                local.checksum = "\x00\x00"
+                digest = get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest
+                get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest = None
+                data = local.render()
+            thread = isis_md5bf(self, iter, bf, full, wl, digest, data, ident)
+            model.set_value(iter, self.NEIGH_CRACK_ROW, "RUNNING")
+            thread.start()
+            self.bf[ident] = thread
 
     def get_config_dict(self):
         return {    "mtu" : {   "value" : self.mtu,

@@ -105,16 +105,17 @@ static PyObject *
 isismd5bf_bf(PyObject *self, PyObject *args)
 {
     int bf, full, len, foo;
-    const char *wl, *data;
+    unsigned char *wl, *data;
     FILE *wlist, *lock;
     char brute_pw[MAX_BRUTE_PW_LEN+1];
     char line[512];
     char *pw = NULL;
-    char *md5sum;
+    unsigned char *md5sum;
     int count = 0;
     char *lockfile;
     struct stat fcheck;
     md5_byte_t digest[16];
+    int i;
 
     if(!PyArg_ParseTuple(args, "iiss#s#s", &bf, &full, &wl, &md5sum, &foo, &data, &len, &lockfile))
         return NULL;
@@ -138,7 +139,6 @@ isismd5bf_bf(PyObject *self, PyObject *args)
             tmp = strchr(line, '\r');
             if(tmp)
                 *tmp = '\0';
-            len = strlen(line);
             if(count % CHECK_FOR_LOCKFILE == 0) {
                 if(stat(lockfile, &fcheck)) {
                     fprintf(stderr, "No lockfile, exiting.\n");
@@ -152,7 +152,9 @@ isismd5bf_bf(PyObject *self, PyObject *args)
                 fclose(lock);
                 count = 0;
             }
-            hmac_md5(data, len, line, strlen(line), digest);
+
+            hmac_md5((unsigned char *) data, len, line, strlen(line), digest);
+            
             if(!memcmp(md5sum, digest, 16)) {
                 pw = line;
                 fprintf(stderr, "Found pw '%s'.\n", pw);
@@ -182,7 +184,9 @@ isismd5bf_bf(PyObject *self, PyObject *args)
                 fclose(lock);
                 count = 0;
             }
-            hmac_md5(data, len, brute_pw, strlen(brute_pw), digest);
+            
+            hmac_md5((unsigned char *) data, len, brute_pw, strlen(brute_pw), digest);
+            
             if(!memcmp(md5sum, digest, 16)) {
                 pw = brute_pw;
                 fprintf(stderr, "Found pw '%s'.\n", pw);
