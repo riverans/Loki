@@ -237,6 +237,8 @@ class isis_tlv(object):
     TYPE_IP_INT_ADDRESS =   0x84
     TYPE_HOSTNAME =         0x89
     TYPE_RESTART_SIGNALING= 0xd3
+    TYPE_IP6_INT_ADDRESS =  0xe8
+    TYPE_IP6_INT_REACH =    0xec
     
     def __init__(self, t=None, v=None):
         self.t = t
@@ -421,6 +423,11 @@ class isis_thread(threading.Thread):
         self.send_multicast(lsp)
         self.sequence = self.sequence + 1
         #local routes
+        protos = ""
+        if "ip" in dir(self.parent) and not self.parent.ip is None:
+            protos += "\xcc" #IP
+        if "ip6_ll" in dir(self.parent) and not self.parent.ip is None:
+            protos += "\x8e" #IP6
         local_net = IPy.IP("%s/%s" % (dnet.ip_ntoa(self.parent.ip), dnet.ip_ntoa(self.parent.mask)), make_net=True)
         ip_int_reach = "%s%s%s" % (struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80),
                                    dnet.ip_aton(str(local_net.net())),
@@ -431,18 +438,42 @@ class isis_thread(threading.Thread):
                                         dnet.ip_aton(self.parent.nets[i]["net"]),
                                         dnet.ip_aton(self.parent.nets[i]["mask"])
                                         )
-        ip_int_reach += "%s%s%s" % (struct.pack("!BBBB", 0x00, 0x80, 0x80, 0x80),
-                                   self.parent.loopback,
-                                   "\xff\xff\xff\xff"
-                                   )
+        if not self.parent.loopback is None:
+            ip_int_reach += "%s%s%s" % (struct.pack("!BBBB", 0x00, 0x80, 0x80, 0x80),
+                                       self.parent.loopback,
+                                       "\xff\xff\xff\xff"
+                                       )
+        local_net6 = IPy.IP("%s/%s" % (dnet.ip6_ntoa(self.parent.ip6), self.parent.mask6), make_net=True)
+        ip6_int_reach = "%s%s" % (struct.pack("!IBB", 0x0a, 0x0, self.parent.mask6),
+                                  dnet.ip6_aton(str(local_net6.net()))[:self.parent.mask6//8]
+                                  )
+        for i in self.parent.nets6:
+            ip6_int_reach += "%s%s" % (struct.pack("!IBB", 0x0a, 0x0, int(self.parent.nets6[i]["mask"])),
+                                       dnet.ip6_aton(self.parent.nets6[i]["net"])[:int(self.parent.nets6[i]["mask"])//8]
+                                       )
+        if not self.parent.loopback6 is None:
+            ip6_int_reach += "%s%s" % (struct.pack("!IBB", 0x00, 0x0, 128),
+                                       self.parent.loopback6
+                                       )
         is_reach = "\x00"
         is_reach += struct.pack("!BBBB", 0x0a, 0x80, 0x80, 0x80) + self.parent.lan_id
         tlvs = [    isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area),
-                    isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, "\xcc"), #IP
-                    isis_tlv(isis_tlv.TYPE_HOSTNAME, self.parent.hostname),
-                    isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.loopback),
-                    isis_tlv(isis_tlv.TYPE_IP_INT_REACH, ip_int_reach),
-                    isis_tlv(isis_tlv.TYPE_IS_REACH, is_reach)      #only in L1 ? FIXME
+                    isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, protos),
+                    isis_tlv(isis_tlv.TYPE_HOSTNAME, self.parent.hostname)
+                    ]        
+        if "ip" in dir(self.parent) and not self.parent.ip is None:
+            if not self.parent.loopback is None:
+                tlvs.append(isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.loopback))
+            else:
+                tlvs.append(isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.ip))
+            tlvs.append(isis_tlv(isis_tlv.TYPE_IP_INT_REACH, ip_int_reach))
+        if "ip6_ll" in dir(self.parent) and not self.parent.ip6_ll is None:
+            if not self.parent.loopback6 is None:
+                tlvs.append(isis_tlv(isis_tlv.TYPE_IP6_INT_ADDRESS, self.parent.loopback6))
+            else:
+                tlvs.append(isis_tlv(isis_tlv.TYPE_IP6_INT_ADDRESS, self.parent.ip6))
+            tlvs.append(isis_tlv(isis_tlv.TYPE_IP6_INT_REACH, ip6_int_reach))
+        tlvs += [   isis_tlv(isis_tlv.TYPE_IS_REACH, is_reach)      #only in L1 ? FIXME
                     ]
         if not self.parent.auth is None:
             tlvs = [self.parent.auth] + tlvs
@@ -473,10 +504,19 @@ class isis_thread(threading.Thread):
                     csnp_level = isis_pdu_header.TYPE_L1_COMPLETE_SEQUENCE
                     tblock = 0x01
                 if self.hello and len(self.parent.neighbors) > 0 and self.count % 3 == 0:
-                    tlvs = [    isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, "\xcc"), #IP
-                                isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area),
-                                isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.ip),
-                                isis_tlv(isis_tlv.TYPE_RESTART_SIGNALING, "\x00\x00\x00"),
+                    protos = ""
+                    if "ip" in dir(self.parent) and not self.parent.ip is None:
+                        protos += "\xcc" #IP
+                    if "ip6_ll" in dir(self.parent) and not self.parent.ip is None:
+                        protos += "\x8e" #IP6
+                    tlvs = [    isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, protos),
+                                isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area)
+                                ]
+                    if "ip" in dir(self.parent) and not self.parent.ip is None:
+                        tlvs.append(isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.ip))
+                    if "ip6_ll" in dir(self.parent) and not self.parent.ip6_ll is None:
+                        tlvs.append(isis_tlv(isis_tlv.TYPE_IP6_INT_ADDRESS, self.parent.ip6_ll))
+                    tlvs += [   isis_tlv(isis_tlv.TYPE_RESTART_SIGNALING, "\x00\x00\x00"),
                                 isis_tlv(isis_tlv.TYPE_IS_NEIGHBOURS, "".join(self.parent.neighbors.keys())),
                                 ]
                     if not self.parent.auth is None:
@@ -603,6 +643,7 @@ class mod_class(object):
         self.neighbors_l1 = {}
         self.neighbors_l2 = {}
         self.nets = {}
+        self.nets6 = {}
         self.lsps = {}
         self.nets_changed = False
         self.lan_id = None
@@ -709,6 +750,12 @@ class mod_class(object):
         self.ip = dnet.ip_aton(ip)
         self.mask = dnet.ip_aton(mask)
 
+    def set_ip6(self, ip6, mask6, ip6_ll, mask6_ll):
+        self.ip6 = dnet.ip6_aton(ip6)
+        self.mask6 = len(IPy.IP(mask6).strBin().replace("0", ""))
+        self.ip6_ll = dnet.ip6_aton(ip6_ll)
+        self.mask6_ll = len(IPy.IP(mask6_ll).strBin().replace("0", ""))
+
     def set_dnet(self, dnet):
         self.dnet = dnet
         self.mac = dnet.eth.get()
@@ -810,6 +857,20 @@ class mod_class(object):
                                                                     {}
                                                                 ])
                                 prefixes = prefixes[12:]
+                        tlv = get_tlv(lsp, isis_tlv.TYPE_IP6_INT_REACH)
+                        if not tlv is None:
+                            prefixes = tlv.v
+                            while len(prefixes) > 0:
+                                metric,prefixlen = struct.unpack("!IxB", prefixes[:6])
+                                self.neighbor_treestore.append(new["iter"], [
+                                                                    "IP6 reachability",
+                                                                    "%d" % metric,
+                                                                    "%s/%d" % (dnet.ip6_ntoa(prefixes[6:6+(prefixlen//8)]+"\x00"*(16-(prefixlen//8))), prefixlen),
+                                                                    "",
+                                                                    "",
+                                                                    {}
+                                                                ])
+                                prefixes = prefixes[6+(prefixlen//8):]
                         tlv = get_tlv(lsp, isis_tlv.TYPE_IS_REACH)
                         if not tlv is None:
                             ises = tlv.v[1:]
@@ -841,7 +902,16 @@ class mod_class(object):
                 self.neighbors = self.neighbors_l2
             area = self.area_entry.get_text().decode("hex")
             self.area = struct.pack("!B", len(area)) + area
-            self.loopback = dnet.ip_aton(self.loopback_entry.get_text())
+            self.loopback = None
+            self.loopback6 = None
+            for i in self.loopback_entry.get_text().split(","):
+                try:
+                    self.loopback = dnet.ip_aton(i.strip())
+                except:
+                    try:
+                        self.loopback6 = dnet.ip6_aton(i.strip())
+                    except:
+                        pass
             self.auth_secret = self.auth_data_entry.get_text()
             self.log("ISIS: Hello thread activated")
         else:
@@ -855,8 +925,22 @@ class mod_class(object):
     def on_add_button_clicked(self, btn):
         net = self.network_entry.get_text()
         mask = self.netmask_entry.get_text()
+        try:
+            dnet.ip_aton(net)
+            dnet.ip_aton(mask)
+            nets = self.nets
+        except:
+            try:
+                dnet.ip6_aton(net)
+                if int(mask) > 128 or int(mask) < 0:
+                    raise
+                nets = self.nets6
+            except:
+                self.network_entry.set_text("")
+                self.netmask_entry.set_text("")
+                return
         iter = self.network_liststore.append([net, mask])
-        self.nets[self.network_liststore.get_string_from_iter(iter)] = {
+        nets[self.network_liststore.get_string_from_iter(iter)] = {
                 "net"   :   net,
                 "mask"  :   mask,
             }
@@ -868,7 +952,10 @@ class mod_class(object):
         for i in paths:
             iter = model.get_iter(i)
             self.network_liststore.remove(iter)
-            del self.nets[self.network_liststore.get_string_from_iter(iter)]
+            if self.network_liststore.get_string_from_iter(iter) in self.nets:
+                del self.nets[self.network_liststore.get_string_from_iter(iter)]
+            elif self.network_liststore.get_string_from_iter(iter) in self.nets6:
+                del self.nets6[self.network_liststore.get_string_from_iter(iter)]
         self.nets_changed = True
     
     def on_bf_button_clicked(self, btn):
