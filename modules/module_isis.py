@@ -636,6 +636,7 @@ class mod_class(object):
         self.priority = 0x40
         self.hold_time = 30
         self.auth_secret = None
+        self.mac = "\x00\x00\x00\x00\x00\x00"
 
     def start_mod(self):
         self.thread = isis_thread(self)

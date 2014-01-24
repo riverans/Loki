@@ -196,6 +196,7 @@ class mod_class(object):
         self.parent = parent
         self.platform = platform
         self.name = "wlccp"
+        self.group = "CISCO"
         self.gladefile = "/modules/module_wlccp.glade"
         self.hosts_liststore = gtk.ListStore(str, str, str)
         self.clients_liststore = gtk.ListStore(str, str, str)
