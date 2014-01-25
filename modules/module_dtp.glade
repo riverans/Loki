@@ -62,7 +62,7 @@
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
-                        <signal name="toggled" handler="on_get_button_toggled" swapped="no"/>
+                        <signal name="toggled" handler="on_get_button_toggled"/>
                       </widget>
                       <packing>
                         <property name="expand">False</property>

