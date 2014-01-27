@@ -78,8 +78,7 @@ class dtp_tlv(object):
     TYPE_DOMAIN = 0x0001
     TYPE_STATUS = 0x0002
     TYPE_TRUNK =  0x0003
-    TYPE_SENDER = 0x0004
-    
+    TYPE_SENDER = 0x0004    
     
     STATUS_ON       = 0x01
     STATUS_DESIRABLE= 0x03
@@ -150,7 +149,7 @@ class dtp_thread(threading.Thread):
                                         dtp_tlv(0x4, self.parent.mac)
                                      ] )
                 else:
-                    pdu = dtp_pdu(1, [  dtp_tlv(0x1, ""),
+                    pdu = dtp_pdu(1, [  dtp_tlv(0x1, self.parent.domainentry.get_text()),
                                         dtp_tlv(0x2, "\x81"),
                                         dtp_tlv(0x3, "\xa5"),
                                         dtp_tlv(0x4, self.parent.mac)
@@ -234,18 +233,20 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.STORE_TRUNK_ROW)
         self.treeview.append_column(column)
-        column = gtk.TreeViewColumn()
-        column.set_title("SENDER")
-        render_text = gtk.CellRendererText()
-        column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.STORE_SENDER_ROW)
-        self.treeview.append_column(column)
-        column = gtk.TreeViewColumn()
-        column.set_title("STATE")
-        render_text = gtk.CellRendererText()
-        column.pack_start(render_text, expand=True)
-        column.add_attribute(render_text, 'text', self.STORE_STATE_ROW)
-        self.treeview.append_column(column)
+        #~ column = gtk.TreeViewColumn()
+        #~ column.set_title("SENDER")
+        #~ render_text = gtk.CellRendererText()
+        #~ column.pack_start(render_text, expand=True)
+        #~ column.add_attribute(render_text, 'text', self.STORE_SENDER_ROW)
+        #~ self.treeview.append_column(column)
+        #~ column = gtk.TreeViewColumn()
+        #~ column.set_title("STATE")
+        #~ render_text = gtk.CellRendererText()
+        #~ column.pack_start(render_text, expand=True)
+        #~ column.add_attribute(render_text, 'text', self.STORE_STATE_ROW)
+        #~ self.treeview.append_column(column)
+        
+        self.domainentry = self.glade_xml.get_widget("domainentry")
         
         return self.glade_xml.get_widget("root")
 
