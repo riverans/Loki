@@ -136,6 +136,42 @@ class glbp_tlv_hello(glbp_tlv):
             struct.unpack("!xBxBxxIIHHxxBB", data[:22])
         self.addr = data[22:22+self.addr_len]
         return data[22+self.addr_len:]
+
+class glbp_tlv_req_resp(glbp_tlv):
+    #~                     1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |   Forwarder   |   VF State    |    Unknown    |    Priority   |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |    Weight     |                   Unknown2                    |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |                           Unknown2                            |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |                         Virtual MAC                           |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    #~ |         Virtual MAC           |
+    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    
+    def __init__(self, forwarder=None, state=None, prio=None, weight=None, vmac=None):
+        self.forwarder = forwarder
+        self.state = state
+        self.prio = prio
+        self.weight = weight
+        self.vmac = vmac
+        self.unknown = None
+        self.unknown2 = None
+        
+        glbp_tlv.__init__(self, glbp_tlv.TYPE_REQ_RESP)
+    
+    def render(self):
+        if not self.unknown is None:
+            return glbp_tlv.render(self, struct.pack("!BBBBB7s6s", self.forwarder, self.state, self.unknown, self.prio, self.weight, self.unknown2, self.vmac))
+        return glbp_tlv.render(self, struct.pack("!BBxBB7x6s", self.forwarder, self.state, self.prio, self.weight, self.vmac))
+        
+    def parse(self, data):
+        data = glbp_tlv.parse(self, data)
+        (self.forwarder, self.state, self.unknown, self.prio, self.weight, self.unknown2, self.vmac) = struct.unpack("!BBBBB7s6s", data[:18])
+        return data[18:]
         
 class glbp_tlv_auth(glbp_tlv):
     #~                     1                   2                   3
@@ -171,12 +207,17 @@ class glbp_thread(threading.Thread):
         self.parent.log("GLBP: Thread started")
         while self.running:
             for i in self.parent.peers:
-                (iter, pkg, hello, auth, state, arp) = self.parent.peers[i]
+                (iter, pkg, hello, req_resp, auth, state, arp) = self.parent.peers[i]
                 if state:
                     glbp = glbp_packet(pkg.group, self.parent.mac)
                     glbp_hello = glbp_tlv_hello(glbp_tlv_hello.STATE_ACTIVE, 255, hello.hello_int, hello.hold_int,
                                         hello.redirect, hello.timeout, hello.addr_type, hello.addr_len, hello.addr)
-                    data = glbp.render() + auth.render() + glbp_hello.render()
+                    if not req_resp is None:
+                        req_resp.prio = 255
+                        req_resp.weight = 255
+                        data = glbp.render() + auth.render() + glbp_hello.render() + req_resp.render()
+                    else:
+                        data = glbp.render() + auth.render() + glbp_hello.render()
                     udp_hdr = dpkt.udp.UDP( sport=GLBP_PORT,
                                             dport=GLBP_PORT,
                                             data=data
@@ -230,7 +271,7 @@ class glbp_thread(threading.Thread):
                                                                 data=str(arp_hdr)
                                                                 )
                             self.parent.dnet.send(str(eth_hdr))
-                        self.parent.peers[i] = (iter, pkg, hello, auth, state, arp - 1)
+                        self.parent.peers[i] = (iter, pkg, hello, req_resp, auth, state, arp - 1)
             time.sleep(1)
         self.parent.log("GLBP: Thread terminated")
 
@@ -335,6 +376,7 @@ class mod_class(object):
             if ip.src not in self.peers:
                 pkg = glbp_packet()
                 data = pkg.parse(str(udp.data))
+                req_resp = None
                 auth = None
                 auth_str = "Unauthenticated"
                 while len(data) > 0:
@@ -344,6 +386,9 @@ class mod_class(object):
                     if tlv.tlv_type == glbp_tlv.TYPE_HELLO:                    
                         hello = glbp_tlv_hello()
                         data = hello.parse(data)
+                    elif tlv.tlv_type == glbp_tlv.TYPE_REQ_RESP:
+                        req_resp = glbp_tlv_req_resp()
+                        data = req_resp.parse(data)
                     elif tlv.tlv_type == glbp_tlv.TYPE_AUTH:
                         auth = glbp_tlv_auth()
                         data = auth.parse(data)
@@ -364,7 +409,7 @@ class mod_class(object):
                     pass
                 else:
                     iter = self.liststore.append([src, dnet.ip_ntoa(hello.addr), hello.prio, "Seen", auth_str])
-                    self.peers[ip.src] = (iter, pkg, hello, auth, False, False)
+                    self.peers[ip.src] = (iter, pkg, hello, req_resp, auth, False, False)
                     self.log("GLBP: Got new peer %s" % (src))
 
     # SIGNALS #
@@ -375,12 +420,12 @@ class mod_class(object):
         for i in paths:
             iter = model.get_iter(i)
             peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            (iter, pkg, hello, auth, run, arp) = self.peers[peer]
+            (iter, pkg, hello, req_resp, auth, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
                 arp = 13
             else:
                 arp = 0
-            self.peers[peer] = (iter, pkg, hello, auth, True, arp)
+            self.peers[peer] = (iter, pkg, hello, req_resp, auth, True, arp)
             model.set_value(iter, self.STORE_STATE_ROW, "Taken")
         if not self.thread.is_alive():
             self.thread.start()
@@ -391,8 +436,8 @@ class mod_class(object):
         for i in paths:
             iter = model.get_iter(i)
             peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            (iter, pkg, hello, auth, run, arp) = self.peers[peer]
-            self.peers[peer] = (iter, pkg, hello, auth, False, arp)
+            (iter, pkg, hello, req_resp, auth, run, arp) = self.peers[peer]
+            self.peers[peer] = (iter, pkg, hello, req_resp, auth, False, arp)
             model.set_value(iter, self.STORE_STATE_ROW, "Released")
 
 
