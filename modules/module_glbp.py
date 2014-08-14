@@ -80,6 +80,7 @@ class glbp_tlv(object):
     TYPE_HELLO = 1
     TYPE_REQ_RESP = 2
     TYPE_AUTH = 3
+    TYPE_NONCE = 4
     
     def __init__(self, tlv_type=None):
         self.tlv_type = tlv_type
@@ -160,8 +161,16 @@ class glbp_tlv_req_resp(glbp_tlv):
         self.vmac = vmac
         self.unknown = None
         self.unknown2 = None
-        
         glbp_tlv.__init__(self, glbp_tlv.TYPE_REQ_RESP)
+    
+    def __eq__(self, other):
+        return self.vmac == other.vmac
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+    
+    def __hash__(self):
+        return hash(self.vmac)
     
     def render(self):
         if not self.unknown is None:
@@ -197,6 +206,10 @@ class glbp_tlv_auth(glbp_tlv):
         self.secret = data[2:2+length]
         return data[self.tlv_length-2:]
 
+class glbp_tlv_nonce(glbp_tlv):
+    def __init__(self):
+        glbp_tlv.__init__(self, glbp_tlv.TYPE_NONCE)
+
 class glbp_thread(threading.Thread):
     def __init__(self, parent):
         threading.Thread.__init__(self)
@@ -212,12 +225,25 @@ class glbp_thread(threading.Thread):
                     glbp = glbp_packet(pkg.group, self.parent.mac)
                     glbp_hello = glbp_tlv_hello(glbp_tlv_hello.STATE_ACTIVE, 255, hello.hello_int, hello.hold_int,
                                         hello.redirect, hello.timeout, hello.addr_type, hello.addr_len, hello.addr)
-                    if not req_resp is None:
-                        req_resp.prio = 255
-                        req_resp.weight = 255
-                        data = glbp.render() + auth.render() + glbp_hello.render() + req_resp.render()
+                    reqs = ""
+                    for req in req_resp:
+                        req.prio = 255
+                        req.weight = 255
+                        reqs += req.render()
+                    
+                    if not auth is None:
+                        if auth.auth_type == glbp_tlv_auth.TYPE_PLAIN:
+                            data = glbp.render() + auth.render() + glbp_hello.render() + reqs
+                        elif auth.auth_type == glbp_tlv_auth.TYPE_MD5_STRING:
+                            nonce = "\x00\x01\x02\x03\x04\x05\x06\x07"
+                            data = glbp_tlv_nonce().render(nonce) + glbp_hello.render() + reqs
+                            import hashlib
+                            m = hashlib.md5()
+                            m.update(data)
+                            auth.secret = m.digest()
+                            data = glbp.render() + auth.render() + data
                     else:
-                        data = glbp.render() + auth.render() + glbp_hello.render()
+                        data = glbp.render() + glbp_hello.render() + reqs
                     udp_hdr = dpkt.udp.UDP( sport=GLBP_PORT,
                                             dport=GLBP_PORT,
                                             data=data
@@ -291,7 +317,7 @@ class mod_class(object):
         self.name = "glbp"
         self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_glbp.glade"
-        self.liststore = gtk.ListStore(str, str, int, str, str)
+        self.treestore = gtk.TreeStore(str, str, int, str, str)
         self.thread = None
 
     def start_mod(self):
@@ -302,7 +328,7 @@ class mod_class(object):
         if self.thread:
             if self.thread.is_alive():
                 self.thread.shutdown()
-        self.liststore.clear()
+        self.treestore.clear()
         
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -312,7 +338,7 @@ class mod_class(object):
         self.glade_xml.signal_autoconnect(dic)
 
         self.treeview = self.glade_xml.get_widget("treeview")
-        self.treeview.set_model(self.liststore)
+        self.treeview.set_model(self.treestore)
         self.treeview.set_headers_visible(True)
 
         column = gtk.TreeViewColumn()
@@ -373,44 +399,55 @@ class mod_class(object):
 
     def input_udp(self, eth, ip, udp, timestamp):
         if ip.src != self.ip:
-            if ip.src not in self.peers:
-                pkg = glbp_packet()
-                data = pkg.parse(str(udp.data))
-                req_resp = None
-                auth = None
-                auth_str = "Unauthenticated"
-                while len(data) > 0:
-                    #~ print "len: %d data: %s" % (len(data), data.encode("hex"))
-                    tlv = glbp_tlv()
-                    tlv.parse(data)
-                    if tlv.tlv_type == glbp_tlv.TYPE_HELLO:                    
-                        hello = glbp_tlv_hello()
-                        data = hello.parse(data)
-                    elif tlv.tlv_type == glbp_tlv.TYPE_REQ_RESP:
-                        req_resp = glbp_tlv_req_resp()
-                        data = req_resp.parse(data)
-                    elif tlv.tlv_type == glbp_tlv.TYPE_AUTH:
-                        auth = glbp_tlv_auth()
-                        data = auth.parse(data)
-                        if auth.auth_type == glbp_tlv_auth.TYPE_PLAIN:
-                            auth_str = "Plaintext: '%s'" % auth.secret[:-1]
-                        elif auth.auth_type == glbp_tlv_auth.TYPE_MD5_STRING:
-                            auth_str = "MD5 String: '%s'" % auth.secret.encode("hex")
-                        elif auth.auth_type == glbp_tlv_auth.TYPE_MD5_CHAIN:
-                            auth_str = "MD5 Chain: '%s'" % auth.secret.encode("hex")
-                        else:
-                            auth_str = "Unknown"
+            pkg = glbp_packet()
+            data = pkg.parse(str(udp.data))
+            req_resp = []
+            auth = None
+            nonce = None
+            auth_str = "Unauthenticated"
+            while len(data) > 0:
+                #~ print "len: %d data: %s" % (len(data), data.encode("hex"))
+                tlv = glbp_tlv()
+                tlv.parse(data)
+                if tlv.tlv_type == glbp_tlv.TYPE_HELLO:                    
+                    hello = glbp_tlv_hello()
+                    data = hello.parse(data)
+                elif tlv.tlv_type == glbp_tlv.TYPE_REQ_RESP:
+                    tmp = glbp_tlv_req_resp()
+                    data = tmp.parse(data)
+                    if not tmp.vmac == "\x00\x00\x00\x00\x00\x00":
+                        req_resp.append(tmp)
+                elif tlv.tlv_type == glbp_tlv.TYPE_AUTH:
+                    auth = glbp_tlv_auth()
+                    data = auth.parse(data)
+                    if auth.auth_type == glbp_tlv_auth.TYPE_PLAIN:
+                        auth_str = "Plaintext: '%s'" % auth.secret[:-1]
+                    elif auth.auth_type == glbp_tlv_auth.TYPE_MD5_STRING:
+                        auth_str = "MD5 String: '%s'" % auth.secret.encode("hex")
+                    elif auth.auth_type == glbp_tlv_auth.TYPE_MD5_CHAIN:
+                        auth_str = "MD5 Chain: '%s'" % auth.secret.encode("hex")
                     else:
-                        #~ print "type: %d len: %d" % (tlv.tlv_type, tlv.tlv_length)
-                        data = data[tlv.tlv_length:]
-                try:
-                    src = dnet.ip_ntoa(ip.src)
-                except:
-                    pass
+                        auth_str = "Unknown"
                 else:
-                    iter = self.liststore.append([src, dnet.ip_ntoa(hello.addr), hello.prio, "Seen", auth_str])
-                    self.peers[ip.src] = (iter, pkg, hello, req_resp, auth, False, False)
-                    self.log("GLBP: Got new peer %s" % (src))
+                    #~ print "type: %d len: %d" % (tlv.tlv_type, tlv.tlv_length)
+                    data = data[tlv.tlv_length:]
+            try:
+                src = dnet.ip_ntoa(ip.src)
+            except:
+                pass
+            
+            if ip.src in self.peers:
+                (iter, _, _, req_resp_old, _, _, _) = self.peers[ip.src]
+                for i in req_resp:
+                    if not i in req_resp_old:
+                        req_resp_old.append(i)
+                        self.treestore.append(iter, ["", "", i.weight, dnet.eth_ntoa(i.vmac), ""])
+            else:
+                iter = self.treestore.append(None, [src, dnet.ip_ntoa(hello.addr), hello.prio, "Seen", auth_str])
+                for req in req_resp:
+                    self.treestore.append(iter, ["", "", req.weight, dnet.eth_ntoa(req.vmac), ""])
+                self.peers[ip.src] = (iter, pkg, hello, req_resp, auth, False, False)
+                self.log("GLBP: Got new peer %s" % (src))
 
     # SIGNALS #
 
