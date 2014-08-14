@@ -31,6 +31,7 @@
 #       (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 #       OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import base64
 import copy
 import hashlib
 import sys
@@ -499,7 +500,7 @@ class network_window(object):
             self.l3_src_liststore[path][self.L3_SRC_DPORT_ROW] = port
             self.add_ports_store(port)
     
-    def on_l3_src_toaddress_combo_changed(self, widget, path):
+    def on_l3_src_toaddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_src_liststore[path][self.L3_SRC_TO_ROW] = text
             self.add_addresses_store(text)
@@ -531,7 +532,7 @@ class network_window(object):
             self.l3_dst_liststore[path][self.L3_DST_DPORT_ROW] = port
             self.add_ports_store(port)
     
-    def on_l3_dst_toaddress_combo_changed(self, widget, path):
+    def on_l3_dst_toaddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_dst_liststore[path][self.L3_DST_TO_ROW] = text
             self.add_addresses_store(text)
@@ -795,7 +796,11 @@ class network_window(object):
     
     def load_config(self, filename):
         parser = ConfigParser.RawConfigParser()
-        parser.read(filename)
+        try:
+            parser.read(filename)
+        except Exception, e:
+            self.log("Can't read config: %s" %e)
+            return
         br_config = []
         l2_config = { "src" : [], "dst" : []}
         l3_config = { "src" : [], "dst" : []}
@@ -1346,7 +1351,10 @@ class module_preferences_window(gtk.Window):
         config = ConfigParser.RawConfigParser()
         config.add_section(self.mod_name)
         for i in self.dict:
-            config.set(self.mod_name, i, self.dict[i]["value"])
+            if self.dict[i]["type"] == "str":
+                config.set(self.mod_name, i, base64.b64encode(self.dict[i]["value"]))
+            else:
+                config.set(self.mod_name, i, self.dict[i]["value"])
         path = CONFIG_PATH + "/"
         if not os.path.exists(path):
             os.mkdir(path, 0700)
@@ -1861,7 +1869,7 @@ class codename_loki(object):
     def load_mod_config(self, module):
         def str_(config, section, name, cdict):
             try:
-                val = config.get(section, name)
+                val = base64.b64decode(config.get(section, name))
                 assert(len(val) >= cdict[name]["min"])
                 assert(len(val) <= cdict[name]["max"])
             except:
@@ -2250,16 +2258,14 @@ class codename_loki(object):
                 str += "\nNo IPv6 Address"
         label.set_text(str)
         
-    def on_network_button_clicked(self, data):
+    def on_advanced_network_button_clicked(self, data):
         if PLATFORM == "Linux":
             self.netcfg = network_window(self)
             if os.path.exists(CONFIG_PATH + "/network.cfg"):
                 self.netcfg.load_config(CONFIG_PATH + "/network.cfg")
             self.netcfg.window.show_all()
-        else:
-            self.select_interface()
-            
-    def select_interface(self):
+        
+    def on_network_button_clicked(self, data):
         self.update_devices()
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
         box = gtk.combo_box_new_text()
@@ -2272,6 +2278,11 @@ class codename_loki(object):
         label = gtk.Label()
         dialog.vbox.pack_start(label)
         box.connect('changed', self.on_network_combobox_changed, label)
+        button = gtk.Button("Advanced Interface Config")
+        dialog.vbox.pack_start(button)
+        button.connect('clicked', self.on_advanced_network_button_clicked)
+        if PLATFORM != "Linux":
+            button.set_property("sensitive", False)
         dialog.vbox.show_all()
         
         box.set_active(0)
