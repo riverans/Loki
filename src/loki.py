@@ -720,6 +720,7 @@ class network_window(object):
         self.execute_br()
         self.execute_l2()
         self.execute_l3()
+        self.parent.netcfg_configured = True
         self.parent.select_interface()
         self.window.hide()
     
@@ -1675,6 +1676,7 @@ class codename_loki(object):
         self.groups = {}
         self.msg_id = 0
         self.configured = False
+        self.netcfg_configured = False
         self.pcap_thread = None
         self.dnet_thread = None
         self.fw = None
@@ -2396,7 +2398,7 @@ class codename_loki(object):
             self.pcap_thread.quit()
         if self.dnet_thread:
             self.dnet_thread.quit()
-        if PLATFORM == "Linux" and self.configured:
+        if PLATFORM == "Linux" and self.netcfg_configured:
             self.netcfg.unexecute_l3()
             self.netcfg.unexecute_l2()
             self.netcfg.unexecute_br()
