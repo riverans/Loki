@@ -1,0 +1,11 @@
+Here is a short introduction to hacking the Loki source code.
+
+Building Loki
+-------------
+
+Run "pkg_scripts/build_loki-deb" script.
+
+Connect IOU to real network
+---------------------------
+
+https://github.com/kholia/my-pcaps/blob/master/real-world-connection/README.txt

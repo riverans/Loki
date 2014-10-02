@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 
 #       loki.py
-#       
+#
 #       Copyright 2009 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -18,7 +18,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -125,7 +125,7 @@ class pcap_thread(threading.Thread):
                         if stop:
                             return
             eth = eth_new
-        
+
         #strip pppoe and ppp headers
         if eth.type == dpkt.ethernet.ETH_TYPE_PPPoE:
             pppoe = dpkt.pppoe.PPPoE(str(eth.data))
@@ -255,7 +255,7 @@ class dnet_thread(threading.Thread):
 class fake_eth(object):
     def get(self):
         return "\x00\x00\x00\x00\x00\x00"
-        
+
 class dnet_thread_offline(object):
     def __init__(self):
         self.eth = fake_eth()
@@ -311,7 +311,7 @@ class codename_loki(object):
             self._print("Initialising modules...")
         for i in self.modules:
             self.init_module(i)
-    
+
     def load_module(self, module, enabled=True):
         if DEBUG:
             self._print("load %s, enabled %i" % (module, enabled))
@@ -371,7 +371,7 @@ class codename_loki(object):
             self._print("failed to start module %s" % mod)
         else:
             self.modules[module] = (mod, True)
-    
+
     def init_module_ui(self, mod):
 		pass
 
@@ -456,7 +456,7 @@ class codename_loki(object):
                         mod.set_dnet(self.dnet_thread)
                     else:
                         mod.set_dnet(dnet_thread_offline())
-                    
+
             except Exception, e:
                 self._print(e)
                 if DEBUG:
@@ -529,10 +529,10 @@ class codename_loki(object):
         self.modules[module] = (mod, False)
         if delete:
             del self.modules[modules]
-    
+
     def shut_module_ui(self, mod):
 		pass
-        
+
     def update_devices(self):
         self.devices = {}
         devs = pcap.findalldevs()
@@ -555,7 +555,7 @@ class codename_loki(object):
                             addr_dict['gw'] = gw
                             self.devices[name]['ip4'].append(addr_dict)
                         except:
-                            pass                            
+                            pass
                         try:
                             dnet.ip6_aton(ip)
                             addr_dict = {}
@@ -576,7 +576,7 @@ class codename_loki(object):
                 else:
                     #????
                     pass
-    
+
     def shutdown(self):
         try:
             for i in self.modules.keys():
@@ -599,14 +599,14 @@ class codename_loki(object):
 
 	def quit(self, data):
 		sys.exit(1)
-    
+
     def error(self, msg):
         print(msg)
         sys.exit(1)
-    
+
     def log(self, msg):
         self._print(msg)
-    
+
     def _print(self, msg):
         print(msg)
 

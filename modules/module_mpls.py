@@ -1,12 +1,12 @@
 #       module_mpls.py
-#       
+#
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -60,7 +60,7 @@ class redirect_thread(threading.Thread):
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="mpls-red-", suffix="-lock")
         os.close(handle)
         self.parent.log("MPLS: Redirection thread started")
-        
+
         loki_bindings.mpls.mplsred.mplsred(self.parent.interface, self.parent.interface, self.num_label, self.from_label, self.to_label, self.filter, self.tmpfile, 0)
 
         self.parent.log("MPLS: Redirection thread terminated")
@@ -70,7 +70,7 @@ class redirect_thread(threading.Thread):
             (ident,) = self.model.get(self.iter, self.parent.REDIRECT_INDEX_ROW)
             del self.parent.redirects[ident]
             self.model.remove(self.iter)
-    
+
     def quit(self):
         if os.path.exists(self.tmpfile):
             os.remove(self.tmpfile)
@@ -86,7 +86,7 @@ class mod_class(object):
     REDIRECT_SRC_ROW = 0
     REDIRECT_DST_ROW = 1
     REDIRECT_INDEX_ROW = 2
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -157,7 +157,7 @@ class mod_class(object):
         self.redirect_treeview = self.glade_xml.get_widget("redirect_treeview")
         self.redirect_treeview.set_model(self.redirect_treestore)
         self.redirect_treeview.set_headers_visible(True)
-        
+
         column = gtk.TreeViewColumn()
         column.set_title("SRC")
         render_text = gtk.CellRendererText()

@@ -1,12 +1,12 @@
 #       module_rip.py
-#       
+#
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -58,7 +58,7 @@ class rip_message(object):
 
     COMMAND_REQUEST = 1
     COMMAND_RESPONSE = 2
-    
+
     def __init__(self, command=None, entries=None):
         self.command = command
         if not entries:
@@ -193,7 +193,7 @@ class mod_class(object):
     ROUTE_MASK_ROW = 1
     ROUTE_NEXT_HOP_ROW = 2
     ROUTE_METRIC_ROW = 3
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -215,7 +215,7 @@ class mod_class(object):
                 self.thread.shutdown()
         self.host_treestore.clear()
         self.route_liststore.clear()
-        
+
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_add_button_clicked" : self.on_add_button_clicked,
@@ -346,7 +346,7 @@ class mod_class(object):
             del model[iter]
             if not len(self.hosts):
                 self.thread.shutdown()
-                
+
     def on_clear_button_clicked(self, btn):
         self.routes = {}
         self.route_liststore.clear()

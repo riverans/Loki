@@ -1,12 +1,12 @@
 #       module_wlccp.py
-#       
+#
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -106,7 +106,7 @@ class wlccp_eap_auth(object):
         self.status_code = status_code
 
     #RENDER !?!
-    
+
     def parse(self, data):
         (self.requestor_type,) = struct.unpack("!H", data[:2])
         self.requestor_mac = data[2:8]
@@ -121,7 +121,7 @@ class election_thread(threading.Thread):
     BLOB3 = "\x18\x00\x00\x00"
     BLOB4 = "\x00\x23\x00\x06\x00\x01"
     BLOB5 = "\x00\x25\x00\x06\x00\x00"
-    
+
     def __init__(self, parent, mac, ip):
         self.parent = parent
         self.mac = mac
@@ -129,7 +129,7 @@ class election_thread(threading.Thread):
         self.running = True
         self.delay = 5
         threading.Thread.__init__(self)
-    
+
     def run(self):
         self.parent.log("WLCCP: Election Thread started")
         header = wlccp_header(0xc1, 0x0, 0x8003, 0x41, 0x0, 0x2800, 0x0, dnet.eth_aton("00:00:00:00:00:00"), 0x2, dnet.eth_aton(self.mac))
@@ -146,7 +146,7 @@ class election_thread(threading.Thread):
                         self.BLOB5
                         )  )
         data = dnet.eth_pack_hdr(dnet.eth_aton(self.WLCCP_DST_MAC), dnet.eth_aton(self.mac), socket.htons(self.WLCCP_ETH_TYPE)) + h_data
-        
+
         while self.running:
             if self.parent.dnet:
                 self.parent.dnet.send(data)
@@ -167,7 +167,7 @@ class mod_class(object):
     CLIENTS_HOST_ROW = 0
     CLIENTS_SSID_ROW = 1
     CLIENTS_PMK_ROW = 2
-    
+
     COMMS_HOST_ROW = 0
     COMMS_TYPE_ROW = 1
     COMMS_STATE_ROW = 2
@@ -182,7 +182,7 @@ class mod_class(object):
                     0x40 : "NODE_TYPE_CLIENT",
                     0x8000 : "NODE_TYPE_MULTICAST"
                     }
-                    
+
     NODE_TYPE_NONE = 0x00
     NODE_TYPE_AP = 0x01
     NODE_TYPE_SCM = 0x02
@@ -191,7 +191,7 @@ class mod_class(object):
     NODE_TYPE_INFRA = 0x10
     NODE_TYPE_CLIENT = 0x40
     NODE_TYPE_MULTICAST = 0x8000
-                        
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -208,7 +208,7 @@ class mod_class(object):
         self.hosts = {}
         self.comms = {}
         self.clients = {}
-        
+
     def shut_mod(self):
         if self.election_thread:
             self.election_thread.quit()
@@ -250,7 +250,7 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.HOSTS_PRIO_ROW)
         self.hosts_treeview.append_column(column)
-        
+
         column = gtk.TreeViewColumn()
         column.set_title("Host")
         render_text = gtk.CellRendererText()
@@ -290,10 +290,10 @@ class mod_class(object):
         self.comms_treeview.append_column(column)
 
         self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
-        
+
         self.ip_entry = self.glade_xml.get_widget("ip_entry")
         self.mac_entry = self.glade_xml.get_widget("mac_entry")
-        
+
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -475,7 +475,7 @@ class mod_class(object):
                         #skip WTLV_INIT_SESSION header
                         ret = ret[8:]
                         #get nonces from WTLV_IN_SECURE_CONTEXT_REPLY header
-                        nonces = ret[26:58]                            
+                        nonces = ret[26:58]
                         self.log("WLCCP: PATH-REQUEST seen for %s" % host)
                         self.comms[host] = (iter, leap, leap_pw, nsk, (supp_node, dst_node, nonces, nonce_repl, counter, mic), ctk)
             elif header.msg_type & 0x3f == 0x09:
@@ -555,10 +555,10 @@ class mod_class(object):
         unicode_leap_pw = ""
         for i in leap_pw:
             unicode_leap_pw += (i + "\0")
-        
+
         md4 = hashlib.new("md4", unicode_leap_pw).digest()
         md4 = hashlib.new("md4", md4).digest()
-        
+
         md5 = hashlib.md5()
         md5.update(md4)
         md5.update(leap_supp_chall)
@@ -581,7 +581,7 @@ class mod_class(object):
             outOffset += 20
             input = input[:passIndex] + chr(ord(input[passIndex]) + 1)
         return output[:outLen]
-        
+
     def rc4crypt(self, data, key):
         x = 0
         box = range(256)
@@ -595,7 +595,7 @@ class mod_class(object):
             x = (x + 1) % 256
             y = (y + box[x]) % 256
             box[x], box[y] = box[y], box[x]
-            out.append(chr(ord(char) ^ box[(box[x] + box[y]) % 256]))        
+            out.append(chr(ord(char) ^ box[(box[x] + box[y]) % 256]))
         return ''.join(out)
 
     def gen_ctk(self, host):
@@ -684,4 +684,4 @@ class mod_class(object):
             if self.election_thread:
                 self.election_thread.quit()
                 self.election_thread = None
-    
+

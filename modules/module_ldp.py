@@ -1,12 +1,12 @@
 #       module_ldp.py
-#       
+#
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -120,7 +120,7 @@ class ldp_tlv(object):
     TLV_TYPE_COMMON_HELLO = 0x0400
     TLV_TYPE_IPV4_TRANSPORT = 0x0401
     TLV_TYPE_COMMON_SESSION = 0x0500
-    
+
     def __init__(self, type):
         self.type = type
 
@@ -181,7 +181,7 @@ class ldp_common_session_tlv(ldp_tlv):
 
 class ldp_virtual_circuit_fec(object):
     VC_TYPE_ETHERNET = 0x0005
-    
+
     def __init__(self, group_id, vc_id, iface_tlvs, c_bit = False, vc_type = None):
         self.group_id = group_id
         self.vc_id = vc_id
@@ -207,7 +207,7 @@ class ldp_vc_interface_param_mtu(object):
 
     def render(self):
         return struct.pack("!BBH", self.VC_INTERFACE_PARAM_MTU, 4, self.mtu)
-    
+
 class ldp_vc_interface_param_vccv(object):
     VC_INTERFACE_PARAM_VCCV = 0x0c
 
@@ -281,7 +281,7 @@ class ldp_listener(threading.Thread):
             self.parent.add_peer(csock, addr)
         self.listen_sock.close()
         self.parent.log("LDP: Listen thread terminated")
-    
+
     def quit(self):
         self.running = False
         self.join()
@@ -305,9 +305,9 @@ class ldp_peer(threading.Thread):
     def send(self):
         if not self.sock:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.settimeout(self.timeout)    
+            self.sock.settimeout(self.timeout)
             self.sock.connect((self.peer, LDP_PORT))
-        
+
         while(self.running):
             self.sem.acquire()
             try:
@@ -365,7 +365,7 @@ class mod_class(object):
                 if peer:
                     peer.quit()
         self.liststore.clear()
-        
+
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
@@ -427,7 +427,7 @@ class mod_class(object):
                     iter = self.liststore.append([src, id])
                     self.peers[src] = (iter, None)
                     self.log("LDP: Got new peer %s" % (src))
-    
+
     def add_peer(self, sock, (addr, port)):
         self.log("LDP: Got new connection from peer %s" % (addr))
         if addr not in self.peers:
@@ -458,7 +458,7 @@ class mod_class(object):
         else:
             if self.listener:
                 self.listener.quit()
-        
+
     def on_update_button_clicked(self, btn):
         select = self.treeview.get_selection()
         (model, paths) = select.get_selected_rows()

@@ -1,12 +1,12 @@
 #       module_vrrp3.py
-#       
+#
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -92,7 +92,7 @@ class vrrp3_packet(object):
     #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
     TYPE_ADVERTISEMENT = 1
-    
+
     def __init__(self, id=None, prio=None, max_advert_int=100, ips=[]):
         self.id = id
         self.prio = prio
@@ -111,8 +111,8 @@ class vrrp3_packet(object):
             pass
         elif version == 6:
             input = src + dst + strcut.pack("!I3xB", len(vrrp_data), dpkt.ip.IP_PROTO_VRRP)
-            return vrrp_data[:6] + ichecksum_func(input + vrrp_data) + vrrp_data[8:] 
-    
+            return vrrp_data[:6] + ichecksum_func(input + vrrp_data) + vrrp_data[8:]
+
     def parse(self, data, version=4):
         (ver_type, self.id, self.prio, num_ips, max_advert_int, sum) = struct.unpack("!BBBBH", data[:6])
         self.max_advert_int = max_advert_int & 0xFFF
@@ -202,7 +202,7 @@ class mod_class(object):
     LIST_ID_ROW = 2
     LIST_PRIO_ROW = 3
     LIST_STATE_ROW = 4
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -221,7 +221,7 @@ class mod_class(object):
             if self.thread.is_alive():
                 self.thread.shutdown()
         self.liststore.clear()
-        
+
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_get_button_clicked" : self.on_get_button_clicked,
@@ -291,7 +291,7 @@ class mod_class(object):
         #~ if dnet.eth_ntoa(eth.dst).startswith("00:00:5e:00:01:"):
             #~ return (True, True)
         #~ return (False, False)
- 
+
     #~ def input_eth(self, eth, timestamp):
         #~ id = int(dnet.eth_ntoa(eth.dst)[-2:])
         #~ for i in self.liststore:

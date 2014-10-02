@@ -8,7 +8,7 @@
  *      Redistribution and use in source and binary forms, with or without
  *      modification, are permitted provided that the following conditions are
  *      met:
- *      
+ *
  *      * Redistributions of source code must retain the above copyright
  *        notice, this list of conditions and the following disclaimer.
  *      * Redistributions in binary form must reproduce the above
@@ -18,7 +18,7 @@
  *      * Neither the name of the  nor the names of its
  *        contributors may be used to endorse or promote products derived from
  *        this software without specific prior written permission.
- *      
+ *
  *      THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  *      "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *      LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -40,21 +40,21 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     int len;
     int cur_label;
     struct stat fcheck;
-    
+
     unsigned label;
     u_char local_packet[MAX_PACKET_LEN];
 
     int pcap_fd,fm;
     fd_set fds;
     struct timeval timeout;
-    
+
     pcap_t *pcap_handle;
     const u_char *pcap_packet;
     struct pcap_pkthdr *pcap_header;
     struct bpf_program pcap_filter;
 
     eth_t *libdnet_handle;
-    
+
     pcap_handle = pcap_create(in_device, NULL);
     if (pcap_handle == NULL) {
         fprintf(stderr, "Couldn't open device: %s\n", pcap_geterr(pcap_handle));
@@ -74,7 +74,7 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
     }
     if (verbose)
         printf("Capturing on device %s\n", in_device);
-        
+
     if (pcap_compile(pcap_handle, &pcap_filter, filter, 1, 0) == -1) {
         fprintf(stderr, "Couldn't parse filter: %s\n", pcap_geterr(pcap_handle));
         return 2;
@@ -111,7 +111,7 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
         timeout.tv_sec = TIMEOUT_SEC;
         timeout.tv_usec = TIMEOUT_USEC;
         ret = select(fm, &fds, NULL, NULL, &timeout);
-        
+
         if (run % CHECK_FOR_LOCKFILE || !ret) {
             if(verbose)
                 printf("checking for lockfile\n");
@@ -119,7 +119,7 @@ int mplsred(char *in_device, char *out_device, int num_label, uint16_t in_label,
                 break;
             run = 1;
         }
-        
+
         //if( FD_ISSET(pcap_fd, &fds) ) {
             if(pcap_next_ex(pcap_handle, &pcap_header, &pcap_packet) > 0) {
                 len = pcap_header->len > MAX_PACKET_LEN ? MAX_PACKET_LEN : pcap_header->len;

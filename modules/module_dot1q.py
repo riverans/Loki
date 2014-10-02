@@ -1,12 +1,12 @@
 #       module_dot1q.py
-#       
+#
 #       Copyright 2011 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -82,7 +82,7 @@ class redirect_thread(threading.Thread):
             (ident,) = self.model.get(self.iter, self.parent.REDIRECT_INDEX_ROW)
             del self.parent.redirects[ident]
             self.model.remove(self.iter)
-    
+
     def quit(self):
         self.running = False
 
@@ -91,11 +91,11 @@ class mod_class(object):
     PEER_DST_ROW = 1
     PEER_TAG_ROW = 2
     PEER_DEPTH_ROW = 3
-    
+
     REDIRECT_SRC_ROW = 0
     REDIRECT_DST_ROW = 1
     REDIRECT_INDEX_ROW = 2
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -154,7 +154,7 @@ class mod_class(object):
         self.redirect_treeview = self.glade_xml.get_widget("redirect_treeview")
         self.redirect_treeview.set_model(self.redirect_treestore)
         self.redirect_treeview.set_headers_visible(True)
-        
+
         column = gtk.TreeViewColumn()
         column.set_title("SRC")
         render_text = gtk.CellRendererText()
@@ -174,7 +174,7 @@ class mod_class(object):
         self.from_label_spinbutton = self.glade_xml.get_widget("from_label_spinbutton")
         self.to_label_spinbutton = self.glade_xml.get_widget("to_label_spinbutton")
         self.filter_entry = self.glade_xml.get_widget("filter_entry")
-        
+
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -279,7 +279,7 @@ class mod_class(object):
                 thread.quit()
         self.redirect_treestore.clear()
         self.redirects = {}
-        
+
     def get_config_dict(self):
         return {   "forward_constrain" :   {   "value" :   self.forward_constrain,
                                                 "type"  :   "str",

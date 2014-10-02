@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 #
 #       loki_gtk.py
-#       
+#
 #       Copyright 2014 Daniel Mende <mail@c0decafe.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -19,7 +19,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -79,17 +79,17 @@ class network_window(object):
     BR_MAC_EDIT_ROW = 6
     BR_ADR_EDIT_ROW = 7
     BR_NET_EDIT_ROW = 8
-    
+
     L2_SRC_INT_ROW = 0
     L2_SRC_DST_IP_ROW = 1
     L2_SRC_TO_MAC_ROW = 2
     L2_SRC_ACTIVE_ROW = 3
-    
+
     L2_DST_INT_ROW = 0
     L2_DST_SRC_IP_ROW = 1
     L2_DST_TO_MAC_ROW = 2
     L2_DST_ACTIVE_ROW = 3
-    
+
     L3_SRC_INT_ROW = 0
     L3_SRC_SRC_ROW = 1
     L3_SRC_DST_ROW = 2
@@ -97,7 +97,7 @@ class network_window(object):
     L3_SRC_DPORT_ROW = 4
     L3_SRC_TO_ROW = 5
     L3_SRC_ACTIVE_ROW = 6
-    
+
     L3_DST_INT_ROW = 0
     L3_DST_SRC_ROW = 1
     L3_DST_DST_ROW = 2
@@ -105,9 +105,9 @@ class network_window(object):
     L3_DST_DPORT_ROW = 4
     L3_DST_TO_ROW = 5
     L3_DST_ACTIVE_ROW = 6
-    
+
     DEBUG = False
-        
+
     def __init__(self, parent):
         self.parent = parent
         self.interfaces_liststore = gtk.ListStore(str)
@@ -123,7 +123,7 @@ class network_window(object):
         self.l2_dst_liststore = gtk.ListStore(str, str, str, bool)
         self.l3_src_liststore = gtk.ListStore(str, str, str, str, int, str, bool)
         self.l3_dst_liststore = gtk.ListStore(str, str, str, str, int, str, bool)
-         
+
         self.glade_xml = gtk.glade.XML(DATA_DIR + MODULE_PATH + "/network_config.glade")
         dic = { "on_br_add_toolbutton_clicked" : self.on_br_add_toolbutton_clicked,
                 "on_br_del_toolbutton_clicked" : self.on_br_del_toolbutton_clicked,
@@ -149,14 +149,14 @@ class network_window(object):
                 "on_cancel_button_clicked" : self.on_cancel_button_clicked,
                 }
         self.glade_xml.signal_autoconnect(dic)
-        
+
         self.window = self.glade_xml.get_widget("network_window")
         #~ self.window.set_parent(self.parent.window)
-        
+
         self.br_treeview = self.glade_xml.get_widget("br_treeview")
         self.br_treeview.set_model(self.br_treestore)
         self.br_treeview.set_headers_visible(True)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.interfaces_liststore)
@@ -165,7 +165,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_br_interfaces_combo_changed)
         column = gtk.TreeViewColumn("Interface", renderer_combo, text=self.BR_INT_ROW, editable=self.BR_INT_EDIT_ROW)
         self.br_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.macaddresses_liststore)
@@ -174,7 +174,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_br_macaddress_combo_changed)
         column = gtk.TreeViewColumn("MAC Address", renderer_combo, text=self.BR_MAC_ROW, editable=self.BR_MAC_EDIT_ROW)
         self.br_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -183,7 +183,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_br_address_combo_changed)
         column = gtk.TreeViewColumn("Address", renderer_combo, text=self.BR_ADR_ROW, editable=self.BR_ADR_EDIT_ROW)
         self.br_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.netmasks_liststore)
@@ -192,16 +192,16 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_br_netmasks_combo_changed)
         column = gtk.TreeViewColumn("Netmask", renderer_combo, text=self.BR_NET_ROW, editable=self.BR_NET_EDIT_ROW)
         self.br_treeview.append_column(column)
-        
+
         renderer_toggle = gtk.CellRendererToggle()
         renderer_toggle.connect("toggled", self.on_br_active_toggle_toggled)
         column = gtk.TreeViewColumn("Active", renderer_toggle, active=self.BR_ACT_ROW)
         self.br_treeview.append_column(column)
-        
+
         self.l2_src_treeview = self.glade_xml.get_widget("l2_src_treeview")
         self.l2_src_treeview.set_model(self.l2_src_liststore)
         self.l2_src_treeview.set_headers_visible(True)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.interfaces_liststore)
@@ -210,7 +210,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l2_src_interfaces_combo_changed)
         column = gtk.TreeViewColumn("Interface", renderer_combo, text=self.L2_SRC_INT_ROW)
         self.l2_src_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -219,7 +219,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l2_src_address_combo_changed)
         column = gtk.TreeViewColumn("Destination IP address", renderer_combo, text=self.L2_SRC_DST_IP_ROW)
         self.l2_src_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.macaddresses_liststore)
@@ -228,16 +228,16 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l2_src_macaddress_combo_changed)
         column = gtk.TreeViewColumn("NAT source MAC", renderer_combo, text=self.L2_SRC_TO_MAC_ROW)
         self.l2_src_treeview.append_column(column)
-        
+
         renderer_toggle = gtk.CellRendererToggle()
         renderer_toggle.connect("toggled", self.on_l2_src_active_toggle_toggled)
         column = gtk.TreeViewColumn("Active", renderer_toggle, active=self.L2_SRC_ACTIVE_ROW)
         self.l2_src_treeview.append_column(column)
-        
+
         self.l2_dst_treeview = self.glade_xml.get_widget("l2_dst_treeview")
         self.l2_dst_treeview.set_model(self.l2_dst_liststore)
         self.l2_dst_treeview.set_headers_visible(True)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.interfaces_liststore)
@@ -246,7 +246,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l2_dst_interfaces_combo_changed)
         column = gtk.TreeViewColumn("Interface", renderer_combo, text=self.L2_DST_INT_ROW)
         self.l2_dst_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -255,7 +255,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l2_dst_address_combo_changed)
         column = gtk.TreeViewColumn("Source IP address", renderer_combo, text=self.L2_DST_SRC_IP_ROW)
         self.l2_dst_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.macaddresses_liststore)
@@ -264,16 +264,16 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l2_dst_macaddress_combo_changed)
         column = gtk.TreeViewColumn("NAT destination MAC", renderer_combo, text=self.L2_DST_TO_MAC_ROW)
         self.l2_dst_treeview.append_column(column)
-        
+
         renderer_toggle = gtk.CellRendererToggle()
         renderer_toggle.connect("toggled", self.on_l2_dst_active_toggle_toggled)
         column = gtk.TreeViewColumn("Active", renderer_toggle, active=self.L2_DST_ACTIVE_ROW)
         self.l2_dst_treeview.append_column(column)
-        
+
         self.l3_src_treeview = self.glade_xml.get_widget("l3_src_treeview")
         self.l3_src_treeview.set_model(self.l3_src_liststore)
         self.l3_src_treeview.set_headers_visible(True)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.interfaces_liststore)
@@ -282,7 +282,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_src_interfaces_combo_changed)
         column = gtk.TreeViewColumn("Interface", renderer_combo, text=self.L3_SRC_INT_ROW)
         self.l3_src_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -291,7 +291,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_src_saddress_combo_changed)
         column = gtk.TreeViewColumn("Source IP address", renderer_combo, text=self.L3_SRC_SRC_ROW)
         self.l3_src_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -300,7 +300,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_src_daddress_combo_changed)
         column = gtk.TreeViewColumn("Destination IP address", renderer_combo, text=self.L3_SRC_DST_ROW)
         self.l3_src_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.protocols_liststore)
@@ -309,7 +309,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_src_proto_combo_changed)
         column = gtk.TreeViewColumn("Protocol", renderer_combo, text=self.L3_SRC_PROTO_ROW)
         self.l3_src_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.ports_liststore)
@@ -318,7 +318,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_src_dport_combo_changed)
         column = gtk.TreeViewColumn("Destination port", renderer_combo, text=self.L3_SRC_DPORT_ROW)
         self.l3_src_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -327,16 +327,16 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_src_toaddress_combo_changed)
         column = gtk.TreeViewColumn("To IP address", renderer_combo, text=self.L3_SRC_TO_ROW)
         self.l3_src_treeview.append_column(column)
-        
+
         renderer_toggle = gtk.CellRendererToggle()
         renderer_toggle.connect("toggled", self.on_l3_src_active_toggle_toggled)
         column = gtk.TreeViewColumn("Active", renderer_toggle, active=self.L3_SRC_ACTIVE_ROW)
         self.l3_src_treeview.append_column(column)
-        
+
         self.l3_dst_treeview = self.glade_xml.get_widget("l3_dst_treeview")
         self.l3_dst_treeview.set_model(self.l3_dst_liststore)
         self.l3_dst_treeview.set_headers_visible(True)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.interfaces_liststore)
@@ -345,7 +345,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_dst_interfaces_combo_changed)
         column = gtk.TreeViewColumn("Interface", renderer_combo, text=self.L3_DST_INT_ROW)
         self.l3_dst_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -354,7 +354,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_dst_saddress_combo_changed)
         column = gtk.TreeViewColumn("Source IP address", renderer_combo, text=self.L3_DST_SRC_ROW)
         self.l3_dst_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -363,7 +363,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_dst_daddress_combo_changed)
         column = gtk.TreeViewColumn("Destination IP address", renderer_combo, text=self.L3_DST_DST_ROW)
         self.l3_dst_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.protocols_liststore)
@@ -372,7 +372,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_dst_proto_combo_changed)
         column = gtk.TreeViewColumn("Protocol", renderer_combo, text=self.L3_DST_PROTO_ROW)
         self.l3_dst_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.ports_liststore)
@@ -381,7 +381,7 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_dst_dport_combo_changed)
         column = gtk.TreeViewColumn("Destination port", renderer_combo, text=self.L3_DST_DPORT_ROW)
         self.l3_dst_treeview.append_column(column)
-        
+
         renderer_combo = gtk.CellRendererCombo()
         renderer_combo.set_property("editable", True)
         renderer_combo.set_property("model", self.addresses_liststore)
@@ -390,12 +390,12 @@ class network_window(object):
         renderer_combo.connect("edited", self.on_l3_dst_toaddress_combo_changed)
         column = gtk.TreeViewColumn("To IP address", renderer_combo, text=self.L3_DST_TO_ROW)
         self.l3_dst_treeview.append_column(column)
-        
+
         renderer_toggle = gtk.CellRendererToggle()
         renderer_toggle.connect("toggled", self.on_l3_dst_active_toggle_toggled)
         column = gtk.TreeViewColumn("Active", renderer_toggle, active=self.L3_DST_ACTIVE_ROW)
         self.l3_dst_treeview.append_column(column)
-        
+
         self.filechooser = gtk.FileChooserDialog("Open..",
                                None,
                                gtk.FILE_CHOOSER_ACTION_OPEN,
@@ -412,9 +412,9 @@ class network_window(object):
         filter.set_name("Config file")
         filter.add_pattern("*.cfg")
         self.filechooser.add_filter(filter)
-        
+
         self.devices = self.get_devices()
-        
+
     def on_br_interfaces_combo_changed(self, widget, path, text):
         self.br_treestore[path][self.BR_INT_ROW] = text
         self.add_interfaces_store(text)
@@ -423,159 +423,159 @@ class network_window(object):
             self.br_treestore[path][self.BR_MAC_ROW] = mac
         except:
             pass
-    
+
     def on_br_macaddress_combo_changed(self, widget, path, text):
         if self.check_macaddress(text):
             self.br_treestore[path][self.BR_MAC_ROW] = text
             self.add_macaddresses_store(text)
-    
+
     def on_br_address_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.br_treestore[path][self.BR_ADR_ROW] = text
             self.add_addresses_store(text)
-    
+
     def on_br_netmasks_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.br_treestore[path][self.BR_NET_ROW] = text
             self.add_netmasks_store(text)
-    
+
     def on_br_active_toggle_toggled(self, widget, path):
         self.br_treestore[path][self.BR_ACT_ROW] = not self.br_treestore[path][self.BR_ACT_ROW]
-    
+
     def on_l2_src_interfaces_combo_changed(self, widget, path, text):
         self.l2_src_liststore[path][self.L2_SRC_INT_ROW] = text
         self.add_interfaces_store(text)
-    
+
     def on_l2_src_address_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l2_src_liststore[path][self.L2_SRC_DST_IP_ROW] = text
             self.add_addresses_store(text)
-        
+
     def on_l2_src_macaddress_combo_changed(self, widget, path, text):
         if self.check_macaddress(text):
             self.l2_src_liststore[path][self.L2_DST_TO_MAC_ROW] = text
             self.add_macaddresses_store(text)
-    
+
     def on_l2_src_active_toggle_toggled(self, widget, path):
         self.l2_src_liststore[path][self.L2_SRC_ACTIVE_ROW] = not self.l2_src_liststore[path][self.L2_SRC_ACTIVE_ROW]
-    
+
     def on_l2_dst_interfaces_combo_changed(self, widget, path, text):
         self.l2_dst_liststore[path][self.L2_DST_INT_ROW] = text
         self.add_interfaces_store(text)
-    
+
     def on_l2_dst_address_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l2_dst_liststore[path][self.L2_DST_SRC_IP_ROW] = text
             self.add_addresses_store(text)
-        
+
     def on_l2_dst_macaddress_combo_changed(self, widget, path, text):
         if self.check_macaddress(text):
             self.l2_dst_liststore[path][self.L2_DST_TO_MAC_ROW] = text
             self.add_macaddresses_store(text)
-    
+
     def on_l2_dst_active_toggle_toggled(self, widget, path):
         self.l2_dst_liststore[path][self.L2_DST_ACTIVE_ROW] = not self.l2_dst_liststore[path][self.L2_DST_ACTIVE_ROW]
-    
+
     def on_l3_src_interfaces_combo_changed(self, widget, path, text):
         self.l3_src_liststore[path][self.L3_SRC_INT_ROW] = text
         self.add_interfaces_store(text)
-        
+
     def on_l3_src_saddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_src_liststore[path][self.L3_SRC_SRC_ROW] = text
             self.add_addresses_store(text)
-    
+
     def on_l3_src_daddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_src_liststore[path][self.L3_SRC_DST_ROW] = text
             self.add_addresses_store(text)
-    
+
     def on_l3_src_proto_combo_changed(self, widget, path, text):
         self.l3_src_liststore[path][self.L3_SRC_PROTO_ROW] = text
         self.add_protocols_store(text)
-    
+
     def on_l3_src_dport_combo_changed(self, widget, path, text):
         if self.check_port(text):
             port = int(text)
             self.l3_src_liststore[path][self.L3_SRC_DPORT_ROW] = port
             self.add_ports_store(port)
-    
+
     def on_l3_src_toaddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_src_liststore[path][self.L3_SRC_TO_ROW] = text
             self.add_addresses_store(text)
-    
+
     def on_l3_src_active_toggle_toggled(self, widget, path):
         self.l3_src_liststore[path][self.L3_SRC_ACTIVE_ROW] = not self.l3_src_liststore[path][self.L3_SRC_ACTIVE_ROW]
-    
+
     def on_l3_dst_interfaces_combo_changed(self, widget, path, text):
         self.l3_dst_liststore[path][self.L3_DST_INT_ROW] = text
         self.add_interfaces_store(text)
-        
+
     def on_l3_dst_saddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_dst_liststore[path][self.L3_DST_SRC_ROW] = text
             self.add_addresses_store(text)
-    
+
     def on_l3_dst_daddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_dst_liststore[path][self.L3_DST_DST_ROW] = text
             self.add_addresses_store(text)
-    
+
     def on_l3_dst_proto_combo_changed(self, widget, path, text):
         self.l3_dst_liststore[path][self.L3_DST_PROTO_ROW] = text
         self.add_protocols_store(text)
-    
+
     def on_l3_dst_dport_combo_changed(self, widget, path, text):
         if self.check_port(text):
             port = int(text)
             self.l3_dst_liststore[path][self.L3_DST_DPORT_ROW] = port
             self.add_ports_store(port)
-    
+
     def on_l3_dst_toaddress_combo_changed(self, widget, path, text):
         if self.check_address(text):
             self.l3_dst_liststore[path][self.L3_DST_TO_ROW] = text
             self.add_addresses_store(text)
-    
+
     def on_l3_dst_active_toggle_toggled(self, widget, path):
         self.l3_dst_liststore[path][self.L3_DST_ACTIVE_ROW] = not self.l3_dst_liststore[path][self.L3_DST_ACTIVE_ROW]
-        
+
     def add_interfaces_store(self, interf):
         for row in self.interfaces_liststore:
             if row[0] == interf:
                 return
         self.interfaces_liststore.append([interf])
-    
+
     def add_macaddresses_store(self, addr):
         for row in self.macaddresses_liststore:
             if row[0] == addr:
                 return
         self.macaddresses_liststore.append([addr])
-        
+
     def add_addresses_store(self, addr):
         for row in self.addresses_liststore:
             if row[0] == addr:
                 return
         self.addresses_liststore.append([addr])
-    
+
     def add_netmasks_store(self, mask):
         for row in self.netmasks_liststore:
             if row[0] == mask:
                 return
         self.netmasks_liststore.append([mask])
-    
+
     def add_protocols_store(self, proto):
         for row in self.protocols_liststore:
             if row[0] == proto:
                 return
         self.protos_liststore.append([proto])
-    
+
     def add_ports_store(self, port):
         for row in self.ports_liststore:
             if row[0] == port:
                 return
         self.ports_liststore.append([port])
-    
+
     def check_macaddress(self, address):
         try:
             dnet.eth_aton(address)
@@ -583,7 +583,7 @@ class network_window(object):
             self.msg("MAC Address invalid")
             return False
         return True
-    
+
     def check_address(self, address):
         try:
             dnet.ip_aton(address)
@@ -594,7 +594,7 @@ class network_window(object):
                 self.msg("Address invalid")
                 return False
         return True
-    
+
     def check_port(self, port):
         if type(port) == str:
             try:
@@ -606,7 +606,7 @@ class network_window(object):
             self.msg("Port invalid, out of range")
             return False
         return True
-    
+
     def on_br_add_toolbutton_clicked(self, btn):
         select = self.br_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
@@ -624,7 +624,7 @@ class network_window(object):
         if len(paths) > 0:
             for i in paths:
                 del self.br_treestore[i]
-    
+
     def on_br_new_toolbutton_clicked(self, btn):
         #~ self.interfaces_liststore.clear()
         #~ self.macaddresses_liststore.clear()
@@ -632,89 +632,89 @@ class network_window(object):
         #~ self.netmasks_liststore.clear()
         self.br_treestore.clear()
         #~ self.devices = self.get_devices()
-    
+
     def on_br_run_toolbutton_toggled(self, btn):
         if btn.get_active():
             self.execute_br()
         else:
             self.unexecute_br()
-    
+
     def on_l2_src_add_toolbutton_clicked(self, btn):
         self.l2_src_liststore.append(["br23", "0.0.0.0", "00:01:02:03:04:05", True])
-        
+
     def on_l2_src_del_toolbutton_clicked(self, btn):
         select = self.l2_src_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         if len(paths) > 0:
             for i in paths:
                 del self.l2_src_liststore[i]
-        
+
     def on_l2_src_new_toolbutton_clicked(self, btn):
         self.l2_src_liststore.clear()
-        
+
     def on_l2_dst_add_toolbutton_clicked(self, btn):
         self.l2_dst_liststore.append(["br23", "0.0.0.0", "00:01:02:03:04:05", True])
-        
+
     def on_l2_dst_del_toolbutton_clicked(self, btn):
         select = self.l2_dst_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         if len(paths) > 0:
             for i in paths:
                 del self.l2_dst_liststore[i]
-        
+
     def on_l2_dst_new_toolbutton_clicked(self, btn):
         self.l2_dst_liststore.clear()
-        
+
     def on_l2_run_toolbutton_toggled(self, btn):
         if btn.get_active():
             self.execute_l2()
         else:
             self.unexecute_l2()
-    
+
     def on_l3_src_add_toolbutton_clicked(self, btn):
         self.l3_src_liststore.append(["br23", "0.0.0.0", "0.0.0.0", "tcp", 80, "0.0.0.0", True])
-    
+
     def on_l3_src_del_toolbutton_clicked(self, btn):
         select = self.l3_src_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         if len(paths) > 0:
             for i in paths:
                 del self.l3_src_liststore[i]
-    
+
     def on_l3_src_new_toolbutton_clicked(self, btn):
         self.l3_src_liststore.clear()
-        
+
     def on_l3_dst_add_toolbutton_clicked(self, btn):
         self.l3_dst_liststore.append(["br23", "0.0.0.0", "0.0.0.0", "tcp", 80, "0.0.0.0", True])
-    
+
     def on_l3_dst_del_toolbutton_clicked(self, btn):
         select = self.l3_dst_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         if len(paths) > 0:
             for i in paths:
                 del self.l3_dst_liststore[i]
-    
+
     def on_l3_dst_new_toolbutton_clicked(self, btn):
         self.l3_dst_liststore.clear()
-    
+
     def on_l3_run_toolbutton_toggled(self, btn):
         if btn.get_active():
             self.execute_l3()
         else:
             self.unexecute_l3()
-        
+
     def on_open_toolbutton_clicked(self, btn):
         response = self.filechooser.run()
         if response == gtk.RESPONSE_OK:
             self.load_config(self.filechooser.get_filename())
         self.filechooser.hide()
-    
+
     def on_save_toolbutton_clicked(self, btn):
         response = self.filechooser.run()
         if response == gtk.RESPONSE_OK:
             self.save_config(self.filechooser.get_filename())
         self.filechooser.hide()
-    
+
     def on_ok_button_clicked(self, btn):
         self.save_config(CONFIG_PATH + "/network.cfg")
         self.execute_br()
@@ -723,10 +723,10 @@ class network_window(object):
         self.parent.netcfg_configured = True
         self.parent.select_interface()
         self.window.hide()
-    
+
     def on_cancel_button_clicked(self, btn):
         self.window.hide()
-    
+
     def read_br_config(self):
         config = []
         i = self.br_treestore.get_iter_root()
@@ -762,7 +762,7 @@ class network_window(object):
                             "mask": mask,
                             "ifs" : ifs })
         return config
-    
+
     def read_l2_config(self):
         src = [ { "act" : i[self.L2_SRC_ACTIVE_ROW],
                   "dev" : i[self.L2_SRC_INT_ROW],
@@ -775,7 +775,7 @@ class network_window(object):
                   "mac" : i[self.L2_DST_TO_MAC_ROW]
                   } for i in self.l2_dst_liststore ]
         return { "src" : src, "dst" : dst }
-    
+
     def read_l3_config(self):
         src = [ { "act" : i[self.L3_SRC_ACTIVE_ROW],
                   "dev" : i[self.L3_SRC_INT_ROW],
@@ -794,7 +794,7 @@ class network_window(object):
                   "to"  : i[self.L3_DST_TO_ROW]
                   } for i in self.l3_dst_liststore ]
         return { "src" : src, "dst" : dst }
-    
+
     def load_config(self, filename):
         parser = ConfigParser.RawConfigParser()
         try:
@@ -845,25 +845,25 @@ class network_window(object):
         self.set_br_config(br_config)
         self.set_l2_config(l2_config)
         self.set_l3_config(l3_config)
-        
+
     def set_br_config(self, config):
         for i in config:
             br = self.br_treestore.append(None, [i["dev"], i["mac"], i["ip"], i["mask"], i["act"], True, True, True, True])
             for j in i["ifs"]:
                 self.br_treestore.append(br, [j["dev"], "", "", "", j["act"], True, False, False, False])
-    
+
     def set_l2_config(self, config):
         for i in config["src"]:
             self.l2_src_liststore.append([i["dev"], i["ip"], i["mac"], i["act"]])
         for i in config["dst"]:
             self.l2_dst_liststore.append([i["dev"], i["ip"], i["mac"], i["act"]])
-    
+
     def set_l3_config(self, config):
         for i in config["src"]:
             self.l3_src_liststore.append([i["dev"], i["src"], i["dst"], i["proto"], i["dport"], i["to"], i["act"]])
         for i in config["dst"]:
             self.l3_dst_liststore.append([i["dev"], i["src"], i["dst"], i["proto"], i["dport"], i["to"], i["act"]])
-    
+
     def save_config(self, filename):
         parser = ConfigParser.RawConfigParser()
         br_config = self.read_br_config()
@@ -920,7 +920,7 @@ class network_window(object):
             parser.set("l3_dst_%s" % uid, "protocol", i["proto"])
             parser.set("l3_dst_%s" % uid, "dport", i["dport"])
             parser.set("l3_dst_%s" % uid, "to", i["to"])
-        
+
         if os.path.exists(filename):
             #ask for replacement
             pass
@@ -929,7 +929,7 @@ class network_window(object):
             self.log("Saved bridge configuration to '%s'" % filename)
 
     def execute_br(self):
-        br_config = self.read_br_config()            
+        br_config = self.read_br_config()
         for i in br_config:
             if i["act"]:
                 dev = i["dev"]
@@ -955,7 +955,7 @@ class network_window(object):
                             self.log(cmd)
                 mac = i["mac"]
                 self.log("Setting MAC address '%s' on bridge '%s'" % (mac, dev))
-                cmd = "ip link set dev %s address %s" % (dev, mac)            
+                cmd = "ip link set dev %s address %s" % (dev, mac)
                 if not self.DEBUG:
                     os.system(cmd)
                 else:
@@ -980,7 +980,7 @@ class network_window(object):
                     os.system(cmd)
                 else:
                     self.log(cmd)
-    
+
     def unexecute_br(self):
         br_config = self.read_br_config()
         for i in br_config:
@@ -1015,7 +1015,7 @@ class network_window(object):
                     os.system(cmd)
                 else:
                     self.log(cmd)
-    
+
     def execute_l2(self):
         l2_config = self.read_l2_config()
         for i in l2_config["src"]:
@@ -1032,7 +1032,7 @@ class network_window(object):
                 os.system(cmd)
             else:
                 self.log(cmd)
-    
+
     def unexecute_l2(self):
         l2_config = self.read_l2_config()
         for i in l2_config["src"]:
@@ -1049,7 +1049,7 @@ class network_window(object):
                 os.system(cmd)
             else:
                 self.log(cmd)
-    
+
     def execute_l3(self):
         l3_config = self.read_l3_config()
         for i in l3_config["src"]:
@@ -1066,7 +1066,7 @@ class network_window(object):
                 os.system(cmd)
             else:
                 self.log(cmd)
-    
+
     def unexecute_l3(self):
         l3_config = self.read_l3_config()
         for i in l3_config["src"]:
@@ -1083,7 +1083,7 @@ class network_window(object):
                 os.system(cmd)
             else:
                 self.log(cmd)
-    
+
     def select_device(self):
         def on_network_combobox_changed(box, label):
             if PLATFORM == "Windows":
@@ -1110,7 +1110,7 @@ class network_window(object):
                 else:
                     str += "\nNo IPv6 Address"
             label.set_text(str)
-        
+
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
         box = gtk.combo_box_new_text()
         for dev in self.devices:
@@ -1123,7 +1123,7 @@ class network_window(object):
         dialog.vbox.pack_start(label)
         box.connect('changed', on_network_combobox_changed, label)
         dialog.vbox.show_all()
-        
+
         box.set_active(0)
         ret = dialog.run()
         dialog.destroy()
@@ -1165,7 +1165,7 @@ class network_window(object):
                             addr_dict['gw'] = gw
                             devices[name]['ip4'].append(addr_dict)
                         except:
-                            pass                            
+                            pass
                         try:
                             dnet.ip6_aton(ip)
                             addr_dict = {}
@@ -1183,10 +1183,10 @@ class network_window(object):
                         except:
                             pass
         return devices
-    
+
     def msg(self, msg):
         print msg
-    
+
     def log(self, msg):
         print msg
 
@@ -1234,7 +1234,7 @@ class module_preferences_window(gtk.Window):
     MIN_ROW = 3
     MAX_ROW = 4
     TOOLTIP_ROW = 5
-    
+
     def __init__(self, parent, mod_name, dict):
         self.par = parent
         self.mod_name = mod_name
@@ -1281,7 +1281,7 @@ class module_preferences_window(gtk.Window):
         #~ column.pack_start(render_text, expand=True)
         #~ column.add_attribute(render_text, 'text', self.MAX_ROW)
         #~ module_treeview.append_column(column)
-        
+
         scrolledwindow = gtk.ScrolledWindow()
         scrolledwindow.set_property("vscrollbar-policy", gtk.POLICY_AUTOMATIC)
         scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
@@ -1373,7 +1373,7 @@ class preference_window(gtk.Window):
     MOD_ENABLE_ROW = 1
     MOD_RESET_ROW = 2
     MOD_CONFIG_ROW = 3
-    
+
     def __init__(self, parent):
         self.par = parent
         gtk.Window.__init__(self)
@@ -1424,7 +1424,7 @@ class preference_window(gtk.Window):
         scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
         scrolledwindow.add_with_viewport(module_treeview)
         notebook.append_page(scrolledwindow, tab_label=gtk.Label("Modules"))
-        
+
         vbox = gtk.VBox(False, 0)
         filechooser = gtk.FileChooserButton("Select a Wordlist")
         if not self.par.wordlist is None:
@@ -1454,13 +1454,13 @@ class preference_window(gtk.Window):
         frame = gtk.Frame("Threads")
         frame.add(threads_spinbutton)
         vbox.pack_start(frame, expand=False, fill=False)
-        
+
         scrolledwindow = gtk.ScrolledWindow()
         scrolledwindow.set_property("vscrollbar-policy", gtk.POLICY_AUTOMATIC)
         scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
         scrolledwindow.add_with_viewport(vbox)
         notebook.append_page(scrolledwindow, tab_label=gtk.Label("Bruteforce"))
-        
+
         vbox = gtk.VBox(False, 0)
         vbox.pack_start(notebook, True, True, 0)
         buttonbox = gtk.HButtonBox()
@@ -1479,7 +1479,7 @@ class preference_window(gtk.Window):
                 if "get_config_dict" in dir(module) and "set_config_dict" in dir(module):
                     self.module_liststore.append([i, enabled, False, False])
                 else:
-                    self.module_liststore.append([i, enabled, False, True])        
+                    self.module_liststore.append([i, enabled, False, True])
         except Exception, e:
             print e
             if DEBUG:
@@ -1487,16 +1487,16 @@ class preference_window(gtk.Window):
                 traceback.print_exc(file=sys.stdout)
                 print '-'*60
             print "failed to open module %s" % module
-    
+
     def wordlist_callback(self, button):
         self.par.wordlist = button.get_filename()
-    
+
     def bf_callback(self, button):
         self.par.bruteforce = button.get_active()
-    
+
     def bf_full_callback(self, button):
         self.par.bruteforce_full = button.get_active()
-    
+
     def threads_callback(self, button):
         self.par.threads = button.get_value_as_int()
         return True
@@ -1535,7 +1535,7 @@ class preference_window(gtk.Window):
                 dict = None
             wnd = module_preferences_window(self.par, name, dict)
             wnd.show_all()
-        
+
     def close_button_clicked(self, arg):
         gtk.Widget.destroy(self)
 
@@ -1606,13 +1606,13 @@ class loki_gtk(loki.codename_loki):
         loki.codename_loki.main(self)
         self.window.show_all()
         gtk.main()
-	
+
     def load_all_modules(self, path=loki.DATA_DIR + loki.MODULE_PATH):
         loki.codename_loki.load_all_modules(self, path)
         for i in self.modules.keys():
             if not "get_root" in dir(self.modules[i][0]):
                 del self.modules[i]
-    
+
     def init_module_ui(self, mod):
         try:
             root = mod.get_root()
@@ -1641,19 +1641,19 @@ class loki_gtk(loki.codename_loki):
             else:
                 ntb.insert_page(root, gtk.Label(mod.name), -1)
             ntb.show_all()
-        else:                
+        else:
             if root.get_parent():
                 root.reparent(self.notebook)
                 self.notebook.set_tab_label(root, gtk.Label(mod.name))
                 self.notebook.reorder_child(root, -1)
             else:
-                self.notebook.insert_page(root, gtk.Label(mod.name), -1)        
+                self.notebook.insert_page(root, gtk.Label(mod.name), -1)
         if self.run_togglebutton.get_active():
             self.start_module(module)
             root.set_property("sensitive", True)
         else:
             root.set_property("sensitive", False)
-    
+
     def shut_module_ui(self, mod):
         for i in self.groups:
             ntb = self.groups[i]
@@ -1706,7 +1706,7 @@ class loki_gtk(loki.codename_loki):
                     else:
                         continue
                     break
-    
+
     def flash_label(self, module, label, times):
         if times > 0:
             if label.get_property("sensitive"):
@@ -1717,17 +1717,17 @@ class loki_gtk(loki.codename_loki):
                 gobject.timeout_add(500, self.flash_label, module, label, times - 1)
         else:
             self.module_active.remove(module)
-    
+
     def send_msg(self, msg):
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_INFO, gtk.BUTTONS_CLOSE, msg)
         label = gtk.Label(msg)
         dialog.vbox.pack_start(label, True, True, 0)
         dialog.run()
         dialog.destroy()
-    
+
     def quit(self, data):
 		self.on_quit_button_clicked(data)
-    
+
     ### EVENTS ###
 
     def on_run_togglebutton_toogled(self, btn):
@@ -1831,7 +1831,7 @@ class loki_gtk(loki.codename_loki):
     def on_log_button_clicked(self, data):
         l_window = log_window(self.log_textbuffer)
         l_window.show_all()
-    
+
     def on_network_combobox_changed(self, box, label):
         if PLATFORM == "Windows":
             descr = box.get_active_text()
@@ -1857,14 +1857,14 @@ class loki_gtk(loki.codename_loki):
             else:
                 str += "\nNo IPv6 Address"
         label.set_text(str)
-        
+
     def on_advanced_network_button_clicked(self, data):
         if PLATFORM == "Linux":
             self.netcfg = network_window(self)
             if os.path.exists(CONFIG_PATH + "/network.cfg"):
                 self.netcfg.load_config(CONFIG_PATH + "/network.cfg")
             self.netcfg.window.show_all()
-        
+
     def on_network_button_clicked(self, data):
         self.update_devices()
         dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
@@ -1884,7 +1884,7 @@ class loki_gtk(loki.codename_loki):
         if PLATFORM != "Linux":
             button.set_property("sensitive", False)
         dialog.vbox.show_all()
-        
+
         box.set_active(0)
         ret = dialog.run()
         dialog.destroy()
@@ -1898,7 +1898,7 @@ class loki_gtk(loki.codename_loki):
                 assert(self.interface != None)
             else:
                 self.interface = box.get_active_text()
-            
+
             select4 = len(self.devices[self.interface]['ip4']) > 1
             if select4:
                 dialog = gtk.MessageDialog(self.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Select the interface to use")
@@ -1948,7 +1948,7 @@ class loki_gtk(loki.codename_loki):
                         if not i['linklocal']:
                             box6.append_text("%s %s" % (i['ip'], i['mask']))
                     dialog.vbox.pack_start(box6)
-                    box6.set_active(0)                        
+                    box6.set_active(0)
                     dialog.vbox.show_all()
                     ret = dialog.run()
                     dialog.destroy()
@@ -1987,20 +1987,20 @@ class loki_gtk(loki.codename_loki):
     def on_quit_button_clicked(self, data, foo=None):
         self.delete_event(None, None)
         self.destroy_event(None)
-    
+
     def delete_event(self, widget, event, data=None):
         self.shutdown()
         return False
 
     def destroy_event(self, widget, data=None):
         gtk.main_quit()
-    
+
     def error_callback(msg):
         dialog = gtk.MessageDialog(gtk.Window(gtk.WINDOW_TOPLEVEL), gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_ERROR, gtk.BUTTONS_OK, msg)
         ret = dialog.run()
         dialog.destroy()
         gtk.main_quit()
-    
+
     def error(self, msg):
         gobject.timeout_add(100, self.error_callback, msg)
         gtk.main()

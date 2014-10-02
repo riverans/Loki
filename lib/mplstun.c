@@ -8,7 +8,7 @@
  *      Redistribution and use in source and binary forms, with or without
  *      modification, are permitted provided that the following conditions are
  *      met:
- *      
+ *
  *      * Redistributions of source code must retain the above copyright
  *        notice, this list of conditions and the following disclaimer.
  *      * Redistributions in binary form must reproduce the above
@@ -18,7 +18,7 @@
  *      * Neither the name of the  nor the names of its
  *        contributors may be used to endorse or promote products derived from
  *        this software without specific prior written permission.
- *      
+ *
  *      THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  *      "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *      LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -74,7 +74,7 @@ int tun_alloc(tun_mode mode, char *tun_device) {
         strncpy(ifr.ifr_name, dev, IFNAMSIZ);
     } else
         return -1;
-    
+
     err = ioctl(fd, TUNSETIFF, (void *) &ifr);
     if( err < 0 ) {
          close(fd);
@@ -97,9 +97,9 @@ int tun_alloc(tun_mode mode, char *tun_device) {
     else
         return -1;
 
-    for( i = 0; i < MAX_TUN_NR; i++ ) {        
+    for( i = 0; i < MAX_TUN_NR; i++ ) {
         if( (fd = open(tunname, O_RDWR)) != -1 ) {
-            
+
             break;
         }
     }
@@ -135,9 +135,9 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
     char filter[PCAP_FILTER_LENGTH];
     struct pcap_pkthdr *pcap_header;
     struct bpf_program pcap_filter;
-    
+
     char tun_device[TUN_DEV_NAME_LENGTH];
-    
+
     struct ether_header *eheader;
     unsigned char *start;
     int run, ret;
@@ -172,7 +172,7 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
     }
     if (verbose)
         printf("Opening tunnel at %s with MAC %s\n", in_device, in_mac);
-        
+
     snprintf(filter, PCAP_FILTER_LENGTH, "ether dst %s and ether src %s and mpls", in_mac, out_mac);
     if (pcap_compile(pcap_handle, &pcap_filter, filter, 0, 0) == -1) {
         fprintf(stderr, "Couldn't parse filter: %s\n", pcap_geterr(pcap_handle));
@@ -214,7 +214,7 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
                 break;
             run = 1;
         }
-        
+
         if( FD_ISSET(tun_fd, &fds) ) {      //IN on TUN
             l = read(tun_fd, in, READ_BUFFER_SIZE);
             start = out;
@@ -225,13 +225,13 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
             eheader->ether_type = htons(0x8847);
             start += sizeof(struct ether_header);
             l += sizeof(struct ether_header);
-        
+
             if(out_trans_label) {
                 write_label(start, out_trans_label, 0, 0, 255);
                 start += 4;
                 l += 4;
             }
-            
+
             //if(!strcmp(mode, "l3vpn")) {
                 write_label(start, out_label, 0, 1, 255);
                 start += 4;
@@ -263,7 +263,7 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
                     start += 4;
                     l -= 4;
                 }
-                
+
                 //if(!strcmp(mode, "l3vpn")) {
                     if (read_label(start, NULL, NULL, NULL) != in_label)
                         continue;
@@ -288,6 +288,6 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
    close(tun_fd);
    pcap_close(pcap_handle);
    eth_close(dnet_handle);
-   
+
    return 0;
 }

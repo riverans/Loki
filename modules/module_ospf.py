@@ -1,12 +1,12 @@
 #       module_ospf.py
-#       
+#
 #       Copyright 2009 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -76,7 +76,7 @@ def ichecksum_func(data, sum=0):
     sum = ~sum
 
     return sum & 0xFFFF
-    
+
 def ospf_lsa_checksum(lsa):
     ''' Fletcher checksum for OSPF LSAs, returned as a 2 byte string.
     Give the whole LSA packet as argument.
@@ -149,7 +149,7 @@ class ospf_header(object):
     AUTH_NONE = 0
     AUTH_SIMPLE = 1
     AUTH_CRYPT = 2
-    
+
     def __init__(self, type=None, id=None, area=None, auth_type=None, auth_data=None):
         self.version = OSPF_VERSION
         self.type = type
@@ -199,7 +199,7 @@ class ospf_header(object):
         return data[24:]
 
 class ospf_crypt_auth_data(object):
-    
+
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -284,7 +284,7 @@ class ospf_hello(ospf_header):
                 self.neighbors.append(hello[i:i+4])
 
 class ospf_database_description(ospf_header):
-    
+
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -314,7 +314,7 @@ class ospf_database_description(ospf_header):
         self.sequence_number = sequence_number
         self.lsa_db = []
         ospf_header.__init__(self, ospf_header.TYPE_DATABESE_DESCRIPTION, id, area, auth_type, auth_data)
-        
+
     def render(self, data):
         return ospf_header.render(self, struct.pack("!HBBL", self.mtu, self.options, self.flags, self.sequence_number) + data)
 
@@ -399,7 +399,7 @@ class ospf_link_state_update(ospf_header):
                 break
             advert = ospf_link_state_advertisement_header()
             advert.parse(left)
-            lsa = ospf_get_lsa_by_type(advert.ls_type) 
+            lsa = ospf_get_lsa_by_type(advert.ls_type)
             left = lsa.parse(left)
             list.append(lsa)
         self.advertisements = list[:]
@@ -434,14 +434,14 @@ class ospf_link_state_acknowledgment(ospf_header):
             else:
                 ret += ospf_link_state_advertisement_header.render(i, "")
         return ospf_header.render(self, ret)
-        
+
     def parse(self, data):
         ack = self.ospf_header.parse(data)
         for i in xrange(0,len(ack),20):
             header = ospf_link_state_advertisement_header()
             header.parse(ack[i,i+20])
             self.advertisements.append(header)
-            
+
 class ospf_link_state_advertisement_header(object):
 
     # 0                   1                   2                   3
@@ -471,7 +471,7 @@ class ospf_link_state_advertisement_header(object):
                 4 : "TYPE_SUMMARY_LINK_ASBR",
                 5 : "TYPE_AS_EXTERNAL"
                 }
-    
+
     def __init__(self, ls_age=None, options=None, ls_type=None, ls_id=None, advert_router=None, ls_seq=None):
         self.ls_age = ls_age
         self.options = options
@@ -534,7 +534,7 @@ class ospf_router_link_advertisement(ospf_link_state_advertisement_header):
         return left
 
 class ospf_router_link_advertisement_link(object):
-    
+
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -590,7 +590,7 @@ class ospf_router_link_advertisement_link(object):
         return left
 
 class ospf_router_link_advertisement_tos(object):
-    
+
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -630,7 +630,7 @@ class ospf_network_link_advertisement(ospf_link_state_advertisement_header):
             #ret += struct.pack("!L", i)
             ret += i
         return ospf_link_state_advertisement_header.render(self, ret)
-        
+
     def parse(self, data):
         adv = ospf_link_state_advertisement_header.parse(self, data)
         #(self.net_mask) = struct.unpack("!L", adv[:4])
@@ -687,7 +687,7 @@ class ospf_summary_link_advertisement_tos(object):
         (self.tos, self.metric) = struct.unpack("!B3s", data)
 
 class ospf_as_external_link_advertisement(ospf_link_state_advertisement_header):
-    
+
     # 0                   1                   2                   3
     # 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -718,7 +718,7 @@ class ospf_as_external_link_advertisement(ospf_link_state_advertisement_header):
         adv = ospf_link_state_advertisement_header.parse(self, data)
         (self.net_mask, self.tos, self.metric, self.forward_addr) = struct.unpack("!LB3sL", adv[:12])
         self.external_route = adv[12:]
-        
+
 ### OSPF_THREAD_CLASS ###
 
 class ospf_thread(threading.Thread):
@@ -731,7 +731,7 @@ class ospf_thread(threading.Thread):
 
     GLOBAL_STATE_INIT = 1
     GLOBAL_STATE_DONE = 2
-    
+
     def __init__(self, parent):
         self.parent = parent
         self.running = True
@@ -774,7 +774,7 @@ class ospf_thread(threading.Thread):
 #~ +---+                                         +---+
 #~ |RT1|                                         |RT2|
 #~ +---+                                         +---+
-#~ 
+#~
 #~ Down                                          Down
                 #~ Hello(DR=0,seen=0)
            #~ ------------------------------>
@@ -805,7 +805,7 @@ class ospf_thread(threading.Thread):
            #~ ------------------------------>
                      #~ LS Update
            #~ <------------------------------
- #~ Full        
+ #~ Full
 
     def run(self):
         while(self.running):
@@ -852,7 +852,7 @@ class ospf_thread(threading.Thread):
                         self.send_multicast(packet.render())
                     else:
                         self.hello_count += 1
-                   
+
                     for id in self.parent.neighbors:
                         (iter, mac, ip, dbd, lsa, state, master, seq, last_packet, adverts) = self.parent.neighbors[id]
 
@@ -871,7 +871,7 @@ class ospf_thread(threading.Thread):
                                                     self.parent.bdr,
                                                     neighbors
                                                     )
-                            self.send_unicast(mac, ip, packet.render())                        
+                            self.send_unicast(mac, ip, packet.render())
                         elif state == self.STATE_2WAY:
                             if dbd:
                                 if master:
@@ -1033,7 +1033,7 @@ class ospf_thread(threading.Thread):
 
                                     def network_links(self, net, mask, mac, ip):
                                         pass
-                                        
+
                                     {   ospf_link_state_advertisement_header.TYPE_ROUTER_LINKS : router_links,
                                         ospf_link_state_advertisement_header.TYPE_NETWORK_LINKS : network_links
                                         }[type](self, net, mask, mac, ip)
@@ -1043,7 +1043,7 @@ class ospf_thread(threading.Thread):
                                         #send update to neigh to remove route entry !!!
                                         del self.parent.nets[i]
                                         del self.parent.network_liststore[i]
-                        
+
             if not self.running:
                 return
             time.sleep(self.parent.sleep_time)
@@ -1104,7 +1104,7 @@ class mod_class(object):
     NET_NET_ROW = 0
     NET_MASK_ROW = 1
     NET_TYPE_ROW = 2
-    
+
     def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
@@ -1123,16 +1123,16 @@ class mod_class(object):
             global urwid
             urwid = urwid_
             self.neigh_tree = { "children" : [] }
-            
+
             class NeighWidget_(urwid.TreeWidget):
                 unexpanded_icon = urwid.AttrMap(urwid.TreeWidget.unexpanded_icon, 'dirmark')
                 expanded_icon = urwid.AttrMap(urwid.TreeWidget.expanded_icon, 'dirmark')
-                
+
                 def __init__(self, node):
-                    urwid.TreeWidget.__init__(self, node)        
+                    urwid.TreeWidget.__init__(self, node)
                     self._w = urwid.AttrWrap(self._w, 'body', 'focus')
                     self.flagged = False
-                
+
                 def get_display_text(self):
                     node = self.get_node()
                     val = node.get_value()
@@ -1142,7 +1142,7 @@ class mod_class(object):
                         return "%s ID(%s) AREA(%s) AUTH(%s) - %s" % (val['src'], val['id'], val['area'], val['auth'], val['state'])
                     else:
                         return "Neighbors:"
-                
+
                 def selectable(self):
                     if self.get_node().get_depth() <= 1:
                         return True
@@ -1174,11 +1174,11 @@ class mod_class(object):
             class NeighParentNode_(urwid.ParentNode):
                 def load_widget(self):
                     return NeighWidget_(self)
-                
+
                 def load_child_keys(self):
                     val = self.get_value()
                     return range(len(val["children"]))
-                
+
                 def load_child_node(self, key):
                     childdata = self.get_value()['children'][key]
                     childdepth = self.get_depth() + 1
@@ -1252,7 +1252,7 @@ class mod_class(object):
             self.neighbor_liststore.clear()
             self.network_liststore.clear()
             #self.auth_type_liststore.clear()
-        
+
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_hello_togglebutton_toggled" : self.on_hello_togglebutton_toggled,
@@ -1351,7 +1351,7 @@ class mod_class(object):
         self.net_type_combobox.set_active(0)
 
         return self.glade_xml.get_widget("root")
-    
+
     def get_urw(self):
         spoofs = urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.NeighParentNode(self.neigh_tree))))
         self.area_edit = urwid.Edit("Area: ")
@@ -1370,11 +1370,11 @@ class mod_class(object):
         columns = urwid.Columns([urwid.Filler(self.area_edit), urwid.ListBox(urwid.SimpleListWalker(authlist)), urwid.Filler(hello)])
         self.pile = urwid.Pile([spoofs, columns])
         return self.pile
-    
+
     def urw_radio_changed(self, button, state, auth):
         if state:
             self.auth_type = auth
-    
+
     def urw_update_tree(self):
         self.pile.contents[0] = (urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.NeighParentNode(self.neigh_tree)))), ('weight', 1))
 
@@ -1531,7 +1531,7 @@ class mod_class(object):
                                 pass
                             update = ospf_link_state_update()
                             update.parse(data)
-                            
+
                             ### ADD LSA'S TO NEIGH-STORE ###
                             for lsa in update.advertisements:
                                 adv_router = dnet.ip_ntoa(lsa.advert_router)
@@ -1572,7 +1572,7 @@ class mod_class(object):
                                                 self.neigh_tree['children'][iter]['children'][iter2] = entry
                                                 self.urw_update_tree()
                                             adverts[link_id] = (iter2, link)
-                                        
+
                                         self.lsa_db[adv_router]['links'].append({
                                             'type'  :   ospf_router_link_advertisement_link.TYPES[link.type],
                                             'id'    :   link_id,
@@ -1687,7 +1687,7 @@ class mod_class(object):
                                 self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                             update = ospf_link_state_update()
                             update.parse(data)
-                            
+
                             ### ADD LSA'S TO NEIGH-STORE ###
                             for lsa in update.advertisements:
                                 adv_router = dnet.ip_ntoa(lsa.advert_router)
@@ -1728,7 +1728,7 @@ class mod_class(object):
                                                 self.neigh_tree['children'][iter]['children'][iter2] = entry
                                                 self.urw_update_tree()
                                             adverts[link_id] = (iter2, link)
-                                        
+
                                         self.lsa_db[adv_router]['links'].append({
                                             'type'  :   ospf_router_link_advertisement_link.TYPES[link.type],
                                             'id'    :   link_id,
@@ -1867,7 +1867,7 @@ class mod_class(object):
             elif self.auth_type == ospf_header.AUTH_CRYPT:
                 self.auth_data_entry.set_property("sensitive", True)
                 self.id_spinbutton.set_property("sensitive", True)
-        
+
     def on_add_button_clicked(self, btn):
         net = self.network_entry.get_text()
         mask = self.netmask_entry.get_text()
@@ -1875,7 +1875,7 @@ class mod_class(object):
         type = self.net_type_liststore[self.net_type_combobox.get_active()][1]
         iter = self.network_liststore.append([net, mask, type_name])
         self.nets[self.network_liststore.get_string_from_iter(iter)] = (net, mask, type, True, False)
-        
+
     def on_remove_button_clicked(self, btn):
         select = self.network_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
@@ -1884,14 +1884,14 @@ class mod_class(object):
             (net, mask, type, active, removed) = self.nets[model.get_string_from_iter(iter)]
             self.nets[model.get_string_from_iter(iter)] = (net, mask, type, False, True)
             self.network_liststore.set_value(iter, self.NET_TYPE_ROW, "REMOVED")
-    
+
     def on_create_dot_button_clicked(self, btn):
         import pprint
         pprint.pprint(self.lsa_db)
-        
+
         import pygraphviz
         G = pygraphviz.AGraph()
-        
+
         for i in self.lsa_db:
             G.add_node(i)
             for j in self.lsa_db[i]['nets']:
@@ -1913,9 +1913,9 @@ class mod_class(object):
                 net = str(IPy.IP("%s/%s" % (j['id'], j['mask']), make_net=1))
                 G.add_node(net, label="%s\nvia %s" % (net, j['fwd']), shape='box', style='dashed')
                 G.add_edge(i, net, taillabel=j['id'])
-        
+
         print G
-        
+
         dialog = gtk.FileChooserDialog(title="Save DOT file" ,action=gtk.FILE_CHOOSER_ACTION_SAVE,
                         buttons=(gtk.STOCK_CANCEL,gtk.RESPONSE_CANCEL,gtk.STOCK_OPEN,gtk.RESPONSE_OK))
         filter = gtk.FileFilter()
@@ -1927,7 +1927,7 @@ class mod_class(object):
         if response == gtk.RESPONSE_OK:
             G.write(dialog.get_filename())
         dialog.destroy()
-        
+
     def get_config_dict(self):
         return {    "delay" : { "value" : self.delay,
                                 "type" : "int",

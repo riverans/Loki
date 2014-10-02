@@ -300,7 +300,7 @@ int gethashlast2(struct asleap_data *asleap_ptr)
 	return (1);
 }
 
-/* Accepts the populated asleap_data structure with the challenge and 
+/* Accepts the populated asleap_data structure with the challenge and
    response text, and our guess at the full 16-byte hash (zpwhash). Returns 1
    if the hash does not match, 0 if it does match. */
 int testchal(struct asleap_data *asleap_ptr, unsigned char *zpwhash)
@@ -383,7 +383,7 @@ int getmschappw(struct asleap_data *asleap_ptr)
 
 	/* If the user passed an index file for our reference, fseek to
 	   map the file and perform lookups based on indexed offsets.
-	   If there is no index file, perform a linear search. 
+	   If there is no index file, perform a linear search.
 	 */
 
 	if (IsBlank(asleap_ptr->dictidx)) {
@@ -526,7 +526,7 @@ int getmschappw(struct asleap_data *asleap_ptr)
 
 /* Examine the packet contents of packet, return an offset number of bytes to
    the beginning of the EAP frame contents, if present, otherwise return -1 */
-int geteapoffset(u_char *packet, int plen, int offset) 
+int geteapoffset(u_char *packet, int plen, int offset)
 {
 	struct ieee80211 *dot11;
 	struct ieee8022  *dot2;
@@ -635,7 +635,7 @@ int geteapoffset(u_char *packet, int plen, int offset)
 
 /* Examine the packet contents of packet, return an offset number of bytes to
    the beginning of the EAP frame contents, if present, otherwise return -1 */
-int getpppchapoffset(u_char *packet, int plen, int offset) 
+int getpppchapoffset(u_char *packet, int plen, int offset)
 {
 	struct ieee80211 *dot11;
 	struct ieee8022  *dot2;
@@ -711,7 +711,7 @@ int getpppchapoffset(u_char *packet, int plen, int offset)
 	ip = (struct iphdr *)(packet + offset);
 
 	/* Header length is represented in 32-bit words */
-	iphdrlen = ((ip->ver_hlen & 0x0f) * 4); 
+	iphdrlen = ((ip->ver_hlen & 0x0f) * 4);
 
 	if (iphdrlen < IPHDR_MIN_LEN || iphdrlen > IPHDR_MAX_LEN) {
 		return -1;
@@ -890,7 +890,7 @@ int findlpexch(struct asleap_data *asleap_ptr, int timeout, int offset)
 			if (asleap_ptr->pptpsuccessfound == 0
 			    && asleap_ptr->pptpchalfound == 1
 			    && asleap_ptr->pptprespfound == 1) {
-				if (testpptpsuccess(asleap_ptr, len, 
+				if (testpptpsuccess(asleap_ptr, len,
 						chapoffset) == 0) {
 					asleap_ptr->pptpsuccessfound = 1;
 					continue;
@@ -909,7 +909,7 @@ void genchalhash(struct asleap_data *asleap)
 	char strippedname[256];
 	int j;
 
-	/* RFC2759 indicates a username "BIGCO\johndoe" must be stripped to 
+	/* RFC2759 indicates a username "BIGCO\johndoe" must be stripped to
 	   contain only the username for the purposes of generating the 8-byte
 	   challenge. Section 4, */
 	stripname(asleap->username, strippedname, sizeof(strippedname), '\\');
@@ -983,7 +983,7 @@ int attack_pptp(struct asleap_data *asleap)
 	if (asleap->verbose)
 		printf("\tAttempting to recover last 2 of hash.\n");
 
-	/* Generate the 8-byte hash from the auth chal, peer chal and 
+	/* Generate the 8-byte hash from the auth chal, peer chal and
 	* login name */
 	genchalhash(asleap);
 
@@ -1172,7 +1172,7 @@ int testpptpsuccess(struct asleap_data *asleap_ptr, int plen, int offset)
 			lamont_hdump((packet+offset), (h.len-offset));
 			printf("\n");
 		}
-		/* Since we got a failure message, we don't need to retain the 
+		/* Since we got a failure message, we don't need to retain the
 		   chal and response data, clear it and restart the process */
 		asleap_reset(asleap_ptr);
 		return -1;
@@ -1433,7 +1433,7 @@ int main(int argc, char *argv[])
 						"specified.\n");
 				exit(1);
 			}
-			if (str2hex(optarg, asleap.challenge, 
+			if (str2hex(optarg, asleap.challenge,
 					sizeof(asleap.challenge)) < 0) {
 				usage("Malformed value specified as "
 						"challenge.\n");
@@ -1448,7 +1448,7 @@ int main(int argc, char *argv[])
 						"specified.\n");
 				exit(1);
 			}
-			if (str2hex(optarg, asleap.response, 
+			if (str2hex(optarg, asleap.response,
 					sizeof(asleap.response)) < 0) {
 				usage("Malformed value specified as "
 						"response.\n");
@@ -1498,7 +1498,7 @@ int main(int argc, char *argv[])
 			exit(0);
 			break;
 		case 'W':
-			strncpy(asleap.wordfile, optarg, 
+			strncpy(asleap.wordfile, optarg,
 					sizeof(asleap.wordfile) - 1);
 			break;
 		default:
@@ -1535,7 +1535,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	if (asleap.leapchalfound && asleap.leaprespfound && 
+	if (asleap.leapchalfound && asleap.leaprespfound &&
 			asleap.manualchalresp) {
 		/* User specified manual challenge/response on the command
 		 * line (aka, the "Jay Beale" feature).

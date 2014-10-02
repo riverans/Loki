@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 #
 #       loki_urw.py
-#       
+#
 #       Copyright 2014 Daniel Mende <mail@c0decafe.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -19,7 +19,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -76,7 +76,7 @@ def add_widget(path, widget):
 
 def get_flagged_names():
     """Return a list of all filenames marked as flagged."""
-    
+
     l = []
     for w in _widget_cache.values():
         if w.flagged:
@@ -87,7 +87,7 @@ _initial_cwd = []
 
 def store_initial_cwd(name):
     """Store the initial current working directory path components."""
-    
+
     global _initial_cwd
     _initial_cwd = name.split(dir_sep())
 
@@ -96,16 +96,16 @@ def starts_expanded(name):
 
     if name is '/':
         return True
-    
+
     l = name.split(dir_sep())
     if len(l) > len(_initial_cwd):
         return False
-    
+
     if l != _initial_cwd[:len(l)]:
         return False
-    
+
     return True
-    
+
 SPLIT_RE = re.compile(r'[a-zA-Z]+|\d+')
 def alphabetize(s):
     L = []
@@ -116,7 +116,7 @@ def alphabetize(s):
         else:
             L.append((''.join(group).lower(), 0))
     return L
-    
+
 def dir_sep():
     """Return the separator used in this os."""
     return getattr(os.path,'sep','/')
@@ -176,7 +176,7 @@ class loki_urw(loki.codename_loki):
 
         def get_display_text(self):
             return self.get_node().get_key()
-        
+
     class EmptyWidget(urwid.TreeWidget):
         """A marker for expanded directories with no contents."""
         def get_display_text(self):
@@ -239,7 +239,7 @@ class loki_urw(loki.codename_loki):
             else:
                 depth = path.count(dir_sep())
                 key = os.path.basename(path)
-            urwid.ParentNode.__init__(self, path, key=key, parent=parent, 
+            urwid.ParentNode.__init__(self, path, key=key, parent=parent,
                                       depth=depth)
 
         def load_parent(self):
@@ -261,7 +261,7 @@ class loki_urw(loki.codename_loki):
                         files.append(a)
             except OSError, e:
                 depth = self.get_depth() + 1
-                self._children[None] = ErrorNode(self, parent=self, key=None, 
+                self._children[None] = ErrorNode(self, parent=self, key=None,
                                                  depth=depth)
                 return [None]
 
@@ -274,7 +274,7 @@ class loki_urw(loki.codename_loki):
             keys = dirs + files
             if len(keys) == 0:
                 depth=self.get_depth() + 1
-                self._children[None] = EmptyNode(self, parent=self, key=None, 
+                self._children[None] = EmptyNode(self, parent=self, key=None,
                                                  depth=depth)
                 keys = [None]
             return keys
@@ -335,7 +335,7 @@ class loki_urw(loki.codename_loki):
                 self.parent.frame.set_body(self.parent.body)
             else:
                 return super(loki_urw.CascadingBoxes, self).keypress(size, key)
-    
+
     palette = [
             ('header',       'white',      'dark red',   'bold'),
             ('button normal','light gray', 'dark blue', 'standout'),
@@ -358,7 +358,7 @@ class loki_urw(loki.codename_loki):
             ('flag', 'dark gray', 'light gray'),
             ('error', 'dark red', 'light gray'),
             ]
-        
+
     def __init__(self):
         loki.codename_loki.__init__(self)
         self.ui = 'urw'
@@ -372,10 +372,10 @@ class loki_urw(loki.codename_loki):
         self.bruteforce = True
         self.bruteforce_full = False
         self.bruteforce_threads = 4
-    
+
     def main(self):
         loki.codename_loki.main(self)
-        
+
         menu_top = self.menu('Main Menu', [
             self.sub_menu('Open', [
                 self.menu_button('Interface', self.open_interface),
@@ -389,7 +389,7 @@ class loki_urw(loki.codename_loki):
             self.menu_button('Overview', self.show_overview),
             self.menu_button('Quit', self.quit)
         ])
-        
+
         self.menu = self.CascadingBoxes(self, menu_top)
         self.statusbar = urwid.Text("")
         self.body = self.overview()
@@ -397,7 +397,7 @@ class loki_urw(loki.codename_loki):
             self.body,
             footer=urwid.AttrMap(self.statusbar, 'chars')
             )
-        
+
         self.mainloop = urwid.MainLoop( self.frame,
                             palette = self.palette,
                             unhandled_input = self.keyinput,
@@ -430,23 +430,23 @@ class loki_urw(loki.codename_loki):
         body = [urwid.AttrMap(urwid.Text(title), 'header'), urwid.Divider()]
         body.extend(choices)
         return urwid.ListBox(urwid.SimpleFocusListWalker(body))
-    
+
     def item_chosen(self, button):
         response = urwid.Text([u'You chose ', button.label, u'\n'])
         done = self.menu_button(u'Ok', self.quit)
         self.log(button.label)
         self.menu.open_box(urwid.Filler(urwid.Pile([response, done])))
-            
+
     def modules_menu(self):
         ret = []
         for i in self.modules:
             name = self.modules[i][0].name
             ret.append(self.menu_button(name, self.module_chosen, name))
         return ret
-    
+
     def module_chosen(self, button, name):
         self.set_body(self.modules_ui[name])
-        
+
     def config_wordlist(self, button):
         footer_text = [
             ('title', "Directory Browser"), "   ",
@@ -456,7 +456,7 @@ class loki_urw(loki.codename_loki):
             ('key', "+"), ",",
             ('key', "-"), "  ",
             ('key', "LEFT"), "  ",
-            ('key', "HOME"), "  ", 
+            ('key', "HOME"), "  ",
             ('key', "END"), "  ",
             ('key', "Q"),
             ]
@@ -468,11 +468,11 @@ class loki_urw(loki.codename_loki):
         footer = urwid.AttrWrap(urwid.Text(footer_text), 'foot')
         view = self.DirectoryBrowser(
             self.config_wordlist_callback,
-            urwid.AttrWrap(listbox, 'body'), 
-            header=urwid.AttrWrap(header, 'head'), 
+            urwid.AttrWrap(listbox, 'body'),
+            header=urwid.AttrWrap(header, 'head'),
             footer=footer)
         self.set_body(view)
-        
+
     def config_wordlist_callback(self, files):
         self.set_body(self.overview())
         if len(files) > 0:
@@ -484,7 +484,7 @@ class loki_urw(loki.codename_loki):
 
     def bruteforce_full_checkbox_changed(self, box, state):
         self.bruteforce_full = state
-    
+
     def bruteforce_threads_changed(self, edit, text, attr):
         try:
             val = int(text)
@@ -500,7 +500,7 @@ class loki_urw(loki.codename_loki):
         edit = urwid.Edit("Number of threads: ", str(self.bruteforce_threads))
         attr = urwid.AttrMap(edit, 'edit')
         urwid.connect_signal(edit, 'change', self.bruteforce_threads_changed, attr)
-        conflist = [ urwid.AttrMap(urwid.Text("Bruteforce config"), 'header'), 
+        conflist = [ urwid.AttrMap(urwid.Text("Bruteforce config"), 'header'),
                      urwid.Divider(),
                      self.menu_button("Wordlist: %s" % self.wordlist, self.config_wordlist),
                      urwid.CheckBox("Use bruteforce", state=self.bruteforce, on_state_change=self.bruteforce_checkbox_changed),
@@ -542,7 +542,7 @@ class loki_urw(loki.codename_loki):
                             align='center', width=('relative', 80),
                             valign='middle', height=('relative', 80),
                             min_width=24, min_height=8))
-    
+
     def module_config_changed(self, edit, text, (config, attr)):
         def int_(edit, new_text, config):
             try:
@@ -554,7 +554,7 @@ class loki_urw(loki.codename_loki):
             else:
                 attr.set_attr_map({None : 'edit'})
                 config['value'] = val
-        
+
         def str_(edit, new_text, config):
             try:
                 assert(len(new_text) >= config['min'])
@@ -564,7 +564,7 @@ class loki_urw(loki.codename_loki):
             else:
                 attr.set_attr_map({None : 'edit'})
                 config['value'] = new_text
-        
+
         def float_(edit, new_text, config):
             try:
                 val = float(new_text)
@@ -575,18 +575,18 @@ class loki_urw(loki.codename_loki):
             else:
                 attr.set_attr_map({None : 'edit'})
                 config['value'] = val
-        
+
         {   "str" : str_,
             "int" : int_,
             "float" : float_    }[config['type']](edit, text, config)
-    
+
     def module_config_done(self, button, (conflist, config, name)):
         for i in conflist:
             if type(i) == urwid.AttrMap and i.attr_map[None] == 'edit failure':
                 return
         self.modules[name][0].set_config_dict(config)
         self.set_body(self.body)
-    
+
     def module_config_save(self, button, (conflist, config, name)):
         for i in conflist:
             if type(i) == urwid.AttrMap and i.attr_map[None] == 'edit failure':
@@ -608,7 +608,7 @@ class loki_urw(loki.codename_loki):
     def set_body(self, body):
         self.body = body
         self.frame.set_body(self.body)
-        
+
     def open_interface(self, button):
         if self.configured or not self.filename is None:
             self.close()
@@ -628,7 +628,7 @@ class loki_urw(loki.codename_loki):
                 align='center', width=('relative', 80),
                 valign='middle', height=('relative', 80),
                 min_width=24, min_height=8))
-    
+
     def open_interface_callback(self, button, interface):
         for i in self.devices:
             if PLATFORM == "Windows":
@@ -640,7 +640,7 @@ class loki_urw(loki.codename_loki):
             else:
                 self.interface = interface
         self.select4()
-    
+
     def select4(self):
         select4 = len(self.devices[self.interface]['ip4']) > 1
         if select4:
@@ -663,12 +663,12 @@ class loki_urw(loki.codename_loki):
                 self.ip = "0.0.0.0"
                 self.mask ="0.0.0.0"
             self.select6()
-    
+
     def select4_callback(self, button, index):
         self.ip = self.devices[self.interface]['ip4'][index]['ip']
         self.mask = self.devices[self.interface]['ip4'][index]['mask']
         self.select6()
-    
+
     def select6(self):
         select6 = len([ i for i in self.devices[self.interface]['ip6'] if not i['linklocal'] ]) > 1
         v6done = False
@@ -718,7 +718,7 @@ class loki_urw(loki.codename_loki):
             self.configured = True
             self.set_body(self.overview())
             self.run_live()
-            
+
     def select6_callback(self, button, index):
         self.ip6 = self.devices[self.interface]['ip6'][index]['ip']
         self.mask6 = self.devices[self.interface]['ip6'][index]['mask']
@@ -737,7 +737,7 @@ class loki_urw(loki.codename_loki):
             ('key', "+"), ",",
             ('key', "-"), "  ",
             ('key', "LEFT"), "  ",
-            ('key', "HOME"), "  ", 
+            ('key', "HOME"), "  ",
             ('key', "END"), "  ",
             ('key', "Q"),
             ]
@@ -749,17 +749,17 @@ class loki_urw(loki.codename_loki):
         footer = urwid.AttrWrap(urwid.Text(footer_text), 'foot')
         view = self.DirectoryBrowser(
             self.open_file_callback,
-            urwid.AttrWrap(listbox, 'body'), 
-            header=urwid.AttrWrap(header, 'head'), 
+            urwid.AttrWrap(listbox, 'body'),
+            header=urwid.AttrWrap(header, 'head'),
             footer=footer)
         self.set_body(view)
-        
+
     def open_file_callback(self, files):
         self.set_body(self.overview())
         if len(files) > 0:
             self.filename = files[0]
             self.run_file(self.filename)
-    
+
     def close(self):
         if self.configured:
             for i in self.modules:
@@ -780,10 +780,10 @@ class loki_urw(loki.codename_loki):
                 self.pcap_thread.quit()
                 self.pcap_thread = None
             self.filename = None
-    
+
     def show_overview(self, button):
         self.set_body(self.overview())
-    
+
     def overview(self):
         text = "This is %s version %s by Daniel Mende - dmende@ernw.de\nRunning on %s" % (self.__class__.__name__, VERSION, PLATFORM)
         text = urwid.Text(text, 'center')
@@ -792,7 +792,7 @@ class loki_urw(loki.codename_loki):
         text = urwid.Filler(text, top=3, bottom=3)
         text = urwid.BoxAdapter(text, 7)
         text2 = "Press 'tab' for menu"
-        if self.configured:      
+        if self.configured:
             text2 += "\n\nUsing interface %s\n\n" % self.interface
             text2 += "IPv4:\n%s/%d\n\nIPv6:\n%s/%d" % (self.ip, len(IPy.IP(self.mask).strBin().replace("0", "")), self.ip6, len(IPy.IP(self.mask6).strBin().replace("0", "")))
             if self.ip6 != self.ip6_ll:
@@ -801,7 +801,7 @@ class loki_urw(loki.codename_loki):
             text2 += "\n\nReading file %s" % self.filename
         text2 = urwid.Text(text2, 'center')
         return urwid.AttrMap(urwid.ListBox(urwid.SimpleListWalker([text, text2])), 'body')
-    
+
     def run_live(self):
         assert(self.configured)
         self.pcap_thread = loki.pcap_thread(self, self.interface)
@@ -813,7 +813,7 @@ class loki_urw(loki.codename_loki):
             self.start_module(i)
         self.dnet_thread.start()
         self.pcap_thread.start()
-    
+
     def run_file(self, filename):
         self.pcap_thread = loki.pcap_thread_offline(self, filename)
         self.interface = "null"
@@ -826,13 +826,13 @@ class loki_urw(loki.codename_loki):
         for i in self.modules:
             self.start_module(i)
         self.pcap_thread.start()
-    
+
     def load_all_modules(self, path=loki.DATA_DIR + loki.MODULE_PATH):
         loki.codename_loki.load_all_modules(self, path)
         for i in self.modules.keys():
             if not "get_urw" in dir(self.modules[i][0]):
                 del self.modules[i]
-    
+
     def init_module_ui(self, mod):
         self.modules_ui[mod.name] = urwid.Frame(urwid.AttrMap(mod.get_urw(), 'body'), header=urwid.AttrMap(urwid.Text(mod.name.upper(), 'center'), 'title'))
 
@@ -841,7 +841,7 @@ class loki_urw(loki.codename_loki):
         self.statusbar.set_text(msg)
         self._print(msg)
         self.msg_id += 1
-    
+
     def _print(self, msg):
         if not self.logfd.closed:
             self.logfd.write(str(msg) + "\n")
@@ -851,7 +851,7 @@ class loki_urw(loki.codename_loki):
         self.shutdown()
         self.logfd.close()
         raise urwid.ExitMainLoop()
-            
+
 if __name__ == '__main__':
     app = loki_urw()
     loki.pcap = app.check()

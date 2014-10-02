@@ -1,12 +1,12 @@
 #       module_802_1X.py
-#       
+#
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -58,7 +58,7 @@ class dot1x_header(object):
     def __init__(self, version = None, type = None):
         self.version = version
         self.type = type
-    
+
     def render(self, data):
         return struct.pack("!BBH", self.version, self.type, len(data)) + data
 
@@ -97,21 +97,21 @@ EAP_TYPE_TO_STR = { EAP_TYPE_IDENTITY       :   "EAP_TYPE_IDENTITY",
                     EAP_TYPE_EXPANDED_TYPES :   "EAP_TYPE_EXPANDED_TYPES",
                     EAP_TYPE_EXPERIMENTAL   :   "EAP_TYPE_EXPERIMENTAL"
                     }
-                    
+
 class eap_identity(object):
     def __init__(self, identity = None):
         self.identity = identity
-    
+
     def render(self):
         return identity
-    
+
     def parse(self, data):
         string = str(data).replace("\0", "")
         if len(string) > 0:
             self.identity = string
         else:
             self.identity = None
-    
+
     def dissect(self, store, iter, data):
         if self.identity:
             store.append(iter, ["EAP_IDENTITY", "", self.identity])
@@ -119,17 +119,17 @@ class eap_identity(object):
 class eap_notification(object):
     def __init__(self, msg = None):
         self.msg = identity
-    
+
     def render(self):
         return msg
-    
+
     def parse(self, data):
         string = str(data).replace("\0", "")
         if len(string) > 0:
             self.msg = string
         else:
             self.msg = None
-    
+
     def dissect(self, store, iter, data):
         if self.msg:
             store.append(iter, ["EAP_NOTIFICATION", "", self.msg])
@@ -137,35 +137,35 @@ class eap_notification(object):
 class eap_md5_challenge(object):
     def __init__(self, value = None):
         self.value = value
-    
+
     def render(self):
         return struct.pack("!B16s", 16, self.value)
-    
+
     def parse(self, data):
         (self.value,) = struct.unpack("!x16s", data[:17])
         return data[17:]
-    
+
     def dissect(self, store, iter, data):
         if self.value:
             store.append(iter, ["EAP_MD5_CHALLENGE", "", self.value.encode("hex")])
-        
+
 EAP_TYPE_TO_OBJECT = { EAP_TYPE_IDENTITY    :   eap_identity,
                        EAP_TYPE_NOTIFICATION    :   eap_notification ,
                        EAP_TYPE_MD5_CHALLENGE   :   eap_md5_challenge
                        }
-        
+
 class eap_packet(object):
     def __init__(self, code = None, ident = None, type = None):
         self.code = code
         self.ident = ident
         self.type = type
-    
+
     def render(self, data):
         if self.code == EAP_CODE_REQUEST or self.code == EAP_CODE_RESPONSE:
             return struct.pack("!BBHB", self.code, self.ident, len(data) + 5, self.type) + data
         else:
             return struct.pack("!BBH", self.code, self.ident, len(data) + 4) + data
-        
+
     def parse(self, data):
         (self.code, self.ident) = struct.unpack("!BB", data[:2])
         if self.code == EAP_CODE_REQUEST or self.code == EAP_CODE_RESPONSE:
@@ -173,7 +173,7 @@ class eap_packet(object):
             return data[5:]
         else:
             return data[4:]
-    
+
     def dissect(self, store, iter, data):
         if self.code == EAP_CODE_REQUEST or self.code == EAP_CODE_RESPONSE:
             self.iter = store.append(iter, ["EAP", EAP_CODE_TO_STR[self.code], EAP_TYPE_TO_STR[self.type]])
@@ -184,7 +184,7 @@ class eap_packet(object):
             self.iter = store.append(iter, ["EAP", EAP_CODE_TO_STR[self.code], ""])
         else:
             self.iter = store.append(iter, ["EAP", EAP_CODE_TO_STR[self.code], data.encode("hex")])
-        
+
 DOT1X_TYPE_TO_OBJECT = {    DOT1X_TYPE_EAP_PACKET   :   eap_packet,
                             #DOT1X_TYPE_EAPOL_START  :   None,
                             #DOT1X_TYPE_EAPOL_LOGOFF :   None,
@@ -198,7 +198,7 @@ class connection(object):
         self.src = src
         self.dst = dst
         self.iter = None
-    
+
     def dissect(self, dot1x_hdr, data):
         type = dot1x_hdr.type
         if not self.iter:
@@ -208,12 +208,12 @@ class connection(object):
         obj = DOT1X_TYPE_TO_OBJECT[type]()
         data = obj.parse(data)
         obj.dissect(self.parent.connection_treestore, self.iter, data)
-        
+
 class mod_class(object):
     CONN_SRC_ROW = 0
     CONN_DST_ROW = 1
     CONN_TYPE_ROW = 2
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -233,11 +233,11 @@ class mod_class(object):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { }
         self.glade_xml.signal_autoconnect(dic)
-        
+
         self.connection_treeview = self.glade_xml.get_widget("connection_treeview")
         self.connection_treeview.set_model(self.connection_treestore)
         self.connection_treeview.set_headers_visible(False)
-        
+
         column = gtk.TreeViewColumn()
         column.set_title("SRC")
         render_text = gtk.CellRendererText()
@@ -256,7 +256,7 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.CONN_TYPE_ROW)
         self.connection_treeview.append_column(column)
-        
+
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -272,7 +272,7 @@ class mod_class(object):
         if eth.type == DOT1X_ETH_TYPE:
             return (True, False)
         return (False, False)
-    
+
     def input_eth(self, eth, timestamp):
         src = dnet.eth_ntoa(eth.src)
         if src not in self.connection_list:

@@ -115,8 +115,8 @@ void lamont_hdump(unsigned char *bp, unsigned int length)
 	printf("\n");
 }
 
-/*  taken from ppp/pppd/extra_crypto.c 
- *  Copyright (c) Tim Hockin, Cobalt Networks Inc. and others 
+/*  taken from ppp/pppd/extra_crypto.c
+ *  Copyright (c) Tim Hockin, Cobalt Networks Inc. and others
  */
 unsigned char Get7Bits(unsigned char *input, int startBit)
 {

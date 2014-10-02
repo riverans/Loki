@@ -1,12 +1,12 @@
 #       module_arp.py
-#       
+#
 #       Copyright 2009 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -122,7 +122,7 @@ class mod_class(object):
 
     MAPPING_MAC_ROW = 0
     MAPPING_RAND_ROW = 1
-    
+
     def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
@@ -149,16 +149,16 @@ class mod_class(object):
             global urwid
             urwid = urwid_
             self.spoof_tree = { "children" : [] }
-            
+
             class SpoofWidget_(urwid.TreeWidget):
                 unexpanded_icon = urwid.AttrMap(urwid.TreeWidget.unexpanded_icon, 'dirmark')
                 expanded_icon = urwid.AttrMap(urwid.TreeWidget.expanded_icon, 'dirmark')
-                
+
                 def __init__(self, node):
-                    urwid.TreeWidget.__init__(self, node)        
+                    urwid.TreeWidget.__init__(self, node)
                     self._w = urwid.AttrWrap(self._w, 'body', 'focus')
                     self.flagged = False
-                
+
                 def get_display_text(self):
                     node = self.get_node()
                     val = node.get_value()
@@ -168,7 +168,7 @@ class mod_class(object):
                         return "%d Spoofs" % len(val["children"])
                     else:
                         return "Spoofings:"
-                
+
                 def selectable(self):
                     if self.get_node().get_depth() <= 1:
                         return True
@@ -200,11 +200,11 @@ class mod_class(object):
             class SpoofParentNode_(urwid.ParentNode):
                 def load_widget(self):
                     return SpoofWidget_(self)
-                
+
                 def load_child_keys(self):
                     val = self.get_value()
                     return range(len(val["children"]))
-                
+
                 def load_child_node(self, key):
                     childdata = self.get_value()['children'][key]
                     childdepth = self.get_depth() + 1
@@ -223,7 +223,7 @@ class mod_class(object):
         self.flood_delay = 0.001
         self.forward_constrain = "a=True"
         self.forward_lookup = {}
-    
+
     def start_mod(self):
         self.spoof_thread = spoof_thread(self)
         self.hosts = {}
@@ -347,7 +347,7 @@ class mod_class(object):
         self.mappings_treeview = self.glade_xml.get_widget("mappings_treeview")
         self.mappings_treeview.set_model(self.mappings_liststore)
         self.mappings_treeview.set_headers_visible(True)
-        
+
         column = gtk.TreeViewColumn()
         render_text = gtk.CellRendererText()
         column.pack_start(render_text, expand=False)
@@ -381,7 +381,7 @@ class mod_class(object):
         self.targets2 = urwid.SimpleListWalker(targets2)
         targets2 = urwid.LineBox(urwid.ListBox(self.targets2))
         spoofs = urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.SpoofParentNode(self.spoof_tree))))
-        
+
         bgroup = []
         radio1 = urwid.RadioButton(bgroup, "Targets1", on_state_change=self.urw_radio_changed, user_data=self.targets1)
         radio2 = urwid.RadioButton(bgroup, "Targets2", on_state_change=self.urw_radio_changed, user_data=self.targets2)
@@ -389,10 +389,10 @@ class mod_class(object):
         button1 = self.parent.menu_button("Scan Network", self.urw_scan_activated)
         button2 = self.parent.menu_button("Add Spoofing", self.urw_add_activated)
         radio = urwid.ListBox(urwid.SimpleListWalker([radio1, radio2, urwid.Divider(), self.scan_network_edit, button1, button2]))
-        
+
         self.pile = urwid.Pile([('weight', 3, urwid.Columns([urwid.Pile([('weight', 2, hostlist), radio]), urwid.Pile([targets1, targets2])])), spoofs])
         return self.pile
-    
+
     def urw_spoof_activated(self, widget, spoof):
         widget.flagged = not widget.flagged
         if widget.flagged:
@@ -417,7 +417,7 @@ class mod_class(object):
             for i in hosts:
                 (ip, rand_mac, iter, reply) = self.hosts[i]
                 self.hosts[i] = (ip, rand_mac, iter, False)
-    
+
     def urw_add_activated(self, button):
         if not len(self.upper_add):
             return
@@ -438,25 +438,25 @@ class mod_class(object):
                 self.targets2.remove(i)
         self.spoof_tree["children"].append({ "children" : spoofs,
                                              "callback" : self.urw_spoof_activated,
-                                             "args"     : str(spoofs) 
+                                             "args"     : str(spoofs)
                                              })
         self.pile.contents[1] = (urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.SpoofParentNode(self.spoof_tree)))), ('weight', 1))
-        
+
     def urw_scan_activated(self, button):
         ips = IPy.IP(self.scan_network_edit.get_edit_text())
         self.scan(ips)
-    
+
     def urw_radio_changed(self, button, state, target):
         if state:
             self.targetlist = target
-    
+
     def urw_targetlist_activated(self, _, (targetlist, button, host)):
         if host in self.upper_add:
             del self.upper_add[host]
         if host in self.lower_add:
             del self.lower_add[host]
         targetlist.remove(button)
-    
+
     def urw_hostlist_activated(self, button, host):
         if host not in self.upper_add:
             if host not in self.lower_add:
@@ -469,7 +469,7 @@ class mod_class(object):
                 button = self.parent.menu_button(host)
                 urwid.connect_signal(button.base_widget, 'click', self.urw_targetlist_activated, (self.targetlist, button, host))
                 self.targetlist.append(button)
-    
+
     def log(self, msg):
         self.__log(msg, self.name)
 
@@ -565,7 +565,7 @@ class mod_class(object):
     def input_ip(self, eth, ip, timestamp):
         src = dnet.eth_ntoa(str(eth.src))
         dst = dnet.eth_ntoa(str(eth.dst))
-        
+
         good = False
         for h in self.hosts:
             (ip, rand_mac, iter, reply) = self.hosts[h]
@@ -617,7 +617,7 @@ class mod_class(object):
         except:
             vendor = "Unknown"
         return vendor
-    
+
     def scan(self, ips):
         for i in ips:
             arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
@@ -634,7 +634,7 @@ class mod_class(object):
                                             )
             self.dnet.eth.send(str(eth))
             time.sleep(0.0001)
-    
+
     def add_spoof(self):
         data = []
         org_data = []
@@ -803,7 +803,7 @@ class mod_class(object):
         if btn.get_active():
             self.flood_thread = flood_thread(self, self.flood_no_spinbutton.get_value_as_int())
             self.flood_thread.start()
-        else:                
+        else:
             if self.flood_thread and self.flood_thread.is_alive():
                 self.flood_thread.quit()
                 self.flood_thread = None

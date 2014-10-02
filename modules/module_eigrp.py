@@ -1,12 +1,12 @@
 #       module_eigrp.py
-#       
+#
 #       Copyright 2009 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -101,7 +101,7 @@ class eigrp_packet:
     EIGRP_OPTCODE_HELLO = 5
     EIGRP_FLAGS_INIT = 0x00000001
     EIGRP_FLAGS_COND_RECV = 0x00000008
-        
+
     def __init__(self, optcode = None, flags = None, seq_num = None, ack_num = None, as_num = None, data = None):
         self.optcode = optcode
         self.checksum = 0
@@ -143,7 +143,7 @@ class eigrp_tlv:
     EIGRP_TYPE_NEXT_MULTICAST_SEQ = 0x0005
     EIGRP_TYPE_INTERNAL_ROUTE = 0x0102
     EIGRP_TYPE_EXTERNAL_ROUTE = 0x0103
-    
+
     def __init__(self, type=None):
         self.type = type
         self.len = None
@@ -253,7 +253,7 @@ class eigrp_internal_route(eigrp_tlv):
 
 class eigrp_external_route(eigrp_tlv):
     EIGRP_EXTERNAL_PROTO_OSPF = 6
-    
+
     def __init__(self, next_hop = None, originating_router = None, originating_as = None, arbitrary_tag = None, external_metric = None, external_proto = None, flags = None, delay = None, bandwidth = None, mtu = None, hop_count = None, reliability = None, load = None, prefix = None, dest = None):
         eigrp_tlv.__init__(self, eigrp_tlv.EIGRP_TYPE_EXTERNAL_ROUTE)
         if next_hop:
@@ -462,7 +462,7 @@ class eigrp_peer(threading.Thread):
         self.sem.acquire()
         self.msg = msg
         self.sem.release()
-        
+
     def run(self):
         self.iter = self.parent.treestore.append(None, [dnet.ip_ntoa(self.peer), str(self.as_num)])
         self.send()
@@ -496,13 +496,13 @@ class eigrp_goodbye(threading.Thread):
 
     def quit(self):
         self.running = False
-        
+
 ### MODULE_CLASS ###
 
 class mod_class(object):
     TREE_HOST_ROW = 0
     TREE_AS_ROW = 1
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -571,7 +571,7 @@ class mod_class(object):
         self.spoof_entry = self.glade_xml.get_widget("spoof_entry")
 
         self.update_textview = self.glade_xml.get_widget("update_textview")
-        
+
         self.treeview = self.glade_xml.get_widget("neighbor_treeview")
         self.treeview.set_model(self.treestore)
         self.treeview.set_headers_visible(True)
@@ -621,7 +621,7 @@ class mod_class(object):
         self.orig_as_spinbutton = self.glade_xml.get_widget("orig_as_spinbutton")
         self.external_metric_spinbutton = self.glade_xml.get_widget("external_metric_spinbutton")
         self.external_id_spinbutton = self.glade_xml.get_widget("external_id_spinbutton")
-        
+
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -696,7 +696,7 @@ class mod_class(object):
             self.add_peer(mac, src, packet.as_num)
         else:
             self.peers[src].input(data)
-        
+
     def disp_unicast(self, data, mac, src):
         #print "disp_unicast from " + socket.inet_ntoa(src)
         if src not in self.peers:
@@ -706,7 +706,7 @@ class mod_class(object):
             self.add_peer(mac, src, packet.as_num)
         else:
             self.peers[src].input(data)
-        
+
     # PEER HANDLING #
 
     def add_peer(self, mac, src, as_num, data=None):
@@ -715,7 +715,7 @@ class mod_class(object):
         self.peers[src].start()
         if data:
             self.peers[src].input(data)
-            
+
     # SIGNALS #
 
     def on_hello_togglebutton_toggled(self, btn):
@@ -745,7 +745,7 @@ class mod_class(object):
                         self.spoof_togglebutton.set_property("sensitive", True)
                         self.as_entry.set_property("sensitive", True)
                     return
-        
+
             self.hello_thread.start()
             self.log("EIGRP: Hello thread on %s started" % (self.interface))
         else:
@@ -786,7 +786,7 @@ class mod_class(object):
             self.goodbye_label.set_label("Sending Goodbye Messages to %s..." % (host))
             self.goodbye_window.show_all()
             self.goodbye_thread.start()
-            self.log("EIGRP: Goodbye thread started for %s" % (host)) 
+            self.log("EIGRP: Goodbye thread started for %s" % (host))
 
     def on_add_button_clicked(self, data):
         dialog = gtk.MessageDialog(self.parent.window, gtk.DIALOG_MODAL | gtk.DIALOG_DESTROY_WITH_PARENT, gtk.MESSAGE_QUESTION, gtk.BUTTONS_OK_CANCEL, "Enter IP Address to add:")
@@ -899,7 +899,7 @@ class mod_class(object):
                                             #~ data=str(ip_hdr)
                                             #~ )
         #~ self.dnet.send(str(eth_hdr))
-        
+
     def on_stop_button_clicked(self, data):
         self.goodbye_thread.quit()
         self.goodbye_window.hide_all()

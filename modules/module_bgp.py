@@ -1,12 +1,12 @@
 #       module_bgp.py
-#       
+#
 #       Copyright 2009 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -49,7 +49,7 @@ class bgp_msg(object):
     TYPE_UPDATE = 2
     TYPE_NOTIFICATION = 3
     TYPE_KEEPALIVE = 4
-    
+
     def __init__(self, msg_type):
         self.type = msg_type
 
@@ -58,7 +58,7 @@ class bgp_msg(object):
 
 class bgp_open(bgp_msg):
     BGP_VERSION = 4
-    
+
     def __init__(self, my_as, hold_time = 256, identity = "1.3.3.7", parameters = []):
         bgp_msg.__init__(self, self.TYPE_OPEN)
         self.my_as = my_as
@@ -103,7 +103,7 @@ class bgp_capability_mp(bgp_capability):
         bgp_capability.__init__(self, bgp_capability.CAPABILITY_MP)
         self.af = af
         self.sub_af = sub_af
-        
+
     def render(self):
         return bgp_capability.render(self, struct.pack("!HBB", self.af, 0, self.sub_af))
 
@@ -127,14 +127,14 @@ class bgp_update(bgp_msg):
         for x in self.nlri:
             n_data += x.render()
         return bgp_msg.render(self, w_data + p_data + n_data)
-        
+
 class bgp_notification(bgp_msg):
     def __init__(self, err_code, err_sub, data = ""):
         bgp_msg.__init__(self, self.TYPE_NOTIFICATION)
         self.err_code = err_code
         self.err_sub = err_sub
         self.data = data
-    
+
     def render(self):
         err = struct.pack("!BB", self.err_code, self.err_sub)
         return bgp_msg.render(self, err + self.data)
@@ -166,7 +166,7 @@ class bgp_path_attr(object):
     PATH_ATTR_MP_REACH_NLRI = 14
     PATH_ATTR_MP_UNREACH_NLRI = 14
     PATH_ATTR_EXTENDED_COMMUNITIES = 16
-    
+
     def __init__(self, flags, type):
         self.flags = flags
         self.type = type
@@ -179,7 +179,7 @@ class bgp_path_attr_origin(bgp_path_attr):
     ORIGIN_IGP = 0
     ORIGIN_EGP = 1
     ORIGIN_INCOMPLETE = 2
-    
+
     def __init__(self, origin):
         bgp_path_attr.__init__(self, 0x40, self.PATH_ATTR_ORIGIN)
         self.origin = origin
@@ -190,7 +190,7 @@ class bgp_path_attr_origin(bgp_path_attr):
 class bgp_as_path_segment(object):
     AS_PATH_AS_SET = 1
     AS_PATH_AS_SEQUENCE = 2
-    
+
     def __init__(self, type, values):
         self.type = type
         self.values = values
@@ -211,7 +211,7 @@ class bgp_path_attr_as_path(bgp_path_attr):
         for x in self.value:
             data += x.render()
         return bgp_path_attr.render(self, data)
-        
+
 class bgp_path_attr_next_hop(bgp_path_attr):
     def __init__(self, next_hop):
         bgp_path_attr.__init__(self, 0x40, self.PATH_ATTR_NEXT_HOP)
@@ -282,7 +282,7 @@ class bgp_mp_rfc3107_nlri(object):
         self.length = length
         self.stack = stack
         self.prefix = prefix
-        
+
     def render(self):
         data = struct.pack("!B", self.length)
         x = self.stack.split(':')
@@ -297,7 +297,7 @@ class bgp_mp_rfc3107_nlri(object):
         data += struct.pack("!LL", int(b[0]), int(b[1]))
         data += socket.inet_aton(b[2])
         return data
-    
+
 class bgp_path_attr_mp_reach_nlri(bgp_path_attr):
     AF_IPV4 = 1
     SUB_AF_VPN = 128
@@ -389,13 +389,13 @@ class bgp_session(threading.Thread):
             for (i, j) in self.md5:
                 if i == self.dest:
                     loki_bindings.tcpmd5.tcpmd5.set(self.sock.fileno(), self.parent.ip, i, BGP_PORT, j)
-            
+
         self.sock.connect((self.dest, BGP_PORT))
         if not bf:
             msg = bgp_open(self.my_as, self.hold_time, self.identity, self.parameters)
             self.sock.send(msg.render())
             self.active = True
-        
+
     def update(self, msg):
         self.fuzz = False
         self.sem.acquire()
@@ -404,16 +404,16 @@ class bgp_session(threading.Thread):
 
     def shutdown(self):
         self.active = False
-    
+
     def run(self):
         iter = self.liststore.append([self.host, self.host])
-        
+
         self.keepalive()
         self.log("BGP: Keepalive thread terminated for %s" % (self.host))
 
         if self.liststore.iter_is_valid(iter):
             self.liststore.remove(iter)
-        
+
         del self.parent.sessions[self.host]
 
     def keepalive(self):
@@ -480,7 +480,7 @@ class mod_class(object):
         self.md5_entry = self.glade_xml.get_widget("md5_entry")
         if self.platform != "Linux" and self.platform != "FreeBSD":
             self.md5_entry.set_text("not available on %s" % self.platform)
-            self.md5_entry.set_property("sensitive", False)            
+            self.md5_entry.set_property("sensitive", False)
 
         self.ip_entry = self.glade_xml.get_widget("ip_entry")
         self.as_entry = self.glade_xml.get_widget("as_entry")
@@ -513,7 +513,7 @@ class mod_class(object):
             secret = self.md5_entry.get_text()
             if not secret == "":
                 md5.append((ip, secret))
-        
+
         params_cmd = self.params_entry.get_text()
         if params_cmd != "":
             params_cmd = "parameters = %s" % (params_cmd)

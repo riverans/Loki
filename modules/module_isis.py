@@ -1,12 +1,12 @@
 #       module_isis.py
-#       
+#
 #       Copyright 2013 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -61,20 +61,20 @@ class isis_pdu_header(object):
     TYPE_L2_COMPLETE_SEQUENCE = 25
     TYPE_L1_PARTIAL_SEQUENCE = 26
     TYPE_L2_PARTIAL_SEQUENCE = 27
-    
+
     def __init__(self, sys_id_length=None, pdu_type=None, eco=None, user_eco=None):
         self.sys_id_length = sys_id_length
         self.pdu_type = pdu_type
         self.eco = eco
         self.user_eco = user_eco
-        
+
     def render(self, data):
         return struct.pack("!BBBBBBBB", ISIS_PROTOCOL_DISCRIMINATOR, len(data)+8, ISIS_VERSION, self.sys_id_length,
                                 self.pdu_type, ISIS_VERSION, self.eco, self.user_eco) + data
-    
+
     def parse(self, data):
         (self.header_length, self.sys_id_length, self.pdu_type, self.eco, self.user_eco) = struct.unpack("!xBxBBxBB", data[:8])
-        return data[8:] 
+        return data[8:]
 
 class isis_pdu_lan_hello(isis_pdu_header):
     def __init__(self, level=None, circuit_type=None, source_id=None, hold_timer=None, priority=None, lan_id=None, tlvs=[], mtu=1497):
@@ -89,7 +89,7 @@ class isis_pdu_lan_hello(isis_pdu_header):
             isis_pdu_header.__init__(self, 0, level, 0, 0)
         else:
             isis_pdu_header.__init__(self)
-    
+
     def __repr__(self):
         return "ISIS-HELLO CircT(%x) SysID(%s) HoldT(%d) Prio(%d) LanID(%s) TLVs(%s)" % \
                     (
@@ -100,7 +100,7 @@ class isis_pdu_lan_hello(isis_pdu_header):
                      self.lan_id.encode("hex"),
                      ", ".join([ str(i) for i in self.tlvs ])
                     )
-    
+
     def render(self):
         tlv_data = ""
         for t in self.tlvs:
@@ -110,7 +110,7 @@ class isis_pdu_lan_hello(isis_pdu_header):
             tlv_data += t.render()
         return isis_pdu_header.render(self, struct.pack("!B6sHHB7s", self.circuit_type, self.source_id, self.hold_timer,
                                 len(tlv_data) + 27, self.priority, self.lan_id)) + tlv_data
-        
+
     def parse(self, data):
         data = isis_pdu_header.parse(self, data)
         (self.circuit_type, self.source_id, self.hold_timer, self.pdu_length, self.priority, self.lan_id) = struct.unpack("!B6sHHB7s", data[:19])
@@ -129,7 +129,7 @@ class isis_pdu_link_state(isis_pdu_header):
             isis_pdu_header.__init__(self, 0, level, 0, 0)
         else:
             isis_pdu_header.__init__(self)
-    
+
     def __repr__(self):
         return "ISIS-LSP Live(%d) ID(%s) Seq(%d) Type(%x) TLVs(%s)" % \
                 (
@@ -139,7 +139,7 @@ class isis_pdu_link_state(isis_pdu_header):
                  self.type_block,
                  ", ".join([ str(i) for i in self.tlvs ])
                 )
-        
+
     def render(self):
         tlv_data = ""
         for t in self.tlvs:
@@ -149,7 +149,7 @@ class isis_pdu_link_state(isis_pdu_header):
         if self.checksum is None:
             self.checksum = self.lsp_checksum(data[12:], 12)
         return data[:24] + self.checksum + data[26:]
-        
+
     def parse(self, data):
         data = isis_pdu_header.parse(self, data)
         (self.pdu_length, self.lifetime, self.lsp_id, self.sequence) = struct.unpack("!HH8sI", data[:16])
@@ -190,13 +190,13 @@ class isis_pdu_complete_sequence(isis_pdu_header):
             isis_pdu_header.__init__(self, 0, level, 0, 0)
         else:
             isis_pdu_header.__init__(self)
-        
+
     def render(self):
         tlv_data = ""
         for t in self.tlvs:
             tlv_data += t.render()
         return isis_pdu_header.render(self, struct.pack("!H7s8s8s", len(tlv_data) + 33, self.source_id, self.start_lsp, self.end_lsp)) + tlv_data
-        
+
     def parse(self, data):
         data = self.isis_pdu_header(self, data)
         (self.pdu_length, self.source_id, self.start_lsp, self.end_lsp) = struct.unpack("!H7s8s8s", data[:25])
@@ -223,7 +223,7 @@ def parse_tlvs(data):
             data = data_new
         tlvs.append(tlv)
     return tlvs
-        
+
 class isis_tlv(object):
     TYPE_AREA_ADDRESS =     0x01
     TYPE_IS_REACH =         0x02
@@ -239,35 +239,35 @@ class isis_tlv(object):
     TYPE_RESTART_SIGNALING= 0xd3
     TYPE_IP6_INT_ADDRESS =  0xe8
     TYPE_IP6_INT_REACH =    0xec
-    
+
     def __init__(self, t=None, v=None):
         self.t = t
         self.v = v
-    
+
     def __repr__(self):
         return "ISIS-TLV t(%x) v(%s)" % (self.t, self.v.encode("hex"))
-    
+
     def render(self, data=None):
         if data is None:
             data = self.v
         return struct.pack("!BB", self.t, len(data)) + data
-    
+
     def parse(self, data):
         (self.t, self.l) = struct.unpack("!BB", data[:2])
         self.v = data[2:2+self.l]
         return data[2+self.l:]
 
 class isis_tlv_authentication(isis_tlv):
-    AUTH_TYPE_NONE =        0x00 
+    AUTH_TYPE_NONE =        0x00
     AUTH_TYPE_CLEAR_TEXT =  0x01
     AUTH_TYPE_HMAC_MD5 =    0x36
-    
+
     def __init__(self):
         self.auth_type = None
         self.secret = None
         self.digest = None
         isis_tlv.__init__(self, isis_tlv.TYPE_AUTHENTICATION)
-    
+
     def __repr__(self):
         if self.auth_type == self.AUTH_TYPE_CLEAR_TEXT:
             return "Clear Text: '%s'" % self.secret
@@ -277,7 +277,7 @@ class isis_tlv_authentication(isis_tlv):
             else:
                 return "HMAC-MD5"
         return ""
-    
+
     def render(self):
         if self.auth_type == self.AUTH_TYPE_CLEAR_TEXT:
             data = chr(self.auth_type) + self.secret
@@ -289,7 +289,7 @@ class isis_tlv_authentication(isis_tlv):
         else:
             return ""
         return isis_tlv.render(self, data)
-    
+
     def parse(self, data):
         data = isis_tlv.parse(self, data)
         self.auth_type, = struct.unpack("!B", self.v[0])
@@ -303,16 +303,16 @@ class isis_tlv_area_address(isis_tlv):
     def __init__(self):
         self.addresses = []
         isis_tlv.__init__(self, isis_tlv.TYPE_AREA_ADDRESS)
-        
+
     def __repr__(self):
         return ", ".join([a.encode("hex") for a in self.addresses])
-    
+
     def render(self):
         data = ""
         for i in self.addresses:
             data += struct.pack("!B", len(i)) + i
         return isis_tlv.render(self, data)
-        
+
     def parse(self, data):
         data = isis_tlv.parse(self, data)
         while len(self.v) > 0:
@@ -320,7 +320,7 @@ class isis_tlv_area_address(isis_tlv):
             self.addresses.append(self.v[1:1+alen])
             self.v = self.v[1+alen:]
         return data
-        
+
 class isis_md5bf(threading.Thread):
     def __init__(self, parent, iter, bf, full, wl, digest, data, identifier):
         self.parent = parent
@@ -359,7 +359,7 @@ class isis_md5bf(threading.Thread):
     def quit(self):
         if os.path.exists(self.tmpfile):
             os.remove(self.tmpfile)
-        
+
 class isis_thread(threading.Thread):
     def __init__(self, parent):
         self.parent = parent
@@ -369,14 +369,14 @@ class isis_thread(threading.Thread):
         self.sequence = 1
         self.count = 0
         threading.Thread.__init__(self)
-    
+
     def send_multicast(self, pdu):
         if not self.parent.auth is None and not self.parent.auth_secret is None:
             if self.parent.auth.auth_type == isis_tlv_authentication.AUTH_TYPE_HMAC_MD5:
                 local = copy.deepcopy(pdu)
                 #~ import pprint
                 #~ print "#" * 80
-                #~ pprint.pprint(local)                
+                #~ pprint.pprint(local)
                 #~ print "#" * 80
                 if local.pdu_type == isis_pdu_header.TYPE_L1_HELLO or local.pdu_type == isis_pdu_header.TYPE_L2_HELLO:
                     pass #does cisco auth hellos with hmac?
@@ -400,7 +400,7 @@ class isis_thread(threading.Thread):
                                             data=llc
                                             )
         self.parent.dnet.send(str(eth_hdr))
-    
+
     def refresh_lsps(self, level, tblock):
         #neighbors
         is_reach = "\x00" + struct.pack("!BBBB", 0x00, 0x80, 0x80, 0x80) + self.parent.sysid + "\x00"
@@ -460,7 +460,7 @@ class isis_thread(threading.Thread):
         tlvs = [    isis_tlv(isis_tlv.TYPE_AREA_ADDRESS, self.parent.area),
                     isis_tlv(isis_tlv.TYPE_PROTOCOL_SUPPORT, protos),
                     isis_tlv(isis_tlv.TYPE_HOSTNAME, self.parent.hostname)
-                    ]        
+                    ]
         if "ip" in dir(self.parent) and not self.parent.ip is None:
             if not self.parent.loopback is None:
                 tlvs.append(isis_tlv(isis_tlv.TYPE_IP_INT_ADDRESS, self.parent.loopback))
@@ -487,7 +487,7 @@ class isis_thread(threading.Thread):
         self.parent.lsps[0x0000] = lsp
         self.send_multicast(lsp)
         self.sequence = self.sequence + 1
-    
+
     def run(self):
         while(self.running):
             if self.parent.dnet:
@@ -537,12 +537,12 @@ class isis_thread(threading.Thread):
                                                 self.parent.mtu - 3 - 14
                                                 )
                     self.send_multicast(hello)
-                    
+
                 if self.exchange and (self.init or self.parent.nets_changed or self.count % 600 == 0):
-                    self.refresh_lsps(lsp_level, tblock)              
+                    self.refresh_lsps(lsp_level, tblock)
                     self.parent.nets_changed = False
                     self.init = False
-                
+
                 if not len(self.parent.lsps) == 0 and self.count % 10 == 0:
                     entries = []
                     refresh_needed = False
@@ -551,7 +551,7 @@ class isis_thread(threading.Thread):
                         if self.parent.lsps[i].lifetime <= 300:
                             refresh_needed = True
                         entries += [struct.pack("!H8sI2s",
-                                                self.parent.lsps[i].lifetime, 
+                                                self.parent.lsps[i].lifetime,
                                                 self.parent.lsps[i].lsp_id,
                                                 self.parent.lsps[i].sequence,
                                                 self.parent.lsps[i].checksum)]
@@ -571,7 +571,7 @@ class isis_thread(threading.Thread):
                                     lsp.lifetime = 0
                                     del cur["lsps"][l]
                                 entries += [struct.pack("!H8sIH", lsp.lifetime, lsp.lsp_id, lsp.sequence, lsp.checksum)]
-                        
+
                         entries = "".join(sorted(set(entries)))
                         tlvs = [ isis_tlv(isis_tlv.TYPE_LSP_ENTRIES, entries) ]
                         if not self.parent.auth is None:
@@ -584,18 +584,18 @@ class isis_thread(threading.Thread):
                                                           )
                         ##CSNP only if DR
                         self.send_multicast(csnp)
-                    
+
                     if refresh_needed:
                         self.refresh_lsps(lsp_level, tblock)
-            
+
             if not self.running:
                 return
             self.count += 1
             time.sleep(self.parent.sleep_time)
-    
+
     def quit(self):
         self.running = False
-        
+
 class mod_class(object):
     NEIGH_HOST_ROW = 0
     NEIGH_ID_ROW = 1
@@ -607,7 +607,7 @@ class mod_class(object):
     NET_NET_ROW = 0
     NET_MASK_ROW = 1
     NET_TYPE_ROW = 2
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -699,7 +699,7 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.NEIGH_CRACK_ROW)
         self.neighbor_treeview.append_column(column)
-        
+
         self.network_treeview = self.glade_xml.get_widget("network_treeview")
         self.network_treeview.set_model(self.network_liststore)
         self.network_treeview.set_headers_visible(True)
@@ -716,11 +716,11 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', 1)
         self.network_treeview.append_column(column)
-        
+
         self.level_combobox = self.glade_xml.get_widget("level_combobox")
         self.level_combobox.set_model(self.level_liststore)
         self.level_combobox.set_active(0)
-        
+
         self.hello_tooglebutton = self.glade_xml.get_widget("hello_tooglebutton")
         self.area_entry = self.glade_xml.get_widget("area_entry")
         self.loopback_entry = self.glade_xml.get_widget("loopback_entry")
@@ -766,7 +766,7 @@ class mod_class(object):
         if eth.dst == dnet.eth_aton(ISIS_ALL_L1_IS_MAC) or eth.dst == dnet.eth_aton(ISIS_ALL_L2_IS_MAC):
             return (True, True)
         return (False, False)
-        
+
     def input_eth(self, eth, timestamp):
         if eth.src != self.mac:
             data = str(eth.data)[3:]
@@ -793,15 +793,15 @@ class mod_class(object):
                         cur = {}
                         cur["hello"] = hello
                         cur["iter"] = self.neighbor_treestore.append(None, [
-                                                                        level + dnet.eth_ntoa(eth.src), 
-                                                                        hello.source_id.encode("hex"), 
+                                                                        level + dnet.eth_ntoa(eth.src),
+                                                                        hello.source_id.encode("hex"),
                                                                         str(get_tlv(hello, isis_tlv.TYPE_AREA_ADDRESS)),
-                                                                        auth, 
+                                                                        auth,
                                                                         "",
                                                                         cur
                                                                     ])
                         cur["lsps"] = {}
-                        
+
                         self.log("ISIS: Got new peer %s" % (dnet.eth_ntoa(eth.src)))
                         neighbors[eth.src] = cur
                     else:
@@ -882,9 +882,9 @@ class mod_class(object):
                                 ises = ises[11:]
                         self.thread.exchange = True
                         self.thread.init = True
-                    
+
     #SIGNALS
-    
+
     def on_hello_togglebutton_toggled(self, btn):
         if btn.get_active():
             self.level_combobox.set_property("sensitive", False)
@@ -917,7 +917,7 @@ class mod_class(object):
             self.loopback_entry.set_property("sensitive", True)
             self.log("ISIS: Hello thread deactivated")
         self.thread.hello = btn.get_active()
-        
+
     def on_add_button_clicked(self, btn):
         net = self.network_entry.get_text()
         mask = self.netmask_entry.get_text()
@@ -941,7 +941,7 @@ class mod_class(object):
                 "mask"  :   mask,
             }
         self.nets_changed = True
-        
+
     def on_remove_button_clicked(self, btn):
         select = self.network_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
@@ -953,7 +953,7 @@ class mod_class(object):
             elif self.network_liststore.get_string_from_iter(iter) in self.nets6:
                 del self.nets6[self.network_liststore.get_string_from_iter(iter)]
         self.nets_changed = True
-    
+
     def on_bf_button_clicked(self, btn):
         select = self.neighbor_treeview.get_selection()
         (model, paths) = select.get_selected_rows()

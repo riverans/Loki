@@ -8,7 +8,7 @@
  *      Redistribution and use in source and binary forms, with or without
  *      modification, are permitted provided that the following conditions are
  *      met:
- *      
+ *
  *      * Redistributions of source code must retain the above copyright
  *        notice, this list of conditions and the following disclaimer.
  *      * Redistributions in binary form must reproduce the above
@@ -18,7 +18,7 @@
  *      * Neither the name of the  nor the names of its
  *        contributors may be used to endorse or promote products derived from
  *        this software without specific prior written permission.
- *      
+ *
  *      THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  *      "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *      LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -200,7 +200,7 @@ void pre_calc_md5(const u_char *packet, int len, md5_state_t *state) {
 //   zero
     tcp.th_sum = 0;
     md5_append(state, (const md5_byte_t *) &tcp, sizeof(struct tcphdr));
-    
+
 //3. the TCP segment data (if any)
     head_len = sizeof(struct ip) + (tcp.th_off << 2);
     data_len = len > head_len ? len - head_len : 0;
@@ -235,7 +235,7 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
         }
 
         Py_BEGIN_ALLOW_THREADS
-            
+
         while(fgets(line, 512, wlist)) {
             char *tmp = strchr(line, '\n');
             if(tmp)
@@ -292,7 +292,7 @@ tcpmd5bf_bf(PyObject *self, PyObject *args)
             }
             count++;
         } while(inc_brute_pw(brute_pw, 0, full));
-        
+
         Py_END_ALLOW_THREADS
     }
 

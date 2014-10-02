@@ -8,7 +8,7 @@
  *      Redistribution and use in source and binary forms, with or without
  *      modification, are permitted provided that the following conditions are
  *      met:
- *      
+ *
  *      * Redistributions of source code must retain the above copyright
  *        notice, this list of conditions and the following disclaimer.
  *      * Redistributions in binary form must reproduce the above
@@ -18,7 +18,7 @@
  *      * Neither the name of the  nor the names of its
  *        contributors may be used to endorse or promote products derived from
  *        this software without specific prior written permission.
- *      
+ *
  *      THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  *      "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  *      LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -42,7 +42,7 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
-#define bzero(b,len) (memset((b), '\0', (len)), (void) 0)  
+#define bzero(b,len) (memset((b), '\0', (len)), (void) 0)
 #else
 #include <arpa/inet.h>
 #endif
@@ -74,7 +74,7 @@ int inc_brute_pw_r(char *cur, int pos) {
     }
 }
 
-int inc_brute_pw(char *cur, int pos, int full) {    
+int inc_brute_pw(char *cur, int pos, int full) {
     if(full)
         return inc_brute_pw_r(cur, pos);
 
@@ -144,7 +144,7 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
         }
 
         Py_BEGIN_ALLOW_THREADS
-            
+
         while(fgets(line, 512, wlist)) {
             char *tmp = strchr(line, '\n');
             if(tmp)
@@ -211,7 +211,7 @@ ospfmd5bf_bf(PyObject *self, PyObject *args)
             }
             count++;
         } while(inc_brute_pw(brute_pw, 0, full));
-        
+
         Py_END_ALLOW_THREADS
     }
 

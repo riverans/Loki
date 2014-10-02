@@ -345,7 +345,7 @@ int main(int argc, char *argv[])
 			}
 			memset(brec[brecsub].password, 0, passlen + 1);
 
-			/* Populate the password field with the next parameter in the 
+			/* Populate the password field with the next parameter in the
 			   record */
 			fread(brec[brecsub].password, passlen, 1,
 			      hbucket[hsub].sbucket);

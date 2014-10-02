@@ -6,12 +6,12 @@
 #define hmac_md5_INCLUDED
 
 #ifndef ARCH_IS_BIG_ENDIAN
-#define ARCH_IS_BIG_ENDIAN 0 
+#define ARCH_IS_BIG_ENDIAN 0
 #endif
 #include "md5.h"
 
 #ifdef __cplusplus
-extern "C" 
+extern "C"
 {
 #endif
 

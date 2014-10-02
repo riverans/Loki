@@ -1,12 +1,12 @@
 #       module_snmp.py
-#       
+#
 #       Copyright 2010 Daniel Mende <dmende@ernw.de>
 #
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -55,7 +55,7 @@ class scan_thread(threading.Thread):
             pass
         self.running = False
         del self.parent.scan_threads[self.scan_args]
-    
+
     def quit(self):
         self.running = False
 
@@ -63,7 +63,7 @@ class mod_class(object):
     HOSTS_IP_ROW = 0
     HOSTS_AUTH_ROW = 1
     HOSTS_TYPE_ROW = 2
-    
+
     def __init__(self, parent, platform):
         self.parent = parent
         self.platform = platform
@@ -145,7 +145,7 @@ class mod_class(object):
             for (name, val) in varBinds:
                 gtk.gdk.threads_enter()
                 self.hosts_treestore.append(iter, ["", str(name), str(val)])
-                
+
                 gtk.gdk.threads_leave()
 
     def v1_scan_func(self, ip):
@@ -155,15 +155,15 @@ class mod_class(object):
             try:
                 sendRequestHandle = asynCommandGenerator.asyncGetCmd(
                                         cmdgen.CommunityData('my-agent', j, 1),
-                                        cmdgen.UdpTransportTarget((ip, 161), timeout=self.scan_timeout, retries=self.scan_retries), 
-                                        ((1,3,6,1,2,1,1,1,0),(1,3,6,1,2,1,1,4,0),(1,3,6,1,2,1,1,5,0),(1,3,6,1,2,1,1,6,0)), 
+                                        cmdgen.UdpTransportTarget((ip, 161), timeout=self.scan_timeout, retries=self.scan_retries),
+                                        ((1,3,6,1,2,1,1,1,0),(1,3,6,1,2,1,1,4,0),(1,3,6,1,2,1,1,5,0),(1,3,6,1,2,1,1,6,0)),
                                         (self.v1_scan_cb, (ip, j))
                                         )
                 asynCommandGenerator.snmpEngine.transportDispatcher.runDispatcher()
             except Exception, e:
                 print "OOooops: " + e
-    
-    def on_start_v1_scan_button_clicked(self, data):        
+
+    def on_start_v1_scan_button_clicked(self, data):
         ip = IPy.IP(self.v1_net_entry.get_text())
         for i in ip:
             index = len(self.scan_threads)
@@ -198,11 +198,11 @@ class mod_class(object):
                                                 "max" : 1000
                                                 }
                     }
-                    
+
     def set_config_dict(self, dict):
         if dict:
             self.communities = dict["communities"]["value"]
             self.scan_timeout = dict["scan_timeout"]["value"]
             self.scan_retries = dict["scan_retries"]["value"]
             self.scan_threads_count = dict["scan_threads_count"]["value"]
-            
+

@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 #
 #  module_dtp.py
-#  
+#
 #  Copyright 2014 Daniel Mende <mail@c0decafe.de>
-#  
+#
 
 #       Redistribution and use in source and binary forms, with or without
 #       modification, are permitted provided that the following conditions are
 #       met:
-#       
+#
 #       * Redistributions of source code must retain the above copyright
 #         notice, this list of conditions and the following disclaimer.
 #       * Redistributions in binary form must reproduce the above
@@ -19,7 +19,7 @@
 #       * Neither the name of the  nor the names of its
 #         contributors may be used to endorse or promote products derived from
 #         this software without specific prior written permission.
-#       
+#
 #       THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 #       "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 #       LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -43,7 +43,7 @@ gobject = None
 gtk = None
 urwid = None
 
-DTP_VERSION = 1 
+DTP_VERSION = 1
 DTP_DEST_MAC = "01:00:0c:cc:cc:cc"
 
 class dtp_pdu(object):
@@ -53,7 +53,7 @@ class dtp_pdu(object):
             self.tlvs = tlvs
         else:
             self.tlvs = []
-    
+
     def parse(self, data):
         (self.version,) = struct.unpack("!B", data[0])
         data = data[1:]
@@ -61,13 +61,13 @@ class dtp_pdu(object):
             tlv = dtp_tlv()
             data = tlv.parse(data)
             self.tlvs.append(tlv)
-    
+
     def render(self):
         data = struct.pack("!B", self.version)
         for i in self.tlvs:
             data += i.render()
         return data
-    
+
     def get_tlv(self, t):
         for i in self.tlvs:
             if i.t == t:
@@ -78,19 +78,19 @@ class dtp_tlv(object):
     TYPE_DOMAIN = 0x0001
     TYPE_STATUS = 0x0002
     TYPE_TRUNK =  0x0003
-    TYPE_SENDER = 0x0004    
-    
+    TYPE_SENDER = 0x0004
+
     STATUS_ON       = 0x01
     STATUS_DESIRABLE= 0x03
     STATUS_AUTO     = 0x04
-    
+
     ENCAP_ISL   = 0x02
     ENCAP_8021Q = 0x05
-    
+
     def __init__(self, t=None, v=None):
         self.t = t
         self.v = v
-    
+
     def __repr__(self):
         try:
             if self.t == self.TYPE_DOMAIN:
@@ -120,14 +120,14 @@ class dtp_tlv(object):
         except:
             pass
         return "%d, %d, %s" % (self.t, self.l, self.v.encode("hex"))
-    
+
     def parse(self, data):
         if len(data) < 4:
             return ""
         (self.t, self.l) = struct.unpack("!HH", data[:4])
         self.v = data[4:self.l]
         return data[max(self.l, 4):]
-        
+
     def render(self):
         return struct.pack("!HH", self.t, len(self.v)+4) + self.v
 
@@ -181,7 +181,7 @@ class mod_class(object):
     STORE_TRUNK_ROW = 3
     STORE_SENDER_ROW = 4
     STORE_STATE_ROW = 5
-    
+
     def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
@@ -223,7 +223,7 @@ class mod_class(object):
             if not self.peerlist is None:
                 for i in self.peerlist:
                     self.peerlist.remove(i)
-   
+
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_get_button_toggled" : self.on_get_button_toggled,
@@ -270,11 +270,11 @@ class mod_class(object):
         #~ column.pack_start(render_text, expand=True)
         #~ column.add_attribute(render_text, 'text', self.STORE_STATE_ROW)
         #~ self.treeview.append_column(column)
-        
+
         self.domainentry = self.glade_xml.get_widget("domainentry")
-        
+
         return self.glade_xml.get_widget("root")
- 
+
     def get_urw(self):
         peerlist = [ urwid.AttrMap(urwid.Text("Hosts seen:"), 'header'), urwid.Divider() ]
         self.peerlist = urwid.SimpleListWalker(peerlist)
@@ -282,11 +282,11 @@ class mod_class(object):
         self.domain = urwid.Edit("DTP Domain: ")
         self.send = self.parent.menu_button("Send Trunk PDUs", self.urw_send_activated)
         return urwid.Pile([ ('weight', 8, peerlist), urwid.Filler(urwid.Columns([ self.domain, self.send ])) ])
-    
+
     def urw_peerlist_activated(self, button, src):
         self.domain.set_edit_text(str(self.peers[src]["pdu"].get_tlv(dtp_tlv.TYPE_DOMAIN)))
         self.target = self.peers[src]
-    
+
     def urw_send_activated(self, button):
         if not self.target is None:
             self.peerlist[self.target["row_iter"]].set_attr_map({None : "button select"})
@@ -297,7 +297,7 @@ class mod_class(object):
             self.thread = dtp_thread(self)
         if not self.thread.is_alive():
             self.thread.start()
-    
+
     def urw_send_deactivated(self, button):
         if not self.target is None:
             self.peerlist[self.target["row_iter"]].set_attr_map({None : "button normal"})
@@ -309,7 +309,7 @@ class mod_class(object):
             if self.thread.is_alive():
                 self.thread.shutdown()
             self.thread = None
-        
+
     def log(self, msg):
         self.__log(msg, self.name)
 
@@ -322,15 +322,15 @@ class mod_class(object):
     def set_dnet(self, dnet):
         self.dnet = dnet
         self.mac = dnet.eth.get()
-        
+
     def get_eth_checks(self):
         return (self.check_eth, self.input_eth)
-    
+
     def check_eth(self, eth):
         if dnet.eth_ntoa(str(eth.dst)) == DTP_DEST_MAC:
             return (True, True)
         return (False, False)
-        
+
     def input_eth(self, eth, timestamp):
         if not eth.src == self.mac:
             src = dnet.eth_ntoa(str(eth.src))
@@ -339,12 +339,12 @@ class mod_class(object):
             domain = pdu.get_tlv(dtp_tlv.TYPE_DOMAIN)
             status = pdu.get_tlv(dtp_tlv.TYPE_STATUS)
             trunk = pdu.get_tlv(dtp_tlv.TYPE_TRUNK)
-            sender = pdu.get_tlv(dtp_tlv.TYPE_SENDER)  
+            sender = pdu.get_tlv(dtp_tlv.TYPE_SENDER)
             if domain is None or status is None or trunk is None or sender is None:
-                return              
+                return
             if src not in self.peers:
                 if self.ui == "gtk":
-                    row_iter = self.liststore.append( [ src, 
+                    row_iter = self.liststore.append( [ src,
                                                         str(domain),
                                                         str(status),
                                                         str(trunk),
@@ -362,7 +362,7 @@ class mod_class(object):
                 self.log("DTP: Got new peer %s" % src)
             else:
                 if self.ui == "gtk":
-                    self.liststore.set( self.peers[src]["row_iter"], 
+                    self.liststore.set( self.peers[src]["row_iter"],
                                         self.STORE_DOMAIN_ROW, str(domain),
                                         self.STORE_STATUS_ROW, str(status),
                                         self.STORE_TRUNK_ROW, str(trunk),
@@ -394,4 +394,4 @@ class mod_class(object):
                 if self.thread.is_alive():
                     self.thread.shutdown()
                 self.thread = None
-            
+
