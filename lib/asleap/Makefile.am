@@ -1,9 +1,7 @@
 # lib/asleap/Makefile.am
 # Copyright 2010 Daniel Mende <dmende@ernw.de> 
 
-INCLUDES = 			-I$(top_srcdir)/lib/asleap/ @PCAPINC@
-
-AM_CPPFLAGS = 		-fpic -U_FORTIFY_SOURCE
+AM_CPPFLAGS = 		-fpic -U_FORTIFY_SOURCE -I$(top_srcdir)/lib/asleap/ @PCAPINC@
 
 noinst_PROGRAMS =   asleap genkeys
 

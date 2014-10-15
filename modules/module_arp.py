@@ -39,9 +39,9 @@ import dnet
 
 import IPy
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 class spoof_thread(threading.Thread):
     def __init__(self, parent):
@@ -123,17 +123,97 @@ class mod_class(object):
     MAPPING_MAC_ROW = 0
     MAPPING_RAND_ROW = 1
     
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
+        self.ui = ui
         self.name = "arp"
         self.gladefile = "/modules/module_arp.glade"
         self.macfile = "/modules/mac.txt"
-        self.hosts_liststore = gtk.ListStore(str, str, str)
-        self.upper_add_liststore = gtk.ListStore(str, str)
-        self.lower_add_liststore = gtk.ListStore(str, str)
-        self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str)
-        self.mappings_liststore = gtk.ListStore(str, str)
+        if ui == 'gtk':
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+            self.hosts_liststore = gtk.ListStore(str, str, str)
+            self.upper_add_liststore = gtk.ListStore(str, str)
+            self.lower_add_liststore = gtk.ListStore(str, str)
+            self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str)
+            self.mappings_liststore = gtk.ListStore(str, str)
+        elif ui == 'urw':
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
+            self.spoof_tree = { "children" : [] }
+            
+            class SpoofWidget_(urwid.TreeWidget):
+                unexpanded_icon = urwid.AttrMap(urwid.TreeWidget.unexpanded_icon, 'dirmark')
+                expanded_icon = urwid.AttrMap(urwid.TreeWidget.expanded_icon, 'dirmark')
+                
+                def __init__(self, node):
+                    urwid.TreeWidget.__init__(self, node)        
+                    self._w = urwid.AttrWrap(self._w, 'body', 'focus')
+                    self.flagged = False
+                
+                def get_display_text(self):
+                    node = self.get_node()
+                    val = node.get_value()
+                    if node.get_depth() == 2:
+                        return "%s <-> %s" % (val["host_upper"], val["host_lower"])
+                    elif node.get_depth() == 1:
+                        return "%d Spoofs" % len(val["children"])
+                    else:
+                        return "Spoofings:"
+                
+                    def selectable(self):
+                        if self.get_node().get_depth() <= 1:
+                            return True
+                        return False
+
+                def keypress(self, size, key):
+                    key = urwid.TreeWidget.keypress(self, size, key)
+                    if key:
+                        key = self.unhandled_keys(size, key)
+                    return key
+
+                def unhandled_keys(self, size, key):
+                    if self.get_node().get_depth() == 1:
+                        if key == "enter":
+                            value = self.get_node().get_value()
+                            cb = value["callback"]
+                            if "args" in value:
+                                cb(self, value["args"])
+                            else:
+                                cb(self)
+                    return key
+            self.SpoofWidget = SpoofWidget_
+
+            class SpoofNode_(urwid.TreeNode):
+                def load_widget(self):
+                    return SpoofWidget(self)
+            self.SpoofNode = SpoofNode_
+
+            class SpoofParentNode_(urwid.ParentNode):
+                def load_widget(self):
+                    return SpoofWidget_(self)
+                
+                def load_child_keys(self):
+                    val = self.get_value()
+                    return range(len(val["children"]))
+                
+                def load_child_node(self, key):
+                    childdata = self.get_value()['children'][key]
+                    childdepth = self.get_depth() + 1
+                    if 'children' in childdata:
+                        childclass = SpoofParentNode_
+                    else:
+                        childclass = SpoofNode_
+                    return childclass(childdata, parent=self, key=key, depth=childdepth)
+            self.SpoofParentNode = SpoofParentNode_
         self.dnet = None
         self.spoof_thread = None
         self.flood_thread = None
@@ -142,6 +222,7 @@ class mod_class(object):
         self.spoof_delay = 30
         self.flood_delay = 0.001
         self.forward_constrain = "a=True"
+        self.forward_lookup = {}
     
     def start_mod(self):
         self.spoof_thread = spoof_thread(self)
@@ -149,6 +230,8 @@ class mod_class(object):
         self.upper_add = {}
         self.lower_add = {}
         self.spoofs = {}
+        if self.ui == 'urw':
+            self.spoof_tree["children"] = []
         if not self.macs:
             self.macs = self.parse_macs(self.parent.data_dir + self.macfile)
 
@@ -157,11 +240,12 @@ class mod_class(object):
             self.spoof_thread.quit()
         if self.flood_thread:
             self.flood_thread.quit()
-        self.hosts_liststore.clear()
-        self.upper_add_liststore.clear()
-        self.lower_add_liststore.clear()
-        self.spoof_treestore.clear()
-        self.mappings_liststore.clear()
+        if self.ui == 'gtk':
+            self.hosts_liststore.clear()
+            self.upper_add_liststore.clear()
+            self.lower_add_liststore.clear()
+            self.spoof_treestore.clear()
+            self.mappings_liststore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -286,6 +370,106 @@ class mod_class(object):
 
         return self.glade_xml.get_widget("root")
 
+    def get_urw(self):
+        hostlist = [ urwid.AttrMap(urwid.Text("Hostlist"), 'header'), urwid.Divider() ]
+        self.hostlist = urwid.SimpleListWalker(hostlist)
+        hostlist = urwid.LineBox(urwid.ListBox(self.hostlist))
+        targets1 = [ urwid.AttrMap(urwid.Text("Targets 1"), 'header'), urwid.Divider() ]
+        self.targetlist = self.targets1 = urwid.SimpleListWalker(targets1)
+        targets1 = urwid.LineBox(urwid.ListBox(self.targets1))
+        targets2 = [ urwid.AttrMap(urwid.Text("Targets 2"), 'header'), urwid.Divider() ]
+        self.targets2 = urwid.SimpleListWalker(targets2)
+        targets2 = urwid.LineBox(urwid.ListBox(self.targets2))
+        spoofs = urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.SpoofParentNode(self.spoof_tree))))
+        
+        bgroup = []
+        radio1 = urwid.RadioButton(bgroup, "Targets1", on_state_change=self.urw_radio_changed, user_data=self.targets1)
+        radio2 = urwid.RadioButton(bgroup, "Targets2", on_state_change=self.urw_radio_changed, user_data=self.targets2)
+        self.scan_network_edit = urwid.Edit("Network to scan: ")
+        button1 = self.parent.menu_button("Scan Network", self.urw_scan_activated)
+        button2 = self.parent.menu_button("Add Spoofing", self.urw_add_activated)
+        radio = urwid.ListBox(urwid.SimpleListWalker([radio1, radio2, urwid.Divider(), self.scan_network_edit, button1, button2]))
+        
+        self.pile = urwid.Pile([('weight', 3, urwid.Columns([urwid.Pile([('weight', 2, hostlist), radio]), urwid.Pile([targets1, targets2])])), spoofs])
+        return self.pile
+    
+    def urw_spoof_activated(self, widget, spoof):
+        widget.flagged = not widget.flagged
+        if widget.flagged:
+            widget._w.attr = 'flagged'
+            widget._w.focus_attr = 'flagged focus'
+            (run, data, org_data, hosts) = self.spoofs[spoof]
+            self.spoofs[spoof] = (True, data, org_data, hosts)
+            for i in hosts:
+                (ip, rand_mac, iter, reply) = self.hosts[i]
+                self.hosts[i] = (ip, rand_mac, iter, True)
+            if not self.spoof_thread.is_alive():
+                self.spoof_thread.start()
+            self.spoof_thread.wakeup()
+        else:
+            widget._w.attr = 'body'
+            widget._w.focus_attr = 'focus'
+            (run, data, org_data, hosts) = self.spoofs[spoof]
+            if run:
+                self.spoofs[spoof] = (False, data, org_data, hosts)
+                for j in org_data:
+                    self.dnet.eth.send(j)
+            for i in hosts:
+                (ip, rand_mac, iter, reply) = self.hosts[i]
+                self.hosts[i] = (ip, rand_mac, iter, False)
+    
+    def urw_add_activated(self, button):
+        if not len(self.upper_add):
+            return
+        if not len(self.lower_add):
+            return
+        spoofs = []
+        for host_upper in self.upper_add:
+            for host_lower in self.lower_add:
+                spoofs.append({  "host_upper" : host_upper,
+                                 "host_lower" : host_lower })
+        (data, org_data, hosts) = self.add_spoof()
+        self.spoofs[str(spoofs)] = (False, data, org_data, hosts)
+        for i in self.targets1:
+            if type(i.base_widget) == urwid.Button:
+                self.targets1.remove(i)
+        for i in self.targets2:
+            if type(i.base_widget) == urwid.Button:
+                self.targets2.remove(i)
+        self.spoof_tree["children"].append({ "children" : spoofs,
+                                             "callback" : self.urw_spoof_activated,
+                                             "args"     : str(spoofs) 
+                                             })
+        self.pile.contents[1] = (urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(SpoofParentNode(self.spoof_tree)))), ('weight', 1))
+        
+    def urw_scan_activated(self, button):
+        ips = IPy.IP(self.scan_network_edit.get_edit_text())
+        self.scan(ips)
+    
+    def urw_radio_changed(self, button, state, target):
+        if state:
+            self.targetlist = target
+    
+    def urw_targetlist_activated(self, _, (targetlist, button, host)):
+        if host in self.upper_add:
+            del self.upper_add[host]
+        if host in self.lower_add:
+            del self.lower_add[host]
+        targetlist.remove(button)
+    
+    def urw_hostlist_activated(self, button, host):
+        if host not in self.upper_add:
+            if host not in self.lower_add:
+                if self.targetlist == self.targets1:
+                    add = self.upper_add
+                elif self.targetlist == self.targets2:
+                    add = self.lower_add
+                (ip, rand_mac, _, reply) = self.hosts[host]
+                add[host] = (ip, rand_mac, None)
+                button = self.parent.menu_button(host)
+                urwid.connect_signal(button.base_widget, 'click', self.urw_targetlist_activated, (self.targetlist, button, host))
+                self.targetlist.append(button)
+    
     def log(self, msg):
         self.__log(msg, self.name)
 
@@ -293,7 +477,11 @@ class mod_class(object):
         self.__log = log
 
     def set_ip(self, ip, mask):
-        self.scan_network_entry.set_text(str(IPy.IP("%s/%s" % (ip, mask), make_net=True)))
+        network = str(IPy.IP("%s/%s" % (ip, mask), make_net=True))
+        if self.ui == 'gtk':
+            self.scan_network_entry.set_text(network)
+        elif self.ui == 'urw':
+            self.scan_network_edit.set_edit_text(network)
         self.ip = dnet.ip_aton(ip)
 
     def set_dnet(self, dnet_thread):
@@ -354,7 +542,11 @@ class mod_class(object):
             return
         rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
         rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
-        iter = self.hosts_liststore.append([mac, ip, self.mac_to_vendor(mac)])
+        if self.ui == 'gtk':
+            iter = self.hosts_liststore.append([mac, ip, self.mac_to_vendor(mac)])
+        elif self.ui == 'urw':
+            self.hostlist.append(self.parent.menu_button("%s(%s) - %s" % (mac, self.mac_to_vendor(mac), ip), self.urw_hostlist_activated, mac))
+            iter = None
         self.hosts[mac] = (ip, rand_mac, iter, False)
         self.mappings_liststore.append([mac, rand_mac])
 
@@ -381,7 +573,8 @@ class mod_class(object):
                 ref_src = ip
                 if good:
                     self.dnet.send(str(eth))
-                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
+                    if self.ui == 'gtk':
+                        self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
                     return
                 else:
                     good = True
@@ -390,7 +583,8 @@ class mod_class(object):
                 ref_dst = ip
                 if good:
                     self.dnet.send(str(eth))
-                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
+                    if self.ui == 'gtk':
+                        self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
                     return
                 else:
                     good = True
@@ -422,38 +616,25 @@ class mod_class(object):
         except:
             vendor = "Unknown"
         return vendor
-
-    # SIGNALS #
-
-    def on_add_upper_button_clicked(self, data):
-        select = self.hosts_treeview.get_selection()
-        (model, paths) = select.get_selected_rows()
-        for i in paths:
-            host = model.get_value(model.get_iter(i), self.HOSTS_MAC_ROW)
-            if host not in self.upper_add:
-                if host not in self.lower_add:
-                    (ip, rand_mac, iter, reply) = self.hosts[host]
-                    iter = self.upper_add_liststore.append([host, ip])
-                    self.upper_add[host] = (ip, rand_mac, iter)
-
-    def on_add_lower_button_clicked(self, data):
-        select = self.hosts_treeview.get_selection()
-        (model, paths) = select.get_selected_rows()
-        for i in paths:
-            host = model.get_value(model.get_iter(i), self.HOSTS_MAC_ROW)
-            if host not in self.upper_add:
-                if host not in self.lower_add:
-                    (ip, rand_mac, iter, reply) = self.hosts[host]
-                    iter = self.lower_add_liststore.append([host, ip])
-                    self.lower_add[host] = (ip, rand_mac, iter)
-
-    def on_add_spoof_button_clicked(self, data):
-        if not len(self.upper_add):
-            return
-        if not len(self.lower_add):
-            return
-        parent = self.spoof_treestore.append(None, [self.offline, "%i spoofs" % (len(self.upper_add) * len(self.lower_add)), None, None])
-        cur = self.spoof_treestore.get_string_from_iter(parent)
+    
+    def scan(self, ips):
+        for i in ips:
+            arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
+                                pro=dpkt.arp.ARP_PRO_IP,
+                                op=dpkt.arp.ARP_OP_REQUEST,
+                                sha=self.mac,
+                                spa=self.ip,
+                                tpa=dnet.ip_aton(str(i))
+                                )
+            eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("ff:ff:ff:ff:ff:ff"),
+                                            src=self.mac,
+                                            type=dpkt.ethernet.ETH_TYPE_ARP,
+                                            data=str(arp)
+                                            )
+            self.dnet.eth.send(str(eth))
+            time.sleep(0.0001)
+    
+    def add_spoof(self):
         data = []
         org_data = []
         hosts = []
@@ -461,7 +642,6 @@ class mod_class(object):
             (ip_upper, rand_mac_upper, iter_upper) = self.upper_add[host_upper]
             for host_lower in self.lower_add:
                 (ip_lower, rand_mac_lower, iter_lower) = self.lower_add[host_lower]
-                self.spoof_treestore.append(parent, [None, ip_upper, ip_lower, "0"])
                 arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
                                     pro=dpkt.arp.ARP_PRO_IP,
                                     op=dpkt.arp.ARP_OP_REPLY,
@@ -518,9 +698,46 @@ class mod_class(object):
             hosts.append(host_upper)
         for host_lower in self.lower_add:
             hosts.append(host_lower)
-        self.spoofs[cur] = (False, data, org_data, hosts)
         self.upper_add = {}
         self.lower_add = {}
+        return (data, org_data, hosts)
+
+    # SIGNALS #
+
+    def on_add_upper_button_clicked(self, data):
+        select = self.hosts_treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            host = model.get_value(model.get_iter(i), self.HOSTS_MAC_ROW)
+            if host not in self.upper_add:
+                if host not in self.lower_add:
+                    (ip, rand_mac, iter, reply) = self.hosts[host]
+                    iter = self.upper_add_liststore.append([host, ip])
+                    self.upper_add[host] = (ip, rand_mac, iter)
+
+    def on_add_lower_button_clicked(self, data):
+        select = self.hosts_treeview.get_selection()
+        (model, paths) = select.get_selected_rows()
+        for i in paths:
+            host = model.get_value(model.get_iter(i), self.HOSTS_MAC_ROW)
+            if host not in self.upper_add:
+                if host not in self.lower_add:
+                    (ip, rand_mac, iter, reply) = self.hosts[host]
+                    iter = self.lower_add_liststore.append([host, ip])
+                    self.lower_add[host] = (ip, rand_mac, iter)
+
+    def on_add_spoof_button_clicked(self, data):
+        if not len(self.upper_add):
+            return
+        if not len(self.lower_add):
+            return
+        parent = self.spoof_treestore.append(None, [self.offline, "%i spoofs" % (len(self.upper_add) * len(self.lower_add)), None, None])
+        cur = self.spoof_treestore.get_string_from_iter(parent)
+        for host_upper in self.upper_add:
+            for host_lower in self.lower_add:
+                self.spoof_treestore.append(parent, [None, ip_upper, ip_lower, "0"])
+        (data, org_data, hosts) = self.add_spoof()
+        self.spoofs[cur] = (False, data, org_data, hosts)
         self.upper_add_liststore.clear()
         self.lower_add_liststore.clear()
 
@@ -579,21 +796,7 @@ class mod_class(object):
 
     def on_scan_start_button_clicked(self, data):
         ips = IPy.IP(self.scan_network_entry.get_text())
-        for i in ips:
-            arp = dpkt.arp.ARP( hrd=dpkt.arp.ARP_HRD_ETH,
-                                pro=dpkt.arp.ARP_PRO_IP,
-                                op=dpkt.arp.ARP_OP_REQUEST,
-                                sha=self.mac,
-                                spa=self.ip,
-                                tpa=dnet.ip_aton(str(i))
-                                )
-            eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("ff:ff:ff:ff:ff:ff"),
-                                            src=self.mac,
-                                            type=dpkt.ethernet.ETH_TYPE_ARP,
-                                            data=str(arp)
-                                            )
-            self.dnet.eth.send(str(eth))
-            time.sleep(0.0001)
+        self.scan(ips)
 
     def on_flood_togglebutton_toggled(self, btn):
         if btn.get_active():
@@ -627,3 +830,5 @@ class mod_class(object):
             self.spoof_delay = dict["spoof_delay"]["value"]
             self.flood_delay = dict["flood_delay"]["value"]
             self.forward_constrain = dict["forward_constrain"]["value"]
+        if not self.spoof_thread is None and self.spoof_thread.is_alive():
+            self.spoof_thread.wakeup()

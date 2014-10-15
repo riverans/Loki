@@ -33,14 +33,28 @@ import threading
 
 import dnet
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 class mod_class(object):
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
+        self.ui = ui
+        if self.ui == 'gtk':
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+        else:
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
         self.name = "test"
 
     def start_mod(self):
@@ -51,6 +65,9 @@ class mod_class(object):
 
     def get_root(self):
         return gtk.Label("TEST")
+    
+    def get_urw(self):
+        return urwid.Filler(urwid.Text("TEST", 'center'))
 
     def log(self, msg):
         self.__log(msg, self.name)

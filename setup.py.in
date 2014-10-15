@@ -1,48 +1,61 @@
 # setup.py.in
 # Copyright 2010 Daniel Mende <dmende@ernw.de> 
 
+import os
+
 print ""
 print "***********************************"
 print "*** Checking for python modules ***"
 print "***********************************"
 print ""
 
-try:
-    import gobject
-except Exception, e:
-    print "'import gobject' failed:" + str(e)
-    print "******************************************************"
-    print "*** You need the python module 'gobject' installed ***"
-    print "***                See REQUIREMENTS                ***"
-    print "******************************************************"
+if "@USE_GTK@" == "yes":
+    try:
+        import gobject
+    except Exception, e:
+        print "'import gobject' failed:" + str(e)
+        print "******************************************************"
+        print "*** You need the python module 'gobject' installed ***"
+        print "***                See REQUIREMENTS                ***"
+        print "******************************************************"
 
-try:
-    import pygtk
-    pygtk.require("2.0")
-except Exception, e:
-    print "'import gobject' failed:" + str(e)
-    print "******************************************************"
-    print "*** You need the python module 'gobject' installed ***"
-    print "***                See REQUIREMENTS                ***"
-    print "******************************************************"
+    try:
+        import pygtk
+        pygtk.require("2.0")
+    except Exception, e:
+        print "'import gobject' failed:" + str(e)
+        print "******************************************************"
+        print "*** You need the python module 'gobject' installed ***"
+        print "***                See REQUIREMENTS                ***"
+        print "******************************************************"
 
-try:
-    import gtk
-except Exception, e:
-    print "'import gtk' failed:" + str(e)
-    print "**************************************************"
-    print "*** You need the python module 'gtk' installed ***"
-    print "***              See REQUIREMENTS              ***"
-    print "**************************************************"
+    try:
+        import gtk
+    except Exception, e:
+        print "'import gtk' failed:" + str(e)
+        print "**************************************************"
+        print "*** You need the python module 'gtk' installed ***"
+        print "***              See REQUIREMENTS              ***"
+        print "**************************************************"
 
-try:
-    import gtk.glade
-except Exception, e:
-    print "'import gtk.glade' failed:" + str(e)
-    print "********************************************************"
-    print "*** You need the python module 'gtk.glade' installed ***"
-    print "***                 See REQUIREMENTS                 ***"
-    print "********************************************************"
+    try:
+        import gtk.glade
+    except Exception, e:
+        print "'import gtk.glade' failed:" + str(e)
+        print "********************************************************"
+        print "*** You need the python module 'gtk.glade' installed ***"
+        print "***                 See REQUIREMENTS                 ***"
+        print "********************************************************"
+
+if "@USE_URWID@" == "yes":
+    try:
+        import urwid
+    except Exception, e:
+        print "'import urwid' failed:" + str(e)
+        print "****************************************************"
+        print "*** You need the python module 'urwid' installed ***"
+        print "***                See REQUIREMENTS              ***"
+        print "****************************************************"
 
 try:
     import pcap
@@ -208,7 +221,18 @@ setup(name='loki_bindings',
       description='',
       author='Daniel Mende',
       author_email='dmende@ernw.de',
-      url='https://c0decafe.de',
+      url='http://c0decafe.de',
       packages=['loki_bindings', 'loki_bindings.asleap', 'loki_bindings.ospfmd5', 'loki_bindings.isismd5', 'loki_bindings.tcpmd5', 'loki_bindings.mpls'],
       ext_modules=[asleap, ospfmd5bf, isismd5bf, tcpmd5, tcpmd5bf, mplstun, mplsred]
+     )
+     
+os.chdir("./src/")
+
+setup(name='loki',
+      version='@VERSION@',
+      description='',
+      author='Daniel Mende',
+      author_email='dmende@ernw.de',
+      url='http://c0decafe.de',
+      py_modules=["loki"],
      )

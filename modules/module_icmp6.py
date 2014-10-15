@@ -40,9 +40,9 @@ import struct
 
 import IPy
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 MLDV2_LISTENER_REPORT=143
 LL_ALL_ROUTERS="fe02::2"
@@ -114,17 +114,97 @@ class spoof_thread(threading.Thread):
         self.running = False
 
 class mod_class(object):
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
+        self.ui = ui
         self.name = "icmp6"
         self.gladefile = "/modules/module_icmp6.glade"
         self.macfile = "/modules/mac.txt"
-        self.hosts_liststore = gtk.ListStore(str, str, str, str)
-        self.upper_add_liststore = gtk.ListStore(str, str)
-        self.lower_add_liststore = gtk.ListStore(str, str)
-        self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str)
-        self.mappings_liststore = gtk.ListStore(str, str)
+        if ui == 'gtk':            
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+            self.hosts_liststore = gtk.ListStore(str, str, str, str)
+            self.upper_add_liststore = gtk.ListStore(str, str)
+            self.lower_add_liststore = gtk.ListStore(str, str)
+            self.spoof_treestore = gtk.TreeStore(gtk.gdk.Pixbuf, str, str, str)
+            self.mappings_liststore = gtk.ListStore(str, str)
+        elif ui == 'urw':
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
+            self.spoof_tree = { "children" : [] }
+            
+            class SpoofWidget_(urwid.TreeWidget):
+                unexpanded_icon = urwid.AttrMap(urwid.TreeWidget.unexpanded_icon, 'dirmark')
+                expanded_icon = urwid.AttrMap(urwid.TreeWidget.expanded_icon, 'dirmark')
+                
+                def __init__(self, node):
+                    urwid.TreeWidget.__init__(self, node)        
+                    self._w = urwid.AttrWrap(self._w, 'body', 'focus')
+                    self.flagged = False
+                
+                def get_display_text(self):
+                    node = self.get_node()
+                    val = node.get_value()
+                    if node.get_depth() == 2:
+                        return "%s <-> %s" % (val["host_upper"], val["host_lower"])
+                    elif node.get_depth() == 1:
+                        return "%d Spoofs" % len(val["children"])
+                    else:
+                        return "Spoofings:"
+                
+                    def selectable(self):
+                        if self.get_node().get_depth() <= 1:
+                            return True
+                        return False
+
+                def keypress(self, size, key):
+                    key = urwid.TreeWidget.keypress(self, size, key)
+                    if key:
+                        key = self.unhandled_keys(size, key)
+                    return key
+
+                def unhandled_keys(self, size, key):
+                    if self.get_node().get_depth() == 1:
+                        if key == "enter":
+                            value = self.get_node().get_value()
+                            cb = value["callback"]
+                            if "args" in value:
+                                cb(self, value["args"])
+                            else:
+                                cb(self)
+                    return key
+            self.SpoofWidget = SpoofWidget_
+
+            class SpoofNode_(urwid.TreeNode):
+                def load_widget(self):
+                    return SpoofWidget(self)
+            self.SpoofNode = SpoofNode_
+
+            class SpoofParentNode_(urwid.ParentNode):
+                def load_widget(self):
+                    return SpoofWidget_(self)
+                
+                def load_child_keys(self):
+                    val = self.get_value()
+                    return range(len(val["children"]))
+                
+                def load_child_node(self, key):
+                    childdata = self.get_value()['children'][key]
+                    childdepth = self.get_depth() + 1
+                    if 'children' in childdata:
+                        childclass = SpoofParentNode_
+                    else:
+                        childclass = SpoofNode_
+                    return childclass(childdata, parent=self, key=key, depth=childdepth)
+            self.SpoofParentNode = SpoofParentNode_
         self.dnet = None
         self.spoof_thread = None
         self.macs = None
@@ -143,11 +223,12 @@ class mod_class(object):
     def shut_mod(self):
         if self.spoof_thread:
             self.spoof_thread.quit()
-        self.hosts_liststore.clear()
-        self.upper_add_liststore.clear()
-        self.lower_add_liststore.clear()
-        self.spoof_treestore.clear()
-        self.mappings_liststore.clear()
+        if self.ui == 'gtk':
+            self.hosts_liststore.clear()
+            self.upper_add_liststore.clear()
+            self.lower_add_liststore.clear()
+            self.spoof_treestore.clear()
+            self.mappings_liststore.clear()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -280,6 +361,114 @@ class mod_class(object):
 
         return self.glade_xml.get_widget("root")
 
+    def get_urw(self):
+        hostlist = [ urwid.AttrMap(urwid.Text("Hostlist"), 'header'), urwid.Divider() ]
+        self.hostlist = urwid.SimpleListWalker(hostlist)
+        hostlist = urwid.LineBox(urwid.ListBox(self.hostlist))
+        targets1 = [ urwid.AttrMap(urwid.Text("Targets 1"), 'header'), urwid.Divider() ]
+        self.targetlist = self.targets1 = urwid.SimpleListWalker(targets1)
+        targets1 = urwid.LineBox(urwid.ListBox(self.targets1))
+        targets2 = [ urwid.AttrMap(urwid.Text("Targets 2"), 'header'), urwid.Divider() ]
+        self.targets2 = urwid.SimpleListWalker(targets2)
+        targets2 = urwid.LineBox(urwid.ListBox(self.targets2))
+        spoofs = urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.SpoofParentNode(self.spoof_tree))))
+        
+        bgroup = []
+        radio1 = urwid.RadioButton(bgroup, "Targets1", on_state_change=self.urw_radio_changed, user_data=self.targets1)
+        radio2 = urwid.RadioButton(bgroup, "Targets2", on_state_change=self.urw_radio_changed, user_data=self.targets2)
+
+        button1 = self.parent.menu_button("Ping all Nodes", self.urw_ping_activated)
+        button2 = self.parent.menu_button("Send invalid Header", self.urw_header_activated)
+        button3 = self.parent.menu_button("Send invalid Options", self.urw_options_activated)
+        button4 = self.parent.menu_button("Add Spoofing", self.urw_add_activated)
+        radio = urwid.ListBox(urwid.SimpleListWalker([radio1, radio2, urwid.Divider(), button1, button2, button3, button4]))
+        
+        self.pile = urwid.Pile([('weight', 3, urwid.Columns([urwid.Pile([('weight', 2, hostlist), radio]), urwid.Pile([targets1, targets2])])), spoofs])
+        return self.pile
+    
+    def urw_spoof_activated(self, widget, spoof):
+        widget.flagged = not widget.flagged
+        if widget.flagged:
+            widget._w.attr = 'flagged'
+            widget._w.focus_attr = 'flagged focus'
+            (run, data, org_data, hosts) = self.spoofs[spoof]
+            self.spoofs[spoof] = (True, data, org_data, hosts)
+            for i in hosts:
+                (ip, rand_mac, iter, reply) = self.hosts[i]
+                self.hosts[i] = (ip, rand_mac, iter, True)
+            if not self.spoof_thread.is_alive():
+                self.spoof_thread.start()
+            self.spoof_thread.wakeup()
+        else:
+            widget._w.attr = 'body'
+            widget._w.focus_attr = 'focus'
+            (run, data, org_data, hosts) = self.spoofs[spoof]
+            if run:
+                self.spoofs[spoof] = (False, data, org_data, hosts)
+                for j in org_data:
+                    self.dnet.eth.send(j)
+            for i in hosts:
+                (ip, rand_mac, iter, reply) = self.hosts[i]
+                self.hosts[i] = (ip, rand_mac, iter, False)
+    
+    def urw_add_activated(self, button):
+        if not len(self.upper_add):
+            return
+        if not len(self.lower_add):
+            return
+        spoofs = []
+        for host_upper in self.upper_add:
+            for host_lower in self.lower_add:
+                spoofs.append({  "host_upper" : host_upper,
+                                 "host_lower" : host_lower })
+        (data, org_data, hosts) = self.add_spoof()
+        self.spoofs[str(spoofs)] = (False, data, org_data, hosts)
+        for i in self.targets1:
+            if type(i.base_widget) == urwid.Button:
+                self.targets1.remove(i)
+        for i in self.targets2:
+            if type(i.base_widget) == urwid.Button:
+                self.targets2.remove(i)
+        self.spoof_tree["children"].append({ "children" : spoofs,
+                                             "callback" : self.urw_spoof_activated,
+                                             "args"     : str(spoofs) 
+                                             })
+        self.pile.contents[1] = (urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(SpoofParentNode(self.spoof_tree)))), ('weight', 1))
+        
+    def urw_ping_activated(self, button):
+        self.scan()
+    
+    def urw_header_activated(self, button):
+        self.invalid_header()
+    
+    def urw_options_activated(self, button):
+        self.invalid_option()
+    
+    def urw_radio_changed(self, button, state, target):
+        if state:
+            self.targetlist = target
+    
+    def urw_targetlist_activated(self, _, (targetlist, button, host)):
+        if host in self.upper_add:
+            del self.upper_add[host]
+        if host in self.lower_add:
+            del self.lower_add[host]
+        targetlist.remove(button)
+    
+    def urw_hostlist_activated(self, button, host):
+        if host not in self.upper_add:
+            if host not in self.lower_add:
+                if self.targetlist == self.targets1:
+                    add = self.upper_add
+                elif self.targetlist == self.targets2:
+                    add = self.lower_add
+                (ip, rand_mac, _, reply) = self.hosts[host]
+                add[host] = (ip, rand_mac, None)
+                button = self.parent.menu_button(host)
+                urwid.connect_signal(button.base_widget, 'click', self.urw_targetlist_activated, (self.targetlist, button, host))
+                self.targetlist.append(button)
+    
+
     def log(self, msg):
         self.__log(msg, self.name)
 
@@ -335,7 +524,8 @@ class mod_class(object):
             if icmp6.type == dpkt.icmp6.ND_ROUTER_ADVERT:
                 if mac in self.hosts:
                     (ip, random_mac, iter, reply) = self.hosts[mac]
-                    self.hosts_liststore.set(iter, 2, "R")
+                    if self.ui == 'gtk':
+                        self.hosts_liststore.set(iter, 2, "R")
             for h in self.hosts:
                 if mac == h:
                     return
@@ -344,9 +534,11 @@ class mod_class(object):
                     return
             rand_mac = [ 0x00, random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff), random.randint(0x00, 0xff) ]
             rand_mac = ':'.join(map(lambda x: "%02x" % x, rand_mac))
-            iter = self.hosts_liststore.append([mac, dnet.ip6_ntoa(ip6.src), "", self.mac_to_vendor(mac)])
+            if self.ui == 'gtk':
+                iter = self.hosts_liststore.append([mac, dnet.ip6_ntoa(ip6.src), "", self.mac_to_vendor(mac)])
             self.hosts[mac] = (dnet.ip6_ntoa(ip6.src), rand_mac, iter, False)
-            self.mappings_liststore.append([mac, rand_mac])
+            if self.ui == 'gtk':
+                self.mappings_liststore.append([mac, rand_mac])
 
     def get_eth_checks(self):
         return (self.check_eth, self.input_eth)
@@ -367,7 +559,8 @@ class mod_class(object):
                 ref_src = ip
                 if good:
                     self.dnet.send(str(eth))
-                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
+                    if self.ui == 'gtk':
+                        self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
                     return
                 else:
                     good = True
@@ -376,7 +569,8 @@ class mod_class(object):
                 ref_dst = ip
                 if good:
                     self.dnet.send(str(eth))
-                    self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
+                    if self.ui == 'gtk':
+                        self.spoof_treestore.foreach(self.inc_packet_counter, (ref_src, ref_dst))
                     return
                 else:
                     good = True
@@ -408,6 +602,101 @@ class mod_class(object):
         except:
             vendor = "Unknown"
         return vendor
+
+    def scan(self):
+        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
+                                        seq=56789,
+                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        )
+        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
+                                    code=0,
+                                    data=echo6
+                                    )
+        icmp6_str = str(icmp6)
+        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
+                            dst=dnet.ip6_aton("ff02::1"),
+                            nxt=dpkt.ip.IP_PROTO_ICMP6,
+                            hlim=64,
+                            data=icmp6,
+                            plen=len(icmp6_str)
+                            )
+        ip6.extension_hdrs={}
+        for i in dpkt.ip6.ext_hdrs:
+            ip6.extension_hdrs[i]=None
+        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
+        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
+        eth = dpkt.ethernet.Ethernet(   src=self.mac,
+                                        dst=dnet.eth_aton("33:33:00:00:00:01"),
+                                        data=str(ip6),
+                                        type=dpkt.ethernet.ETH_TYPE_IP6
+                                        )
+        self.dnet.send(str(eth))
+        
+    def invalid_header(self):
+        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
+                                        seq=56789,
+                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        )
+        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
+                                    code=0,
+                                    data=echo6
+                                    )
+        icmp6_str = str(icmp6)
+        rand = "".join([ chr(random.randint(0x00, 0xff)) for i in xrange(14) ])
+        data_str = struct.pack("!BB14s", dpkt.ip.IP_PROTO_ICMP6, 1, rand) + icmp6_str
+        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
+                            dst=dnet.ip6_aton("ff02::1"),
+                            nxt=159,
+                            hlim=64,
+                            plen=len(data_str)
+                            )
+        ip6.extension_hdrs={}
+        for i in dpkt.ip6.ext_hdrs:
+            ip6.extension_hdrs[i]=None
+        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, len(icmp6_str), dpkt.ip.IP_PROTO_ICMP6)
+        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
+        icmp6_str = str(icmp6)
+        data_str = struct.pack("!BB14s", dpkt.ip.IP_PROTO_ICMP6, 1, rand) + icmp6_str
+        ip6.data = data_str
+        eth = dpkt.ethernet.Ethernet(   src=self.mac,
+                                        dst=dnet.eth_aton("33:33:00:00:00:01"),
+                                        data=str(ip6),
+                                        type=dpkt.ethernet.ETH_TYPE_IP6
+                                        )
+        self.dnet.send(str(eth))
+
+    def invalid_option(self):
+        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
+                                        seq=56789,
+                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                                        )
+        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
+                                    code=0,
+                                    data=echo6
+                                    )
+        icmp6_str = str(icmp6)
+        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
+                            dst=dnet.ip6_aton("ff02::1"),
+                            nxt=dpkt.ip.IP_PROTO_HOPOPTS,
+                            hlim=1,
+                            data=icmp6,
+                            plen=len(icmp6_str)
+                            )
+        ip6.extension_hdrs={}
+        for i in dpkt.ip6.ext_hdrs:
+            ip6.extension_hdrs[i]=None
+        rand = "".join([ chr(random.randint(0x00, 0xff)) for i in xrange(13) ])
+        hopopt = dpkt.ip6.IP6HopOptsHeader(nxt=dpkt.ip.IP_PROTO_ICMP6, len=1, data=struct.pack("!B13s", 1, rand))
+        ip6.extension_hdrs[dpkt.ip.IP_PROTO_HOPOPTS] = hopopt
+        ip6.plen = ip6.plen + len(str(hopopt))
+        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, len(icmp6_str), dpkt.ip.IP_PROTO_ICMP6)
+        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
+        eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("33:33:00:00:00:01"),
+                                        src=self.mac,
+                                        data=str(ip6),
+                                        type=dpkt.ethernet.ETH_TYPE_IP6
+                                        )
+        self.dnet.send(str(eth))
 
     # SIGNALS #
 
@@ -669,96 +958,14 @@ class mod_class(object):
         self.spoof_thread.wakeup()
 
     def on_scan_start_button_clicked(self, data):
-        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
-                                        seq=56789,
-                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                        )
-        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
-                                    code=0,
-                                    data=echo6
-                                    )
-        icmp6_str = str(icmp6)
-        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
-                            dst=dnet.ip6_aton("ff02::1"),
-                            nxt=dpkt.ip.IP_PROTO_ICMP6,
-                            hlim=64,
-                            data=icmp6,
-                            plen=len(icmp6_str)
-                            )
-        ip6.extension_hdrs={}
-        for i in dpkt.ip6.ext_hdrs:
-            ip6.extension_hdrs[i]=None
-        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
-        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
-        eth = dpkt.ethernet.Ethernet(   src=self.mac,
-                                        dst=dnet.eth_aton("33:33:00:00:00:01"),
-                                        data=str(ip6),
-                                        type=dpkt.ethernet.ETH_TYPE_IP6
-                                        )
-        self.dnet.send(str(eth))
+        self.scan()
 
     def on_invalid_header_scan_button_clicked(self, data):
-        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
-                                        seq=56789,
-                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                        )
-        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
-                                    code=0,
-                                    data=echo6
-                                    )
-        icmp6_str = str(icmp6)
-        rand = "".join([ chr(random.randint(0x00, 0xff)) for i in xrange(14) ])
-        data_str = struct.pack("!BB14s", dpkt.ip.IP_PROTO_ICMP6, 1, rand) + icmp6_str
-        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
-                            dst=dnet.ip6_aton("ff02::1"),
-                            nxt=159,
-                            hlim=64,
-                            plen=len(data_str)
-                            )
-        ip6.extension_hdrs={}
-        for i in dpkt.ip6.ext_hdrs:
-            ip6.extension_hdrs[i]=None
-        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, ip6.plen, ip6.nxt)
-        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
-        ip6.data = data_str
-        eth = dpkt.ethernet.Ethernet(   src=self.mac,
-                                        dst=dnet.eth_aton("33:33:00:00:00:01"),
-                                        data=str(ip6),
-                                        type=dpkt.ethernet.ETH_TYPE_IP6
-                                        )
-        self.dnet.send(str(eth))
-
+        self.invalid_header()
+    
     def on_invalid_option_scan_button_clicked(self, data):
-        echo6 = dpkt.icmp6.ICMP6.Echo(  id=1234,
-                                        seq=56789,
-                                        data="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                                        )
-        icmp6 = dpkt.icmp6.ICMP6(   type=dpkt.icmp6.ICMP6_ECHO_REQUEST,
-                                    code=0,
-                                    data=echo6
-                                    )
-        icmp6_str = str(icmp6)
-        ip6 = dpkt.ip6.IP6( src=dnet.ip6_aton(self.ip6_ll),
-                            dst=dnet.ip6_aton("ff02::1"),
-                            nxt=dpkt.ip.IP_PROTO_HOPOPTS,
-                            hlim=1,
-                            data=icmp6,
-                            plen=len(icmp6_str)
-                            )
-        ip6.extension_hdrs={}
-        for i in dpkt.ip6.ext_hdrs:
-            ip6.extension_hdrs[i]=None
-        rand = "".join([ chr(random.randint(0x00, 0xff)) for i in xrange(13) ])
-        ip6.extension_hdrs[dpkt.ip.IP_PROTO_HOPOPTS] = dpkt.ip6.IP6HopOptsHeader(nxt=dpkt.ip.IP_PROTO_ICMP6, len=1, data=struct.pack("!B13s", 1, rand))
-        ip6_pseudo = struct.pack('!16s16sIxxxB', ip6.src, ip6.dst, len(icmp6_str), dpkt.ip.IP_PROTO_ICMP6)
-        icmp6.sum = ichecksum_func(ip6_pseudo + icmp6_str)
-        eth = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton("33:33:00:00:00:01"),
-                                        src=self.mac,
-                                        data=str(ip6),
-                                        type=dpkt.ethernet.ETH_TYPE_IP6
-                                        )
-        self.dnet.send(str(eth))
-
+        self.invalid_option()
+    
     def get_config_dict(self):
         return {    "spoof_delay" : {   "value" : self.spoof_delay,
                                         "type" : "int",

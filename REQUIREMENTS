@@ -6,6 +6,8 @@ pygobject   2.20.0, 2.18.0, 2.16.1	http://www.pygtk.org/
 pygtk       2.16.0, 2.14.1  		http://www.pygtk.org/
 libglade    2.6.4		    http://www.gnome.org
 
+urwid       1.1.0           http://urwid.org/
+
 dnet        1.11		    http://libdnet.sourceforge.net/
 pylibpcap   0.5.1		    http://sourceforge.net/projects/pylibpcap/
 dpkt        1.6             http://code.google.com/p/dpkt/

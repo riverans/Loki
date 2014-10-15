@@ -1,9 +1,9 @@
 # configure.in
 # Copyright 2010 Daniel Mende <dmende@ernw.de> 
 
-AC_PREREQ([2.61])
-AC_INIT([loki], [0.2], [bugs@c0decafe.de])
-AM_INIT_AUTOMAKE(loki, 0.2)
+AC_PREREQ([2.69])
+AC_INIT([loki], [0.3.0], [bugs@c0decafe.de])
+AM_INIT_AUTOMAKE
 
 # Initialize prefix.
 if test "$prefix" = "NONE"; then
@@ -115,8 +115,26 @@ AC_ARG_WITH(libdnet,
   fi]
 )
 
+AC_ARG_WITH([gtk],
+[AS_HELP_STRING([--with-gtk],
+   [use gtk UI (default is no)])],
+[USE_GTK=$withval
+LOKI_GTK=loki_gtk.py],
+[USE_GTK=no])
+
+AC_ARG_WITH([urwid],
+[AS_HELP_STRING([--with-urwid],
+   [use urwid UI (default is no)])],
+[USE_URWID=$withval
+LOKI_URWID=loki_urw.py],
+[USE_URWID=no])
+
 AC_SUBST(DNETINC)
 AC_SUBST(DNETLIB)
+AC_SUBST(USE_GTK)
+AC_SUBST(LOKI_GTK)
+AC_SUBST(USE_URWID)
+AC_SUBST(LOKI_URWID)
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_OFF_T

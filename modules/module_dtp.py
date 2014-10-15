@@ -39,9 +39,9 @@ import time
 import dnet
 import dpkt
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 DTP_VERSION = 1 
 DTP_DEST_MAC = "01:00:0c:cc:cc:cc"
@@ -178,13 +178,29 @@ class mod_class(object):
     STORE_SENDER_ROW = 4
     STORE_STATE_ROW = 5
     
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
+        self.ui = ui
+        if ui == 'gtk':
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+        elif ui == 'urw':
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
+            self.peerlist = None
         self.name = "dtp"
         self.group = "CISCO"
         self.gladefile = "/modules/module_dtp.glade"
-        self.liststore = gtk.ListStore(str, str, str, str, str, str)
+        if ui == 'gtk':
+            self.liststore = gtk.ListStore(str, str, str, str, str, str)
         self.thread = None
         self.mac = "\x00\x00\x00\x00\x00\x00"
 
@@ -197,8 +213,13 @@ class mod_class(object):
         if self.thread:
             if self.thread.is_alive():
                 self.thread.shutdown()
-        self.liststore.clear()
-        
+        if self.ui == "gtk":
+            self.liststore.clear()
+        elif self.ui == "urw":
+            if not self.peerlist is None:
+                for i in self.peerlist:
+                    self.peerlist.remove(i)
+   
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
         dic = { "on_get_button_toggled" : self.on_get_button_toggled,
@@ -249,7 +270,39 @@ class mod_class(object):
         self.domainentry = self.glade_xml.get_widget("domainentry")
         
         return self.glade_xml.get_widget("root")
-
+ 
+    def get_urw(self):
+        peerlist = [ urwid.AttrMap(urwid.Text("Hosts seen:"), 'header'), urwid.Divider() ]
+        self.peerlist = urwid.SimpleListWalker(peerlist)
+        peerlist = urwid.LineBox(urwid.ListBox(self.peerlist))
+        self.domain = urwid.Text("DTP Domain: ")
+        self.send = self.parent.menu_button("Send Trunk PDUs", self.urw_send_activated)
+        return urwid.Pile([ ('weight', 8, peerlist), urwid.Filler(urwid.Columns([ self.domain, self.send ])) ])
+    
+    def urw_peerlist_activated(self, button, src):
+        self.send.set_text("Domain: %s" % self.peers[src]["pdu"].get_tlv(dtp_tlv.TYPE_DOMAIN))
+        self.target = src
+    
+    def urw_send_activated(self, button):
+        if not self.target is None:
+            self.peerlist[self.target].set_attr_map({None : "button select"})
+            button.set_label("Stop Sending PDUs")
+            urwid.connect_signal(button, 'click', self.urw_send_deactivated, self.target)
+            if self.thread is None:
+                self.thread = dtp_thread(self)
+            if not self.thread.is_alive():
+                self.thread.start()
+    
+    def urw_send_deactivated(self, button, src):
+        self.peerlist[src].set_attr_map({None : "button normal"})
+        button.set_label("Send Trunk PDUs")
+        urwid.connect_signal(button, 'click', self.urw_send_activated)
+        self.target = None
+        if self.thread:
+            if self.thread.is_alive():
+                self.thread.shutdown()
+            self.thread = None
+        
     def log(self, msg):
         self.__log(msg, self.name)
 
@@ -281,24 +334,34 @@ class mod_class(object):
             trunk = pdu.get_tlv(dtp_tlv.TYPE_TRUNK)
             sender = pdu.get_tlv(dtp_tlv.TYPE_SENDER)                
             if src not in self.peers:
+                if self.ui == "gtk":
+                    row_iter = self.liststore.append( [ src, 
+                                                        str(domain),
+                                                        str(status),
+                                                        str(trunk),
+                                                        str(sender),
+                                                        ""
+                                                        ] )
+                elif self.ui == "urw":
+                    row_iter = self.parent.menu_button("%s - DOMAIN(%s) %s %s %s" % (src, str(domain), str(status), str(trunk), str(sender)), self.urw_peerlist_activated, src)
+                    self.peerlist.append(row_iter)
                 peer = {    "pdu"       :   pdu,
-                            "row_iter"  :   self.liststore.append( [src, 
-                                                                    str(domain),
-                                                                    str(status),
-                                                                    str(trunk),
-                                                                    str(sender),
-                                                                    ""
-                                                                    ] )
+                            "row_iter"  :   row_iter
                             }
                 self.peers[src] = peer
                 self.log("DTP: Got new peer %s" % src)
             else:
-                self.liststore.set( self.peers[src]["row_iter"], 
-                                    self.STORE_DOMAIN_ROW, str(domain),
-                                    self.STORE_STATUS_ROW, str(status),
-                                    self.STORE_TRUNK_ROW, str(trunk),
-                                    self.STORE_SENDER_ROW, str(sender)
-                                  )
+                if self.ui == "gtk":
+                    self.liststore.set( self.peers[src]["row_iter"], 
+                                        self.STORE_DOMAIN_ROW, str(domain),
+                                        self.STORE_STATUS_ROW, str(status),
+                                        self.STORE_TRUNK_ROW, str(trunk),
+                                        self.STORE_SENDER_ROW, str(sender)
+                                      )
+                elif self.ui == "urw":
+                    new_iter = self.parent.menu_button("%s - DOMAIN(%s) %s %s %s" % (src, str(domain), str(status), str(trunk), str(sender)), self.urw_peerlist_activated, src)
+                    self.peerlist[self.peers[src]["row_iter"]] = new_iter
+                    self.peers[src]["row_iter"] = new_iter
     # SIGNALS #
 
     def on_get_button_toggled(self, btn):
