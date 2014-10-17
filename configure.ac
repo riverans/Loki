@@ -16,7 +16,7 @@ AC_PROG_CC
 AC_PROG_SED
 AC_PROG_MAKE_SET
 #AM_PATH_PYTHON([2.6])
-PC_INIT([2.6], [3.0])
+PC_INIT([2.6], [2.9])
 
 # Checks for libraries.
 AC_CHECK_LIB(crypt, encrypt)
