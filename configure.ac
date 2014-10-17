@@ -4,6 +4,7 @@
 AC_PREREQ([2.69])
 AC_INIT([loki], [0.3.0], [bugs@c0decafe.de])
 AM_INIT_AUTOMAKE
+AC_CONFIG_MACRO_DIR([m4])
 
 # Initialize prefix.
 if test "$prefix" = "NONE"; then
@@ -14,7 +15,8 @@ fi
 AC_PROG_CC
 AC_PROG_SED
 AC_PROG_MAKE_SET
-AM_PATH_PYTHON([2.6])
+#AM_PATH_PYTHON([2.6])
+PC_INIT([2.6], [3.0])
 
 # Checks for libraries.
 AC_CHECK_LIB(crypt, encrypt)

@@ -3,95 +3,95 @@
 
 import os
 
-print ""
-print "***********************************"
-print "*** Checking for python modules ***"
-print "***********************************"
-print ""
+print("")
+print("***********************************")
+print("*** Checking for python modules ***")
+print("***********************************")
+print("")
 
 if "@USE_GTK@" == "yes":
     try:
         import gobject
     except Exception, e:
-        print "'import gobject' failed:" + str(e)
-        print "******************************************************"
-        print "*** You need the python module 'gobject' installed ***"
-        print "***                See REQUIREMENTS                ***"
-        print "******************************************************"
+        print("'import gobject' failed:" + str(e))
+        print("******************************************************")
+        print("*** You need the python module 'gobject' installed ***")
+        print("***                See REQUIREMENTS                ***")
+        print("******************************************************")
 
     try:
         import pygtk
         pygtk.require("2.0")
     except Exception, e:
-        print "'import gobject' failed:" + str(e)
-        print "******************************************************"
-        print "*** You need the python module 'gobject' installed ***"
-        print "***                See REQUIREMENTS                ***"
-        print "******************************************************"
+        print("'import gobject' failed:" + str(e))
+        print("******************************************************")
+        print("*** You need the python module 'gobject' installed ***")
+        print("***                See REQUIREMENTS                ***")
+        print("******************************************************")
 
     try:
         import gtk
     except Exception, e:
-        print "'import gtk' failed:" + str(e)
-        print "**************************************************"
-        print "*** You need the python module 'gtk' installed ***"
-        print "***              See REQUIREMENTS              ***"
-        print "**************************************************"
+        print("'import gtk' failed:" + str(e))
+        print("**************************************************")
+        print("*** You need the python module 'gtk' installed ***")
+        print("***              See REQUIREMENTS              ***")
+        print("**************************************************")
 
     try:
         import gtk.glade
     except Exception, e:
-        print "'import gtk.glade' failed:" + str(e)
-        print "********************************************************"
-        print "*** You need the python module 'gtk.glade' installed ***"
-        print "***                 See REQUIREMENTS                 ***"
-        print "********************************************************"
+        print("'import gtk.glade' failed:" + str(e))
+        print("********************************************************")
+        print("*** You need the python module 'gtk.glade' installed ***")
+        print("***                 See REQUIREMENTS                 ***")
+        print("********************************************************")
 
 if "@USE_URWID@" == "yes":
     try:
         import urwid
     except Exception, e:
-        print "'import urwid' failed:" + str(e)
-        print "****************************************************"
-        print "*** You need the python module 'urwid' installed ***"
-        print "***                See REQUIREMENTS              ***"
-        print "****************************************************"
+        print("'import urwid' failed:" + str(e))
+        print("****************************************************")
+        print("*** You need the python module 'urwid' installed ***")
+        print("***                See REQUIREMENTS              ***")
+        print("****************************************************")
 
 try:
     import pcap
 except Exception, e:
-    print "'import pcap' failed:" + str(e)
-    print "***************************************************"
-    print "*** You need the python module 'pcap' installed ***"
-    print "***               See REQUIREMENTS              ***"
-    print "***************************************************"
+    print("'import pcap' failed:" + str(e))
+    print("***************************************************")
+    print("*** You need the python module 'pcap' installed ***")
+    print("***               See REQUIREMENTS              ***")
+    print("***************************************************")
 
 try:
     import dnet
 except Exception, e:
-    print "'import dnet' failed:" + str(e)
-    print "***************************************************"
-    print "*** You need the python module 'dnet' installed ***"
-    print "***               See REQUIREMENTS              ***"
-    print "***************************************************"
+    print("'import dnet' failed:" + str(e))
+    print("***************************************************")
+    print("*** You need the python module 'dnet' installed ***")
+    print("***               See REQUIREMENTS              ***")
+    print("***************************************************")
 
 try:
     import dpkt
 except Exception, e:
-    print "'import dpkt' failed:" + str(e)
-    print "***************************************************"
-    print "*** You need the python module 'dpkt' installed ***"
-    print "***               See REQUIREMENTS              ***"
-    print "***************************************************"
+    print("'import dpkt' failed:" + str(e))
+    print("***************************************************")
+    print("*** You need the python module 'dpkt' installed ***")
+    print("***               See REQUIREMENTS              ***")
+    print("***************************************************")
 
 try:
     import IPy
 except Exception, e:
-    print "'import IPy' failed:" + str(e)
-    print "**************************************************"
-    print "*** You need the python module 'IPy' installed ***"
-    print "***               See REQUIREMENTS             ***"
-    print "**************************************************"
+    print("'import IPy' failed:" + str(e))
+    print("**************************************************")
+    print("*** You need the python module 'IPy' installed ***")
+    print("***               See REQUIREMENTS             ***")
+    print("**************************************************")
 
 
 from distutils.core import setup, Extension
