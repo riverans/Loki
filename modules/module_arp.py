@@ -169,10 +169,10 @@ class mod_class(object):
                     else:
                         return "Spoofings:"
                 
-                    def selectable(self):
-                        if self.get_node().get_depth() <= 1:
-                            return True
-                        return False
+                def selectable(self):
+                    if self.get_node().get_depth() <= 1:
+                        return True
+                    return False
 
                 def keypress(self, size, key):
                     key = urwid.TreeWidget.keypress(self, size, key)
@@ -194,7 +194,7 @@ class mod_class(object):
 
             class SpoofNode_(urwid.TreeNode):
                 def load_widget(self):
-                    return SpoofWidget(self)
+                    return SpoofWidget_(self)
             self.SpoofNode = SpoofNode_
 
             class SpoofParentNode_(urwid.ParentNode):
@@ -440,7 +440,7 @@ class mod_class(object):
                                              "callback" : self.urw_spoof_activated,
                                              "args"     : str(spoofs) 
                                              })
-        self.pile.contents[1] = (urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(SpoofParentNode(self.spoof_tree)))), ('weight', 1))
+        self.pile.contents[1] = (urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.SpoofParentNode(self.spoof_tree)))), ('weight', 1))
         
     def urw_scan_activated(self, button):
         ips = IPy.IP(self.scan_network_edit.get_edit_text())
@@ -548,7 +548,8 @@ class mod_class(object):
             self.hostlist.append(self.parent.menu_button("%s(%s) - %s" % (mac, self.mac_to_vendor(mac), ip), self.urw_hostlist_activated, mac))
             iter = None
         self.hosts[mac] = (ip, rand_mac, iter, False)
-        self.mappings_liststore.append([mac, rand_mac])
+        if self.ui == 'gtk':
+            self.mappings_liststore.append([mac, rand_mac])
 
     def get_ip_checks(self):
         return (self.check_ip, self.input_ip)
