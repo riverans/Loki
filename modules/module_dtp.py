@@ -94,7 +94,7 @@ class dtp_tlv(object):
     def __repr__(self):
         try:
             if self.t == self.TYPE_DOMAIN:
-                return self.v #.encode("hex")
+                return self.v.strip('\x00')#.encode("hex")
             elif self.t == self.TYPE_STATUS:
                 t = "Access"
                 m = "Off"
@@ -149,7 +149,11 @@ class dtp_thread(threading.Thread):
                                         dtp_tlv(0x4, self.parent.mac)
                                      ] )
                 else:
-                    pdu = dtp_pdu(1, [  dtp_tlv(0x1, self.parent.domainentry.get_text()),
+                    if self.parent.ui == 'gtk':
+                        domain = self.parent.domainentry.get_text()
+                    elif self.parent.ui == 'urw':
+                        domain = self.parent.domain.get_edit_text()
+                    pdu = dtp_pdu(1, [  dtp_tlv(0x1, domain),
                                         dtp_tlv(0x2, "\x81"),
                                         dtp_tlv(0x3, "\xa5"),
                                         dtp_tlv(0x4, self.parent.mac)
@@ -275,27 +279,30 @@ class mod_class(object):
         peerlist = [ urwid.AttrMap(urwid.Text("Hosts seen:"), 'header'), urwid.Divider() ]
         self.peerlist = urwid.SimpleListWalker(peerlist)
         peerlist = urwid.LineBox(urwid.ListBox(self.peerlist))
-        self.domain = urwid.Text("DTP Domain: ")
+        self.domain = urwid.Edit("DTP Domain: ")
         self.send = self.parent.menu_button("Send Trunk PDUs", self.urw_send_activated)
         return urwid.Pile([ ('weight', 8, peerlist), urwid.Filler(urwid.Columns([ self.domain, self.send ])) ])
     
     def urw_peerlist_activated(self, button, src):
-        self.send.set_text("Domain: %s" % self.peers[src]["pdu"].get_tlv(dtp_tlv.TYPE_DOMAIN))
-        self.target = src
+        self.domain.set_edit_text(str(self.peers[src]["pdu"].get_tlv(dtp_tlv.TYPE_DOMAIN)))
+        self.target = self.peers[src]
     
     def urw_send_activated(self, button):
         if not self.target is None:
-            self.peerlist[self.target].set_attr_map({None : "button select"})
-            button.set_label("Stop Sending PDUs")
-            urwid.connect_signal(button, 'click', self.urw_send_deactivated, self.target)
-            if self.thread is None:
-                self.thread = dtp_thread(self)
-            if not self.thread.is_alive():
-                self.thread.start()
+            self.peerlist[self.target["row_iter"]].set_attr_map({None : "button select"})
+        button.set_label("Stop Sending PDUs")
+        urwid.disconnect_signal(button, 'click', self.urw_send_activated)
+        urwid.connect_signal(button, 'click', self.urw_send_deactivated)
+        if self.thread is None:
+            self.thread = dtp_thread(self)
+        if not self.thread.is_alive():
+            self.thread.start()
     
-    def urw_send_deactivated(self, button, src):
-        self.peerlist[src].set_attr_map({None : "button normal"})
+    def urw_send_deactivated(self, button):
+        if not self.target is None:
+            self.peerlist[self.target["row_iter"]].set_attr_map({None : "button normal"})
         button.set_label("Send Trunk PDUs")
+        urwid.disconnect_signal(button, 'click', self.urw_send_deactivated)
         urwid.connect_signal(button, 'click', self.urw_send_activated)
         self.target = None
         if self.thread:
@@ -332,7 +339,9 @@ class mod_class(object):
             domain = pdu.get_tlv(dtp_tlv.TYPE_DOMAIN)
             status = pdu.get_tlv(dtp_tlv.TYPE_STATUS)
             trunk = pdu.get_tlv(dtp_tlv.TYPE_TRUNK)
-            sender = pdu.get_tlv(dtp_tlv.TYPE_SENDER)                
+            sender = pdu.get_tlv(dtp_tlv.TYPE_SENDER)  
+            if domain is None or status is None or trunk is None or sender is None:
+                return              
             if src not in self.peers:
                 if self.ui == "gtk":
                     row_iter = self.liststore.append( [ src, 
@@ -343,8 +352,9 @@ class mod_class(object):
                                                         ""
                                                         ] )
                 elif self.ui == "urw":
-                    row_iter = self.parent.menu_button("%s - DOMAIN(%s) %s %s %s" % (src, str(domain), str(status), str(trunk), str(sender)), self.urw_peerlist_activated, src)
-                    self.peerlist.append(row_iter)
+                    button = self.parent.menu_button("%s - DOMAIN(%s) %s %s %s" % (src, str(domain), str(status), str(trunk), str(sender)), self.urw_peerlist_activated, src)
+                    self.peerlist.append(button)
+                    row_iter = self.peerlist.index(button)
                 peer = {    "pdu"       :   pdu,
                             "row_iter"  :   row_iter
                             }
@@ -359,9 +369,8 @@ class mod_class(object):
                                         self.STORE_SENDER_ROW, str(sender)
                                       )
                 elif self.ui == "urw":
-                    new_iter = self.parent.menu_button("%s - DOMAIN(%s) %s %s %s" % (src, str(domain), str(status), str(trunk), str(sender)), self.urw_peerlist_activated, src)
-                    self.peerlist[self.peers[src]["row_iter"]] = new_iter
-                    self.peers[src]["row_iter"] = new_iter
+                    new_button = self.parent.menu_button("%s - DOMAIN(%s) %s %s %s" % (src, str(domain), str(status), str(trunk), str(sender)), self.urw_peerlist_activated, src)
+                    self.peerlist[self.peers[src]["row_iter"]] = new_button
     # SIGNALS #
 
     def on_get_button_toggled(self, btn):
