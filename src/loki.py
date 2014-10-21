@@ -45,8 +45,6 @@ import struct
 
 import ConfigParser
 
-import urwid
-
 import dpkt
 import dnet
 import IPy
