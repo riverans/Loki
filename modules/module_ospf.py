@@ -42,9 +42,9 @@ import dnet
 import dpkt
 import IPy
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 OSPF_VERSION = 2
 
@@ -1105,25 +1105,108 @@ class mod_class(object):
     NET_MASK_ROW = 1
     NET_TYPE_ROW = 2
     
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
+        self.ui = ui
+        if self.ui == 'gtk':
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+        else:
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
+            self.neigh_tree = { "children" : [] }
+            
+            class NeighWidget_(urwid.TreeWidget):
+                unexpanded_icon = urwid.AttrMap(urwid.TreeWidget.unexpanded_icon, 'dirmark')
+                expanded_icon = urwid.AttrMap(urwid.TreeWidget.expanded_icon, 'dirmark')
+                
+                def __init__(self, node):
+                    urwid.TreeWidget.__init__(self, node)        
+                    self._w = urwid.AttrWrap(self._w, 'body', 'focus')
+                    self.flagged = False
+                
+                def get_display_text(self):
+                    node = self.get_node()
+                    val = node.get_value()
+                    if node.get_depth() == 2:
+                        return "%s %s/%s - %s" % (val['type'], val['id'], val['data'], val['link-type'])
+                    elif node.get_depth() == 1:
+                        return "%s ID(%s) AREA(%s) AUTH(%s) - %s" % (val['src'], val['id'], val['area'], val['auth'], val['state'])
+                    else:
+                        return "Neighbors:"
+                
+                def selectable(self):
+                    if self.get_node().get_depth() <= 1:
+                        return True
+                    return False
+
+                def keypress(self, size, key):
+                    key = urwid.TreeWidget.keypress(self, size, key)
+                    if key:
+                        key = self.unhandled_keys(size, key)
+                    return key
+
+                def unhandled_keys(self, size, key):
+                    if self.get_node().get_depth() == 1:
+                        if key == "enter":
+                            value = self.get_node().get_value()
+                            cb = value["callback"]
+                            if "args" in value:
+                                cb(self, value["args"])
+                            else:
+                                cb(self)
+                    return key
+            self.NeighWidget = NeighWidget_
+
+            class NeighNode_(urwid.TreeNode):
+                def load_widget(self):
+                    return NeighWidget_(self)
+            self.NeighNode = NeighNode_
+
+            class NeighParentNode_(urwid.ParentNode):
+                def load_widget(self):
+                    return NeighWidget_(self)
+                
+                def load_child_keys(self):
+                    val = self.get_value()
+                    return range(len(val["children"]))
+                
+                def load_child_node(self, key):
+                    childdata = self.get_value()['children'][key]
+                    childdepth = self.get_depth() + 1
+                    if 'children' in childdata and len(childdata['children']) > 0:
+                        childclass = NeighParentNode_
+                    else:
+                        childclass = NeighNode_
+                    return childclass(childdata, parent=self, key=key, depth=childdepth)
+            self.NeighParentNode = NeighParentNode_
         self.name = "ospf"
         self.group = "ROUTING"
         self.gladefile = "/modules/module_ospf.glade"
-        self.neighbor_liststore = gtk.TreeStore(str, str, str, str, str, str, bool)
-        self.network_liststore = gtk.ListStore(str, str, str)
-        self.auth_type_liststore = gtk.ListStore(str, int)
-        for i in dir(ospf_header):
-            if i.startswith("AUTH_"):
-                exec("val = ospf_header." + i)
-                self.auth_type_liststore.append([i, val])
-        self.net_type_liststore = gtk.ListStore(str, int)
-        #~ for i in dir(ospf_link_state_advertisement_header):
-        for i in [ "TYPE_ROUTER_LINKS" ]:       #, "TYPE_NETWORK_LINKS"
-            if i.startswith("TYPE_"):
-                exec("val = ospf_link_state_advertisement_header." + i)
-                self.net_type_liststore.append([i, val])
+        if self.ui == 'gtk':
+            self.neighbor_liststore = gtk.TreeStore(str, str, str, str, str, str, bool)
+            self.network_liststore = gtk.ListStore(str, str, str)
+            self.auth_type_liststore = gtk.ListStore(str, int)
+            self.net_type_liststore = gtk.ListStore(str, int)
+            h = ospf_header()
+            for i in dir(ospf_header):
+                if i.startswith("AUTH_"):
+                    val = getattr(h, i)
+                    self.auth_type_liststore.append([i, val])
+            #~ for i in dir(ospf_link_state_advertisement_header):
+            h = ospf_link_state_advertisement_header()
+            for i in [ "TYPE_ROUTER_LINKS" ]:       #, "TYPE_NETWORK_LINKS"
+                if i.startswith("TYPE_"):
+                    val = getattr(h, i)
+                    self.net_type_liststore.append([i, val])
         self.dnet = None
         self.filter = False
         self.thread = None
@@ -1145,6 +1228,8 @@ class mod_class(object):
         self.options = ospf_hello.OPTION_EXTERNAL_ROUTING_CAPABILITY
         self.bf = {}
         self.thread.start()
+        if self.ui == 'urw':
+            self.neigh_tree["children"] = []
 
     def shut_mod(self):
         if self.thread:
@@ -1163,9 +1248,10 @@ class mod_class(object):
         if self.bf:
             for i in self.bf:
                 self.bf[i].quit()
-        self.neighbor_liststore.clear()
-        self.network_liststore.clear()
-        #self.auth_type_liststore.clear()
+        if self.ui == 'gtk':
+            self.neighbor_liststore.clear()
+            self.network_liststore.clear()
+            #self.auth_type_liststore.clear()
         
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -1269,12 +1355,89 @@ class mod_class(object):
         self.net_type_combobox.set_active(0)
 
         return self.glade_xml.get_widget("root")
+    
+    def get_urw(self):
+        spoofs = urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.NeighParentNode(self.neigh_tree))))
+        self.area_edit = urwid.Edit("Area: ")
+        hello = self.parent.menu_button("Start Sending HELLOs", self.urw_hello_activated)
+        bgroup = []
+        authlist = []
+        h = ospf_header()
+        for i in dir(ospf_header):
+            if i.startswith("AUTH_"):
+                val = getattr(h, i)
+                authlist.append(urwid.RadioButton(bgroup, i, on_state_change=self.urw_radio_changed, user_data=val))
+        self.auth_data_edit = urwid.Edit("Auth Data: ")
+        self.auth_id_edit = urwid.Edit("Key ID: ")
+        authlist.append(self.auth_data_edit)
+        authlist.append(self.auth_id_edit)
+        columns = urwid.Columns([urwid.Filler(self.area_edit), urwid.ListBox(urwid.SimpleListWalker(authlist)), urwid.Filler(hello)])
+        self.pile = urwid.Pile([spoofs, columns])
+        return self.pile
+    
+    def urw_radio_changed(self, button, state, auth):
+        if state:
+            self.auth_type = auth
+    
+    def urw_update_tree(self):
+        self.pile.contents[0] = (urwid.LineBox(urwid.TreeListBox(urwid.TreeWalker(self.NeighParentNode(self.neigh_tree)))), ('weight', 1))
 
-    def master_toggle_callback(self, cell, path, model):
-        model[path][self.NEIGH_MASTER_ROW] = not model[path][self.NEIGH_MASTER_ROW]
-        id = model[path][self.NEIGH_ID_ROW]
-        (iter, mac, src, dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
-        self.neighbors[id] = (iter, mac, src, dbd, lsa, state, model[path][self.NEIGH_MASTER_ROW], seq, last_packet, adverts)
+    def urw_hello_activated(self, button):
+        if not self.filter:
+            self.log("OSPF: Setting lokal packet filter for OSPF")
+            if self.platform == "Linux":
+                os.system("iptables -A INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            elif self.platform == "Darwin":
+                os.system("ipfw -q add 31334 deny ospf from any to any")
+            elif self.platform == "Windows":
+                os.system("netsh advfirewall firewall add rule name=ospf dir=in protocol=%i action=block" % dpkt.ip.IP_PROTO_OSPF)
+            else:
+                self.fw.add(self.ospf_filter)
+            self.filter = True
+        self.log("OSPF: Hello thread activated")
+        self.area = int(self.area_edit.get_edit_text())
+        if self.auth_type == ospf_header.AUTH_NONE:
+            self.auth_data = 0
+        elif self.auth_type == ospf_header.AUTH_SIMPLE:
+            self.auth_data = self.auth_data_edit.get_edit_text()[:8]
+        elif self.auth_type == ospf_header.AUTH_CRYPT:
+            key = self.auth_data_edit.get_edit_text()
+            if len(key) > 16:
+                key = key[:16]
+            elif len(key) < 16:
+                key = "%s%s" % (key, "\0" * (16 - len(key)))
+            self.auth_data = ospf_crypt_auth_data(  key,
+                                                    int(self.auth_id_edit.get_edit_text()),
+                                                    ospf_crypt_auth_data.TYPE_MD5,
+                                                    int(time.time())
+                                                    )
+        self.thread.hello = True
+        button.set_label("Stop Sending HELLOs")
+        urwid.disconnect_signal(button, 'click', self.urw_hello_activated)
+        urwid.connect_signal(button, 'click', self.urw_hello_deactivated)
+
+    def urw_hello_deactivated(self, button):
+        if self.filter:
+            self.log("OSPF: Removing lokal packet filter for OSPF")
+            if self.platform == "Linux":
+                os.system("iptables -D INPUT -i %s -p %i -j DROP" % (self.interface, dpkt.ip.IP_PROTO_OSPF))
+            elif self.platform == "Darwin":
+                os.system("ipfw -q delete 31334")
+            elif self.platform == "Windows":
+                os.system("netsh advfirewall firewall del rule name=ospf")
+            else:
+                self.fw.delete(self.ospf_filter)
+            self.filter = False
+        self.log("OSPF: Hello thread deactivated")
+        for id in self.neighbors:
+            (iter, mac, src, org_dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
+            self.neigh_tree['children'][iter]['state'] = "HELLO"
+            self.neighbors[id] = (iter, mac, src, None, [], ospf_thread.STATE_HELLO, master, 1337, last_packet, adverts)
+        self.urw_update_tree()
+        self.thread.hello = False
+        button.set_label("Start Sending HELLOs")
+        urwid.disconnect_signal(button, 'click', self.urw_hello_deactivated)
+        urwid.connect_signal(button, 'click', self.urw_hello_activated)
 
     def log(self, msg):
         self.__log(msg, self.name)
@@ -1326,12 +1489,29 @@ class mod_class(object):
                     hello.parse(data)
                     (ip_int,) = struct.unpack("!I", self.ip)
                     if id not in self.neighbors:
-                        if socket.ntohl(hello.id) < socket.ntohl(ip_int):
+                        #self.log("OSPF-DEBUG: %d < %d ?" % (hello.id, ip_int))
+                        #if socket.ntohl(hello.id) < socket.ntohl(ip_int):
+                        if hello.id < ip_int:
                             master = True
+                            #self.log("OSPF-DEBUG: Yes")
                         else:
                             master = False
+                            #self.log("OSPF-DEBUG: No")
                         #print "Local %s (%i) - Peer %s (%i) => Master " % (dnet.ip_ntoa(self.ip), socket.ntohl(ip_int), id, socket.ntohl(header.id)) + str(master)
-                        iter = self.neighbor_liststore.append(None, [dnet.ip_ntoa(ip.src), id, str(header.area), "HELLO", header.auth_to_string(), "", master])
+                        if self.ui == 'gtk':
+                            iter = self.neighbor_liststore.append(None, [dnet.ip_ntoa(ip.src), id, str(header.area), "HELLO", header.auth_to_string(), "", master])
+                        elif self.ui == 'urw':
+                            entry = { 'src'   : dnet.ip_ntoa(ip.src),
+                                      'id'    : id,
+                                      'area'  : str(header.area),
+                                      'state' : "HELLO",
+                                      'auth'  : header.auth_to_string(),
+                                      'master': master,
+                                      'children':[]
+                                    }
+                            self.neigh_tree['children'].append(entry)
+                            iter = self.neigh_tree['children'].index(entry)
+                            self.urw_update_tree()
                         #                    (iter, mac,     src,    dbd, lsa, state,                   master, seq,  last_packet, adverts)
                         self.neighbors[id] = (iter, eth.src, ip.src, None, [], ospf_thread.STATE_HELLO, master, 1337, ip.data, {})
                         self.log("OSPF: Got new peer %s" % (dnet.ip_ntoa(ip.src)))
@@ -1339,7 +1519,11 @@ class mod_class(object):
                         (iter, mac, src, dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
                         if state == ospf_thread.STATE_HELLO:
                             self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data, adverts)
-                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
+                            if self.ui == 'gtk':
+                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
+                            elif self.ui == 'urw':
+                                self.neigh_tree['children'][iter]['state'] = "2WAY"
+                                self.urw_update_tree()
                     self.dr = hello.designated_router
                     self.bdr = hello.backup_designated_router
                     self.options = hello.options
@@ -1367,11 +1551,30 @@ class mod_class(object):
                                     for link in lsa.links:
                                         link_id = dnet.ip_ntoa(link.id)
                                         if link_id not in adverts:
-                                            iter2 = self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", link_id, dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
+                                            if self.ui == 'gtk':
+                                                iter2 = self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", link_id, dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
+                                            elif self.ui == 'urw':
+                                                entry = { 'type'     : "TYPE_ROUTER_LINKS",
+                                                          'id'       : link_id,
+                                                          'data'     : dnet.ip_ntoa(link.data),
+                                                          'link-type': ospf_router_link_advertisement_link.TYPES[link.type]
+                                                        }
+                                                self.neigh_tree['children'][iter]['children'].append(entry)
+                                                iter2 = self.neigh_tree['children'][iter]['children'].index(entry)
+                                                self.urw_update_tree()
                                             adverts[link_id] = (iter2, link)
                                         else:
                                             (iter2, old_link) = adverts[link_id]
-                                            self.neighbor_liststore.set(iter2, self.NEIGH_AREA_ROW, dnet.ip_ntoa(link.data), self.NEIGH_STATE_ROW, ospf_router_link_advertisement_link.TYPES[link.type])
+                                            if self.ui == 'gtk':
+                                                self.neighbor_liststore.set(iter2, self.NEIGH_AREA_ROW, dnet.ip_ntoa(link.data), self.NEIGH_STATE_ROW, ospf_router_link_advertisement_link.TYPES[link.type])
+                                            elif self.ui == 'urw':
+                                                entry = { 'type'     : "TYPE_ROUTER_LINKS",
+                                                          'id'       : link_id,
+                                                          'data'     : dnet.ip_ntoa(link.data),
+                                                          'link-type': ospf_router_link_advertisement_link.TYPES[link.type]
+                                                        }
+                                                self.neigh_tree['children'][iter]['children'][iter2] = entry
+                                                self.urw_update_tree()
                                             adverts[link_id] = (iter2, link)
                                         
                                         self.lsa_db[adv_router]['links'].append({
@@ -1415,7 +1618,11 @@ class mod_class(object):
                         hello.parse(data)
                         if state == ospf_thread.STATE_HELLO:
                             self.neighbors[id] = (iter, eth.src, ip.src, org_dbd, lsa, ospf_thread.STATE_2WAY, master, seq, ip.data, adverts)
-                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
+                            if self.ui == 'gtk':
+                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "2WAY")
+                            elif self.ui == 'urw':
+                                self.neigh_tree['children'][iter]['state'] = "2WAY"
+                                self.urw_update_tree()
                     elif header.type == ospf_header.TYPE_DATABESE_DESCRIPTION:
                         dbd = ospf_database_description()
                         dbd.parse(data)
@@ -1426,33 +1633,61 @@ class mod_class(object):
                                     dbd.parse(data, parse_lsa=True)
                                     if dbd.lsa_db != []:
                                         self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data, adverts)
-                                        self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
+                                        if self.ui == 'gtk':
+                                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
+                                        elif self.ui == 'urw':
+                                            self.neigh_tree['children'][iter]['state'] = "EXSTART"
+                                            self.urw_update_tree()
                                 else:
                                     self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXSTART, master, seq, ip.data, adverts)
-                                    self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
+                                    if self.ui == 'gtk':
+                                        self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXSTART")
+                                    elif self.ui == 'urw':
+                                        self.neigh_tree['children'][iter]['state'] = "EXSTART"
+                                        self.urw_update_tree()
                             else:
                                 self.neighbors[id] = (iter, mac, src, dbd, lsa, state, master, seq, ip.data, adverts)
                         elif state == ospf_thread.STATE_EXSTART:
                             if not dbd.flags & ospf_database_description.FLAGS_MORE and not master:
                                 self.neighbors[id] = (iter, mac, src, dbd, lsa, ospf_thread.STATE_EXCHANGE, master, seq, ip.data, adverts)
-                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXCHANGE")
+                                if self.ui == 'gtk':
+                                    self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "EXCHANGE")
+                                elif self.ui == 'urw':
+                                    self.neigh_tree['children'][iter]['state'] = "EXCHANGE"
+                                    self.urw_update_tree()
                             elif not dbd.flags and master:
                                 self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data, adverts)
-                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")      
+                                if self.ui == 'gtk':
+                                    self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")
+                                elif self.ui == 'urw':
+                                    self.neigh_tree['children'][iter]['state'] = "LOADING"
+                                    self.urw_update_tree()
                     elif header.type == ospf_header.TYPE_LINK_STATE_REQUEST:
                         if state == ospf_thread.STATE_EXCHANGE:
                             self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_LOADING, master, seq, ip.data, adverts)
-                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")
+                            if self.ui == 'gtk':
+                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "LOADING")
+                            elif self.ui == 'urw':
+                                self.neigh_tree['children'][iter]['state'] = "LOADING"
+                                self.urw_update_tree()
                     elif header.type == ospf_header.TYPE_LINK_STATE_ACK:
                         if state == ospf_thread.STATE_LOADING:
                             self.neighbors[id] = (iter, mac, src, org_dbd, lsa, ospf_thread.STATE_FULL, master, seq, ip.data, adverts)
-                            self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "FULL")
+                            if self.ui == 'gtk':
+                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "FULL")
+                            elif self.ui == 'urw':
+                                self.neigh_tree['children'][iter]['state'] = "FULL"
+                                self.urw_update_tree()
                             self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                     elif header.type == ospf_header.TYPE_LINK_STATE_UPDATE:
                         if state > ospf_thread.STATE_EXSTART:
                             if state < ospf_thread.STATE_LOADING:
                                 state = ospf_thread.STATE_FULL
-                                self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "FULL")
+                                if self.ui == 'gtk':
+                                    self.neighbor_liststore.set_value(iter, self.NEIGH_STATE_ROW, "FULL")
+                                elif self.ui == 'urw':
+                                    self.neigh_tree['children'][iter]['state'] = "FULL"
+                                    self.urw_update_tree()
                                 self.log("OSPF: Peer %s in state FULL" % (dnet.ip_ntoa(ip.src)))
                             update = ospf_link_state_update()
                             update.parse(data)
@@ -1472,11 +1707,30 @@ class mod_class(object):
                                     for link in lsa.links:
                                         link_id = dnet.ip_ntoa(link.id)
                                         if link_id not in adverts:
-                                            iter2 = self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", link_id, dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
+                                            if self.ui == 'gtk':
+                                                iter2 = self.neighbor_liststore.append(iter, ["TYPE_ROUTER_LINKS", link_id, dnet.ip_ntoa(link.data), ospf_router_link_advertisement_link.TYPES[link.type], "", "", None])
+                                            elif self.ui == 'urw':
+                                                entry = { 'type'     : "TYPE_ROUTER_LINKS",
+                                                          'id'       : link_id,
+                                                          'data'     : dnet.ip_ntoa(link.data),
+                                                          'link-type': ospf_router_link_advertisement_link.TYPES[link.type]
+                                                        }
+                                                self.neigh_tree['children'][iter]['children'].append(entry)
+                                                iter2 = self.neigh_tree['children'][iter]['children'].index(entry)
+                                                self.urw_update_tree()
                                             adverts[link_id] = (iter2, link)
                                         else:
                                             (iter2, old_link) = adverts[link_id]
-                                            self.neighbor_liststore.set(iter2, self.NEIGH_AREA_ROW, dnet.ip_ntoa(link.data), self.NEIGH_STATE_ROW, ospf_router_link_advertisement_link.TYPES[link.type])
+                                            if self.ui == 'gtk':
+                                                self.neighbor_liststore.set(iter2, self.NEIGH_AREA_ROW, dnet.ip_ntoa(link.data), self.NEIGH_STATE_ROW, ospf_router_link_advertisement_link.TYPES[link.type])
+                                            elif self.ui == 'urw':
+                                                entry = { 'type'     : "TYPE_ROUTER_LINKS",
+                                                          'id'       : link_id,
+                                                          'data'     : dnet.ip_ntoa(link.data),
+                                                          'link-type': ospf_router_link_advertisement_link.TYPES[link.type]
+                                                        }
+                                                self.neigh_tree['children'][iter]['children'][iter2] = entry
+                                                self.urw_update_tree()
                                             adverts[link_id] = (iter2, link)
                                         
                                         self.lsa_db[adv_router]['links'].append({
@@ -1509,6 +1763,12 @@ class mod_class(object):
                             self.neighbors[id] = (iter, mac, src, org_dbd, update.advertisements, state, master, seq, ip.data, adverts)
 
     # SIGNALS #
+
+    def master_toggle_callback(self, cell, path, model):
+        model[path][self.NEIGH_MASTER_ROW] = not model[path][self.NEIGH_MASTER_ROW]
+        id = model[path][self.NEIGH_ID_ROW]
+        (iter, mac, src, dbd, lsa, state, master, seq, last_packet, adverts) = self.neighbors[id]
+        self.neighbors[id] = (iter, mac, src, dbd, lsa, state, model[path][self.NEIGH_MASTER_ROW], seq, last_packet, adverts)
 
     def on_hello_togglebutton_toggled(self, btn):
         if btn.get_active():
