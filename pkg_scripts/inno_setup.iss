@@ -7,8 +7,8 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 AppId={{263C2558-FE6F-4DC9-B05E-D01310AB033F}
 AppName=Loki
-AppVersion=0.2.7
-;AppVerName=Loki 0.2.7
+AppVersion=0.3.0
+;AppVerName=Loki 0.3.0
 AppPublisher=Daniel Mende
 AppPublisherURL=http://www.c0decafe.de
 AppSupportURL=http://www.c0decafe.de
