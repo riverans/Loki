@@ -100,8 +100,44 @@ $proc = Start-Process $inno $args -wait
 Move-Item $tmp\trunk\pkg_scripts\Output\setup.exe $tmp\loki-$version-r$Revision.exe
 set_acl $tmp\loki-$version-r$Revision.exe
 
-"Uploading installer to DAV";
-&$davcp $tmp\loki-$version-r$Revision.exe http://c0decafe.de/cal /O /USER:greif /PASSWORD:jackdaniels
+########################################
+#Webdav Access with PowerShell
+########################################
+
+#Put the complete path of the file that you want to upload
+$file = "$tmp\loki-$version-r$Revision.exe"
+
+#Put the url without the last "/"
+$url  = "http://c0decafe.de/cal"
+
+#Provide User and Pwd for Webdav Access
+$user = "*****************"
+$pass = "*****************"
+
+#######################################
+#Script
+#######################################
+
+#Adding the name of the file at the end of the URL
+$url += "/" + $file.split('\')[(($file.split("\")).count - 1)]
+
+#Connecting to WebDav
+Write-Host "File upload started"
+
+# Set binary file type
+Set-Variable -name adFileTypeBinary -value 1 -option Constant
+
+$objADOStream = New-Object -ComObject ADODB.Stream
+$objADOStream.Open()
+$objADOStream.Type = $adFileTypeBinary
+$objADOStream.LoadFromFile("$file")
+$arrbuffer = $objADOStream.Read()
+
+$objXMLHTTP = New-Object -ComObject MSXML2.ServerXMLHTTP
+$objXMLHTTP.Open("PUT", $url, $False, $user, $pass)
+$objXMLHTTP.send($arrbuffer)
+
+Write-Host "File upload finished"
 
 "Resetting Path";
 Pop-Location
