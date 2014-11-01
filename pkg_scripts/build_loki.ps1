@@ -33,7 +33,9 @@ if (Test-Path $tmp) {
 #&$svn export $repo/trunk $tmp\trunk
 
 "Updating trunk";
-$Revision = ((&$svn up $tmp\trunk | Select-String "At revision") -split(" "))[2] -replace("\.", $null)
+$Revision = ((&$svn up $tmp\trunk | Select-String "revision") -split("revision "))[1] -replace("\.", $null)
+
+"At revision $Revision.";
 
 if (Test-Path $tmp\loki-$version-r$Revision.exe) {
     "Installer for Revision $Revision found, exiting";
@@ -111,8 +113,8 @@ $file = "$tmp\loki-$version-r$Revision.exe"
 $url  = "http://c0decafe.de/cal"
 
 #Provide User and Pwd for Webdav Access
-$user = "*****************"
-$pass = "*****************"
+$user = "************"
+$pass = "************"
 
 #######################################
 #Script
