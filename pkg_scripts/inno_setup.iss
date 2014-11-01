@@ -33,12 +33,12 @@ Source: "C:\loki_temp\deps\WinPcap_4_1_2.exe"; DestDir: "{tmp}"
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{group}\Loki"; Filename: "{app}\loki.exe"
+Name: "{group}\Loki"; Filename: "{app}\loki_gtk.exe"
 Name: "{group}\{cm:UninstallProgram,Loki}"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\Loki"; Filename: "{app}\loki.exe"; Tasks: desktopicon
+Name: "{commondesktop}\Loki"; Filename: "{app}\loki_gtk.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{tmp}\vcredist_x86.exe"
 Filename: "{tmp}\WinPcap_4_1_2.exe"
-;Filename: "{app}\loki.exe"; Description: "{cm:LaunchProgram,Loki}"; Flags: nowait postinstall skipifsilent
+;Filename: "{app}\loki_gtk.exe"; Description: "{cm:LaunchProgram,Loki}"; Flags: nowait postinstall skipifsilent
 
