@@ -38,7 +38,7 @@ Name: "{group}\{cm:UninstallProgram,Loki}"; Filename: "{uninstallexe}"
 Name: "{commondesktop}\Loki"; Filename: "{app}\loki_gtk.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\vcredist_x86.exe"
+Filename: "{tmp}\vcredist_x86.exe /qb"
 Filename: "{tmp}\WinPcap_4_1_2.exe"
 ;Filename: "{app}\loki_gtk.exe"; Description: "{cm:LaunchProgram,Loki}"; Flags: nowait postinstall skipifsilent
 
