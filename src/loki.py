@@ -536,7 +536,10 @@ class codename_loki(object):
                             dnet.ip6_aton(ip)
                             addr_dict = {}
                             addr_dict['ip'] = ip
-                            addr_dict['mask'] = mask
+                            if PLATFORM == "Windows" and mask is None:
+                                addr_dict['mask'] = "ffff:ffff:ffff:ffff::"
+                            else:
+                                addr_dict['mask'] = mask
                             addr_dict['net'] = net
                             addr_dict['gw'] = gw
                             if ip.startswith("fe80:"):
