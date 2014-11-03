@@ -11,7 +11,7 @@ export DH_VERBOSE=1
 configure: configure-stamp
 configure-stamp:
 	# Add here commands to configure the package.
-	./configure --prefix=/usr
+	./configure --prefix=/usr --with-gtk --with-urwid
 	touch configure-stamp
 build: build-stamp
 build-stamp: configure-stamp  

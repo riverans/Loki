@@ -1,7 +1,7 @@
 # To generate the configure files
-aclocal && automake --add-missing && autoconf
+autoreconf -fvi -I m4
 # Now you can configure:
-./configure
+./configure --prefix=/usr --with-gtk --with-urwid
 # Now you can build:
 make
 # Now you can install the compiled binaries:

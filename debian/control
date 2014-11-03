@@ -8,5 +8,5 @@ Homepage: http://c0decafe.de
 
 Package: loki
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, python-libpcap, python-gtk2, python-dpkt, python-dumbnet, python-ipy, python-dpkt, python-glade2
+Depends: ${shlibs:Depends}, ${misc:Depends}, python-libpcap, python-gtk2, python-dpkt, python-dumbnet, python-ipy, python-dpkt, python-glade2, python-urwid
 Description: This is loki. have phun!!!11

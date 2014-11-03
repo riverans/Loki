@@ -26,13 +26,27 @@ echo "***********************"
 echo "**** exporting svn ****"
 echo "***********************"
 cd $WORKDIR
-svn export $SVNPATH/$REPNAME/trunk
+REVISION=$(svn export $SVNPATH/$REPNAME/trunk | grep "Exported revision" | cut -d" " -f3 | tr -d .)
+
+echo "****************************************"
+echo -n "**** getting version ... "
+VERSION=$(grep "VERSION =" trunk/src/loki.py | cut -d\" -f2)-r$REVISION
+echo "$VERSION ****"
+echo "****************************************"
+
+if [ -f $BUILDROOT/loki_${VERSION}-1_amd64.deb ]
+then
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!!!! pkg found, canceling build !!!!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	rm -rf $WORKDIR
+	exit
+fi
 
 echo "**************************************"
-echo -n "**** getting version ... "
-VERSION=`grep "VERSION =" trunk/src/loki.py | cut -d\" -f2`
-echo "$VERSION ****"
+echo "**** writing version to changelog ****"
 echo "**************************************"
+sed -i "s/0.2.7-1/$VERSION-1/g" trunk/debian/changelog
 
 echo "***********************************"
 echo "**** removing non-release data ****"
@@ -68,9 +82,7 @@ echo "********************************"
 echo "**** configuring build root ****"
 echo "********************************"
 cd $PKGNAME-$VERSION
-aclocal
-autoconf
-automake --add-missing --copy
+autoreconf -fvi -I m4
 ./configure
 
 echo "********************************"
@@ -78,8 +90,18 @@ echo "**** building pkg for amd64 ****"
 echo "********************************"
 debuild -us -uc
 
-echo "*******************************"
-echo "**** building pkg for i386 ****"
-echo "*******************************"
-sudo chroot /chroot32 /usr/bin/sudo -u user /bin/sh -c "cd $WORKDIR/$PKGNAME-$VERSION && /usr/bin/debuild -us -uc"
+#echo "*******************************"
+#echo "**** building pkg for i386 ****"
+#echo "*******************************"
+#sudo chroot /chroot32 /usr/bin/sudo -u user /bin/sh -c "cd $WORKDIR/$PKGNAME-$VERSION && /usr/bin/debuild -us -uc"
 
+echo "***********************"
+echo "**** uploading pkg ****"
+echo "***********************"
+curl -T $WORKDIR/loki_${VERSION}-1_amd64.deb --basic -u "***********:************" http://c0decafe.de/cal/
+
+echo "*********************"
+echo "**** cleaning up ****"
+echo "*********************"
+mv  $WORKDIR/loki_${VERSION}-1_amd64.deb $BUILDROOT/
+rm -rf $WORKDIR
