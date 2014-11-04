@@ -8,20 +8,18 @@ URL:            http://codecafe.de
 Source0:        http://codecafe.de/loki/loki-0.2.7.tar.gz
 
 BuildRequires:  automake autoconf python-devel libpcap-devel libdnet-devel openssl-devel
-Requires:       python pylibpcap libdnet-python python-IPy python-dpkt pygtk2 openssl pygtk2-libglade
+Requires:       python pylibpcap libdnet-python python-IPy python-dpkt pygtk2 openssl pygtk2-libglade python-urwid
 
 %description
 
 
 %prep
 %setup -q
-aclocal
-autoconf
-automake --add-missing --copy
+autoreconf -fvi -I m4
 sed -i "s/+ e/+ str(e)/g" setup.py.in
 
 %build
-%configure
+./configure --prefix=$RPM_BUILD_ROOT/usr --with-gtk --with-urwid
 make %{?_smp_mflags}
 
 
@@ -33,7 +31,8 @@ make install DESTDIR=$RPM_BUILD_ROOT
 %files
 %doc
 %{python_sitearch}/*
-/usr/bin/loki.py
+/usr/bin/loki_gtk.py
+/usr/bin/loki_urw.py
 /usr/bin/mpls_tunnel
 /usr/share/loki/*
 
