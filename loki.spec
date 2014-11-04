@@ -19,7 +19,7 @@ autoreconf -fvi -I m4
 sed -i "s/+ e/+ str(e)/g" setup.py.in
 
 %build
-./configure --prefix=$RPM_BUILD_ROOT/usr --with-gtk --with-urwid
+./configure --prefix=/usr --with-gtk --with-urwid
 make %{?_smp_mflags}
 
 
