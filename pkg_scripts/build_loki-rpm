@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-BUILDROOT=`pwd`
+BUILDROOT="/root/"
 SVNPATH="http://c0decafe.de/svn/"
 REPNAME=codename_loki
 PKGNAME=loki
@@ -26,13 +26,27 @@ echo "***********************"
 echo "**** exporting svn ****"
 echo "***********************"
 cd $WORKDIR
-svn export $SVNPATH/$REPNAME/trunk
+REVISION=$(svn export $SVNPATH/$REPNAME/trunk | grep "Exported revision" | cut -d" " -f3 | tr -d .)
+
+echo "****************************************"
+echo -n "**** getting version ... "
+VERSION=$(grep "VERSION =" trunk/src/loki.py | cut -d\" -f2)_r$REVISION
+echo "$VERSION ****"
+echo "****************************************"
+
+if [ -f $BUILDROOT/loki_${VERSION}.rpm ]
+then
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!!!! pkg found, canceling build !!!!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	rm -rf $WORKDIR
+	exit
+fi
 
 echo "**************************************"
-echo -n "**** getting version ... "
-VERSION=`grep "VERSION =" trunk/src/loki.py | cut -d\" -f2`
-echo "$VERSION ****"
+echo "**** writing version to spec file ****"
 echo "**************************************"
+sed -i "s/0.2.7/$VERSION/g" trunk/loki.spec
 
 echo "***********************************"
 echo "**** removing non-release data ****"
@@ -50,7 +64,7 @@ mv trunk $PKGNAME-$VERSION
 echo "***************************"
 echo "**** creating tar file ****"
 echo "***************************"
-tar -cvzf ${PKGNAME}_${VERSION}.orig.tar.gz $PKGNAME-$VERSION
+tar -cvzf $BUILDROOT/rpmbuild/SOURCES/${PKGNAME}-${VERSION}.tar.gz $PKGNAME-$VERSION
 
 echo "********************************"
 echo "**** building pkg for amd64 ****"
@@ -60,5 +74,15 @@ rpmbuild -ba $PKGNAME-$VERSION/loki.spec
 #~ echo "*******************************"
 #~ echo "**** building pkg for i386 ****"
 #~ echo "*******************************"
-#~ sudo chroot /chroot32 /usr/bin/sudo -u user /bin/sh -c "cd $WORKDIR/$PKGNAME-$VERSION && /usr/bin/debuild -us -uc"
+#~ rpmbuild -ba --target i386 $PKGNAME-$VERSION/loki.spec
 
+echo "***********************"
+echo "**** uploading pkg ****"
+echo "***********************"
+#curl -T $WORKDIR/loki_${VERSION}-1_i386.deb --basic -u greif:123jackdanielsqwe http://c0decafe.de/cal/
+
+echo "*********************"
+echo "**** cleaning up ****"
+echo "*********************"
+rm -rf $WORKDIR
+rm -f $BUILDROOT/rpmbuild/SOURCES/${PKGNAME}-${VERSION}.tar.gz

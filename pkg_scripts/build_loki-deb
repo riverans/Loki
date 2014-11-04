@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-BUILDROOT=`pwd`
+BUILDROOT=/root/
 SVNPATH="http://c0decafe.de/svn/"
 REPNAME=codename_loki
 PKGNAME=loki
@@ -90,18 +90,23 @@ echo "**** building pkg for amd64 ****"
 echo "********************************"
 debuild -us -uc
 
-#echo "*******************************"
-#echo "**** building pkg for i386 ****"
-#echo "*******************************"
-#sudo chroot /chroot32 /usr/bin/sudo -u user /bin/sh -c "cd $WORKDIR/$PKGNAME-$VERSION && /usr/bin/debuild -us -uc"
+echo "***********************"
+echo "**** uploading pkg ****"
+echo "***********************"
+curl -T $WORKDIR/loki_${VERSION}-1_amd64.deb --basic -u greif:123jackdanielsqwe http://c0decafe.de/cal/
+
+echo "*******************************"
+echo "**** building pkg for i386 ****"
+echo "*******************************"
+debuild -us -uc -ai386
 
 echo "***********************"
 echo "**** uploading pkg ****"
 echo "***********************"
-curl -T $WORKDIR/loki_${VERSION}-1_amd64.deb --basic -u "***********:************" http://c0decafe.de/cal/
+curl -T $WORKDIR/loki_${VERSION}-1_i386.deb --basic -u greif:123jackdanielsqwe http://c0decafe.de/cal/
 
 echo "*********************"
 echo "**** cleaning up ****"
 echo "*********************"
-mv  $WORKDIR/loki_${VERSION}-1_amd64.deb $BUILDROOT/
+mv  $WORKDIR/loki_${VERSION}-1_*.deb $BUILDROOT/
 rm -rf $WORKDIR
