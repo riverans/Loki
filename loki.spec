@@ -30,7 +30,8 @@ make install DESTDIR=$RPM_BUILD_ROOT
 
 %files
 %doc
-%{python_sitearch}/*
+%{python2_sitearch}/*
+%{python2_sitelib}/*
 /usr/bin/loki_gtk.py
 /usr/bin/loki_urw.py
 /usr/bin/mpls_tunnel
