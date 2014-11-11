@@ -36,6 +36,7 @@ import hashlib
 
 import dnet
 import dpkt
+import IPy
 
 import gobject
 import gtk
@@ -43,7 +44,9 @@ import gtk.glade
 
 HSRP2_VERSION = 2
 HSRP2_PORT = 1985
+HSRP2_PORT6 = 2029
 HSRP2_MULTICAST_ADDRESS = "224.0.0.102"
+HSRP2_MULTICAST6_ADDRESS = "ff02::66"
 HSRP2_MULTICAST_MAC = "01:00:5e:00:00:66"
 
 class hsrp2_tlv:
@@ -243,7 +246,11 @@ class hsrp2_thread(threading.Thread):
                         hsrp2_text_auth = hsrp2_text_auth_tlv(pkg["hsrp2_text_auth_tlv"].auth_data)
                         data += hsrp2_text_auth.render()
                     elif "hsrp2_md5_auth_tlv" in pkg:
-                        auth = hsrp2_md5_auth_tlv(pkg["hsrp2_md5_auth_tlv"].algo, pkg["hsrp2_md5_auth_tlv"].flags, self.parent.ip, pkg["hsrp2_md5_auth_tlv"].keyid, "\x00" * 16)
+                        if pkg["hsrp2_group_state_tlv"].ip_ver == 4:
+                            ip = self.parent.ip
+                        else:
+                            ip = self.parent.ip6_ll[0] + self.parent.ip6_ll[-3:]
+                        auth = hsrp2_md5_auth_tlv(pkg["hsrp2_md5_auth_tlv"].algo, pkg["hsrp2_md5_auth_tlv"].flags, ip, pkg["hsrp2_md5_auth_tlv"].keyid, "\x00" * 16)
                         secret = self.parent.auth_entry.get_text()
                         key_length = struct.pack("<Q", (len(secret) << 3))
                         key_fill = secret + '\x80' + '\x00' * (55 - len(secret)) + key_length
@@ -256,21 +263,44 @@ class hsrp2_thread(threading.Thread):
                         data += auth.render()
                         pass
                     
-                    udp_hdr = dpkt.udp.UDP( sport=HSRP2_PORT,
-                                            dport=HSRP2_PORT,
-                                            data=data
-                                            )
-                    udp_hdr.ulen += len(udp_hdr.data)
-                    ip_hdr = dpkt.ip.IP(    ttl=1,
-                                            p=dpkt.ip.IP_PROTO_UDP,
-                                            src=self.parent.ip,
-                                            dst=dnet.ip_aton(HSRP2_MULTICAST_ADDRESS),
-                                            data=str(udp_hdr)
-                                            )
-                    ip_hdr.len += len(ip_hdr.data)
+                    if pkg["hsrp2_group_state_tlv"].ip_ver == 4:
+                        udp_hdr = dpkt.udp.UDP( sport=HSRP2_PORT,
+                                                dport=HSRP2_PORT,
+                                                data=data
+                                                )
+                        udp_hdr.ulen += len(udp_hdr.data)
+                        ip_hdr = dpkt.ip.IP(    ttl=1,
+                                                p=dpkt.ip.IP_PROTO_UDP,
+                                                src=self.parent.ip,
+                                                dst=dnet.ip_aton(HSRP2_MULTICAST_ADDRESS),
+                                                data=str(udp_hdr)
+                                                )
+                        ip_hdr.len += len(ip_hdr.data)
+                        ipt = dpkt.ethernet.ETH_TYPE_IP
+                    else:
+                        udp_hdr = dpkt.udp.UDP( sport=HSRP2_PORT6,
+                                                dport=HSRP2_PORT6,
+                                                data=data
+                                                )
+                        udp_hdr.ulen += len(udp_hdr.data)
+                        ip_hdr = dpkt.ip6.IP6(  hlim=255,
+                                                nxt=dpkt.ip.IP_PROTO_UDP,
+                                                src=self.parent.ip6_ll,
+                                                dst=dnet.ip6_aton(HSRP2_MULTICAST6_ADDRESS),
+                                                data=udp_hdr,
+                                                plen = len(str(udp_hdr))
+                                                )
+                        ip_hdr.extension_hdrs = {   0  : None,
+                                                    43 : None,
+                                                    44 : None,
+                                                    51 : None,
+                                                    50 : None,
+                                                    60 : None
+                                                    }
+                        ipt = dpkt.ethernet.ETH_TYPE_IP6
                     eth_hdr = dpkt.ethernet.Ethernet(   dst=dnet.eth_aton(HSRP2_MULTICAST_MAC),
                                                         src=self.parent.mac,
-                                                        type=dpkt.ethernet.ETH_TYPE_IP,
+                                                        type=ipt,
                                                         data=str(ip_hdr)
                                                         )
                     self.parent.dnet.send(str(eth_hdr))
@@ -398,6 +428,12 @@ class mod_class(object):
     def set_ip(self, ip, mask):
         self.ip = dnet.ip_aton(ip)
 
+    def set_ip6(self, ip6, mask6, ip6_ll, mask6_ll):
+        self.ip6 = dnet.ip6_aton(ip6)
+        self.mask6 = len(IPy.IP(mask6).strBin().replace("0", ""))
+        self.ip6_ll = dnet.ip6_aton(ip6_ll)
+        self.mask6_ll = len(IPy.IP(mask6_ll).strBin().replace("0", ""))
+
     def set_dnet(self, dnet):
         self.dnet = dnet
         self.mac = dnet.eth.get()
@@ -406,14 +442,14 @@ class mod_class(object):
         return (self.check_udp, self.input_udp)
 
     def check_udp(self, udp):
-        if udp.dport == HSRP2_PORT:
+        if udp.dport == HSRP2_PORT or udp.dport == HSRP2_PORT6:
             (ver, ) = struct.unpack("!xxB", str(udp.data)[:3])
             if ver == HSRP2_VERSION:
                 return (True, True)
         return (False, False)
 
     def input_udp(self, eth, ip, udp, timestamp):
-        if ip.src != self.ip:
+        if ip.src != self.ip and ip.src != self.ip6_ll:
             if ip.src not in self.peers:
                 pkg = {}
                 ip_addr = ""
@@ -441,8 +477,13 @@ class mod_class(object):
                         auth = "MD5: %s key#%d" % (hsrp2_md5_auth.csum.encode("hex"), hsrp2_md5_auth.keyid)
                     else:
                         return
-                src = dnet.ip_ntoa(ip.src)
-                iter = self.liststore.append([src, dnet.ip_ntoa(ip_addr), prio, "Seen", auth])
+                if type(ip) == dpkt.ip6.IP6:
+                    src = dnet.ip6_ntoa(ip.src)
+                    ip_addr = dnet.ip6_ntoa(ip_addr)
+                else:
+                    src = dnet.ip_ntoa(ip.src)
+                    ip_addr = dnet.ip_ntoa(ip_addr)
+                iter = self.liststore.append([src, ip_addr, prio, "Seen", auth])
                 self.peers[ip.src] = (iter, pkg, False, False)
                 self.log("HSRP2: Got new peer %s" % (src))
 
@@ -453,7 +494,10 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
+            try:
+                peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
+            except:
+                peer = dnet.ip6_aton(model.get_value(iter, self.STORE_SRC_ROW))
             (iter, pkg, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
                 arp = 3
@@ -469,7 +513,10 @@ class mod_class(object):
         (model, paths) = select.get_selected_rows()
         for i in paths:
             iter = model.get_iter(i)
-            peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
+            try:
+                peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
+            except:
+                peer = dnet.ip6_aton(model.get_value(iter, self.STORE_SRC_ROW))
             (iter, pkg, run, arp) = self.peers[peer]
             self.peers[peer] = (iter, pkg, False, arp)
             model.set_value(iter, self.STORE_STATE_ROW, "Released")
