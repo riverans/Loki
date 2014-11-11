@@ -32,6 +32,7 @@
 import struct
 import threading
 import time
+import hashlib
 
 import dnet
 import dpkt
@@ -194,24 +195,26 @@ class hsrp2_md5_auth_tlv(hsrp2_tlv):
    #~ |   Authentication Data cont.   |
    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-    AUTH_ALGO_MD5 = 1
+    ALGO_MD5 = 0x01
 
-    def __init__(self, algo=None, addr=None, id=None):
+    def __init__(self, algo=None, flags=None, ip=None, keyid=None, csum=None):
         hsrp2_tlv.__init__(self, hsrp2_tlv.TYPE_MD5_AUTH)
         self.algo = algo
-        self.flags = 0x00
-        self.addr = addr
-        self.id = id
+        self.flags = flags
+        self.ip = ip
+        self.keyid = keyid
+        self.csum = csum
 
     def render(self):
-        return hsrp2_tlv.render(self, struct.pack("!BxI", self.algo, self.flags) + self.addr + struct.pack("!I", self.id) + "\00" * 16)
+        value = struct.pack("!BxxB", self.algo, self.flags) + self.ip + struct.pack("!I", self.keyid) + self.csum
+        return hsrp2_tlv.render(self, value)
 
     def parse(self, data):
-        (self.algo, self.flags) = struct.unpack("!BxI", data[:4])
-        ### LOOKOUT FOR v6 ADDRESS !!! ###
-        ### dont re-impl. the wireshark bug ###
-        #self.addr = data[4:8]
-        
+        (self.algo, self.flags) = struct.unpack("!BxxB", data[:4])
+        self.ip = data[4:8]
+        self.keyid, = struct.unpack("!I", data[8:12])
+        self.csum = data[12:28]
+        return data[28:]        
 
 class hsrp2_thread(threading.Thread):
     def __init__(self, parent):
@@ -240,6 +243,17 @@ class hsrp2_thread(threading.Thread):
                         hsrp2_text_auth = hsrp2_text_auth_tlv(pkg["hsrp2_text_auth_tlv"].auth_data)
                         data += hsrp2_text_auth.render()
                     elif "hsrp2_md5_auth_tlv" in pkg:
+                        auth = hsrp2_md5_auth_tlv(pkg["hsrp2_md5_auth_tlv"].algo, pkg["hsrp2_md5_auth_tlv"].flags, self.parent.ip, pkg["hsrp2_md5_auth_tlv"].keyid, "\x00" * 16)
+                        secret = self.parent.auth_entry.get_text()
+                        key_length = struct.pack("<Q", (len(secret) << 3))
+                        key_fill = secret + '\x80' + '\x00' * (55 - len(secret)) + key_length
+                        salt = data + auth.render()
+                        m = hashlib.md5()
+                        m.update(key_fill)
+                        m.update(salt)
+                        m.update(secret)
+                        auth.csum = m.digest()
+                        data += auth.render()
                         pass
                     
                     udp_hdr = dpkt.udp.UDP( sport=HSRP2_PORT,
@@ -371,6 +385,7 @@ class mod_class(object):
         self.treeview.append_column(column)
 
         self.arp_checkbutton = self.glade_xml.get_widget("arp_checkbutton")
+        self.auth_entry = self.glade_xml.get_widget("auth_entry")
 
         return self.glade_xml.get_widget("root")
 
@@ -419,6 +434,11 @@ class mod_class(object):
                         left = hsrp2_text_auth.parse(left)
                         pkg["hsrp2_text_auth_tlv"] = hsrp2_text_auth
                         auth = hsrp2_text_auth.auth_data
+                    elif tlv.type == hsrp2_tlv.TYPE_MD5_AUTH:
+                        hsrp2_md5_auth = hsrp2_md5_auth_tlv()
+                        left = hsrp2_md5_auth.parse(left)
+                        pkg["hsrp2_md5_auth_tlv"] = hsrp2_md5_auth
+                        auth = "MD5: %s key#%d" % (hsrp2_md5_auth.csum.encode("hex"), hsrp2_md5_auth.keyid)
                     else:
                         return
                 src = dnet.ip_ntoa(ip.src)
