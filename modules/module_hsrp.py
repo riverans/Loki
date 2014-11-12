@@ -37,9 +37,9 @@ import hashlib
 import dnet
 import dpkt
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 HSRP_VERSION = 0
 HSRP_PORT = 1985
@@ -130,7 +130,10 @@ class hsrp_thread(threading.Thread):
                     if not auth is None:
                         hsrp = hsrp_packet(hsrp_packet.OP_HELLO, hsrp_packet.STATE_ACTIVE, pkg.hello, pkg.hold, 255, pkg.group, "\x00" * 8, pkg.ip)
                         auth = hsrp_auth_tlv(auth.algo, auth.flags, self.parent.ip, auth.keyid, "\x00" * 16)
-                        secret = self.parent.auth_entry.get_text()
+                        if self.parent.ui == 'gtk':
+                            secret = self.parent.auth_entry.get_text()
+                        elif self.parent.ui == 'urw':
+                            secret = self.parent.auth_edit.get_edit_text()
                         key_length = struct.pack("<Q", (len(secret) << 3))
                         key_fill = secret + '\x80' + '\x00' * (55 - len(secret)) + key_length
                         salt = hsrp.render() + auth.render()
@@ -209,14 +212,56 @@ class mod_class(object):
     STORE_STATE_ROW = 3
     STORE_AUTH_ROW = 4
     
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
         self.name = "hsrp"
         self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_hsrp.glade"
-        self.liststore = gtk.ListStore(str, str, int, str, str)
+        self.ui = ui
+        if ui == 'gtk':
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+            self.liststore = gtk.ListStore(str, str, int, str, str)
+        elif ui == 'urw':
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
         self.thread = None
+    
+    def get_urw(self):
+        hostlist = [ urwid.AttrMap(urwid.Text("Hostlist"), 'header'), urwid.Divider() ]
+        self.hostlist = urwid.SimpleListWalker(hostlist)
+        hostlist = urwid.LineBox(urwid.ListBox(self.hostlist))
+        self.auth_edit = urwid.Edit("Secret: ")
+        self.arp_checkbox = urwid.CheckBox("Send Gratuitous ARP")
+        self.pile = urwid.Pile([('weight', 8, hostlist), urwid.Filler(self.auth_edit), urwid.Filler(self.arp_checkbox)])
+        return self.pile
+    
+    def urw_hostlist_activated(self, button, (peer, label)):
+        if self.arp_checkbox.get_state():
+            arp = 3
+        else:
+            arp = 0
+        self.peers[peer]["state"] = True
+        self.peers[peer]["arp"] = arp
+        button.set_label(label + " - Taken")
+        urwid.disconnect_signal(button, 'click', self.urw_hostlist_activated, (peer, label))
+        urwid.connect_signal(button, 'click', self.urw_hostlist_deactivated, (peer, label))
+        if not self.thread.is_alive():
+            self.thread.start()
+    
+    def urw_hostlist_deactivated(self, button, (peer, label)):
+        self.peers[peer]["state"] = False
+        button.set_label(label + " - Released")
+        urwid.disconnect_signal(button, 'click', self.urw_hostlist_deactivated, (peer, label))
+        urwid.connect_signal(button, 'click', self.urw_hostlist_activated, (peer, label))
 
     def start_mod(self):
         self.peers = {}
@@ -226,7 +271,8 @@ class mod_class(object):
         if self.thread:
             if self.thread.is_alive():
                 self.thread.shutdown()
-        self.liststore.clear()
+        if self.ui == 'gtk':
+            self.liststore.clear()
         
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -312,7 +358,12 @@ class mod_class(object):
                     auth_str = "MD5: %s key#%d" % (auth.csum.encode("hex"), auth.keyid)
                 else:
                     auth_str = pkg.auth_data
-                iter = self.liststore.append([src, dnet.ip_ntoa(pkg.ip), pkg.prio, "Seen", auth_str])
+                if self.ui == 'gtk':
+                    iter = self.liststore.append([src, dnet.ip_ntoa(pkg.ip), pkg.prio, "Seen", auth_str])
+                elif self.ui == 'urw':
+                    label = "%s - %s PRIO(%d) AUTH(%s)" % (src, dnet.ip_ntoa(pkg.ip), pkg.prio, auth_str)
+                    self.hostlist.append(self.parent.menu_button(label + " - Seen", self.urw_hostlist_activated, (ip.src, label)))
+                    iter = None
                 self.peers[ip.src] = {
                     "iter"  :   iter,
                     "pkg"   :   pkg,
