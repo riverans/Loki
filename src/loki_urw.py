@@ -626,21 +626,21 @@ class loki_urw(loki.codename_loki):
             else:
                 self.ip6 = ip
                 self.mask6 = mask
+                self.configured = True
+                self.set_body(self.overview())
+                self.run_live()
         else:
-            if len(self.devices[self.interface]['ip6']) > 0:
-                self.ip6 = self.devices[self.interface]['ip6'][0]['ip']
-                self.mask6 = self.devices[self.interface]['ip6'][0]['mask']
-                if self.ip6.startswith("fe80:"):
-                    self.ip6_ll = self.ip6
-                    self.mask6_ll = self.mask6
+            self.ip6 = "::"
+            self.mask6 ="::"
+            self.ip6_ll = "::"
+            self.mask6_ll = "::"
+            for i in self.devices[self.interface]['ip6']:
+                if i['linklocal']:
+                    self.ip6_ll = i['ip']
+                    self.mask6_ll = i['mask']
                 else:
-                    self.ip6_ll = "::"
-                    self.mask6_ll = "::"
-            else:
-                self.ip6 = "::"
-                self.mask6 ="::"
-                self.ip6_ll = "::"
-                self.mask6_ll = "::"
+                    self.ip6 = i['ip']
+                    self.mask6 = i['mask']
             self.configured = True
             self.set_body(self.overview())
             self.run_live()
