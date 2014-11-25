@@ -736,7 +736,7 @@ class mod_class(object):
         cur = self.spoof_treestore.get_string_from_iter(parent)
         for host_upper in self.upper_add:
             for host_lower in self.lower_add:
-                self.spoof_treestore.append(parent, [None, ip_upper, ip_lower, "0"])
+                self.spoof_treestore.append(parent, [None, host_upper, host_lower, "0"])
         (data, org_data, hosts) = self.add_spoof()
         self.spoofs[cur] = (False, data, org_data, hosts)
         self.upper_add_liststore.clear()
