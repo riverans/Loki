@@ -33,7 +33,7 @@
  *      OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "pppoetun.h"
+#include "lib/pppoetun.h"
 
 #define LOCKFILE_LENGTH 256
 char lockfile[LOCKFILE_LENGTH];
