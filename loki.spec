@@ -35,6 +35,7 @@ make install DESTDIR=$RPM_BUILD_ROOT
 /usr/bin/loki_gtk.py
 /usr/bin/loki_urw.py
 /usr/bin/mpls_tunnel
+/usr/bin/pppoe_tunnel
 /usr/share/loki/*
 
 
