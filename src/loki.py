@@ -554,17 +554,24 @@ class codename_loki(object):
                     pass
     
     def shutdown(self):
-        for i in self.modules.keys():
-            (module, enabled) = self.modules[i]
-            module.shut_mod()
-        if self.pcap_thread:
-            self.pcap_thread.quit()
-        if self.dnet_thread:
-            self.dnet_thread.quit()
-        if PLATFORM == "Linux" and self.netcfg_configured:
-            self.netcfg.unexecute_l3()
-            self.netcfg.unexecute_l2()
-            self.netcfg.unexecute_br()
+        try:
+            for i in self.modules.keys():
+                (module, enabled) = self.modules[i]
+                module.shut_mod()
+            if self.pcap_thread:
+                self.pcap_thread.quit()
+            if self.dnet_thread:
+                self.dnet_thread.quit()
+            if PLATFORM == "Linux" and self.netcfg_configured:
+                self.netcfg.unexecute_l3()
+                self.netcfg.unexecute_l2()
+                self.netcfg.unexecute_br()
+        except Exception, e:
+            self._print(e)
+            if DEBUG:
+                self._print('-'*60)
+                self._print(traceback.format_exc())
+                self._print('-'*60)
 
 	def quit(self, data):
 		sys.exit(1)
