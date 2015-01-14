@@ -32,13 +32,16 @@
 import os
 import random
 import struct
+import tempfile
+import threading
+import hashlib
 
 import dnet
 import dpkt
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 BFD_VERSION = 1
 BFD_PORT = 3784
@@ -55,15 +58,15 @@ class bfd_control_packet(object):
     DIAG_ADMIN_DOWN = 7     #Administratively Down
     DIAG_REV_PATH_DOWN = 8  #Reverse Concatenated Path Down
 
-    diag_to_str = { DIAG_NO : "DIAG_NO",
-                    DIAG_TIME_EXP : "DIAG_TIME_EXP",
-                    DIAG_ECHO_FAIL : "DIAG_ECHO_FAIL",
-                    DIAG_NEIGH_DOWN : "DIAG_NEIGH_DOWN",
-                    DIAG_FORW_RST : "DIAG_FORW_RST",
-                    DIAG_PATH_DOWN : "DIAG_PATH_DOWN",
+    diag_to_str = { DIAG_NO             : "DIAG_NO",
+                    DIAG_TIME_EXP       : "DIAG_TIME_EXP",
+                    DIAG_ECHO_FAIL      : "DIAG_ECHO_FAIL",
+                    DIAG_NEIGH_DOWN     : "DIAG_NEIGH_DOWN",
+                    DIAG_FORW_RST       : "DIAG_FORW_RST",
+                    DIAG_PATH_DOWN      : "DIAG_PATH_DOWN",
                     DIAG_CONC_PATH_DOWN : "DIAG_CONC_PATH_DOWN",
-                    DIAG_ADMIN_DOWN : "DIAG_ADMIN_DOWN",
-                    DIAG_REV_PATH_DOWN : "DIAG_REV_PATH_DOWN"
+                    DIAG_ADMIN_DOWN     : "DIAG_ADMIN_DOWN",
+                    DIAG_REV_PATH_DOWN  : "DIAG_REV_PATH_DOWN"
                     }
 
     STATE_ADMIN_DOWN = 0
@@ -71,10 +74,10 @@ class bfd_control_packet(object):
     STATE_INIT = 2
     STATE_UP = 3
 
-    state_to_str = {    STATE_ADMIN_DOWN : "STATE_ADMIN_DOWN",
-                        STATE_DOWN : "STATE_DOWN",
-                        STATE_INIT : "STATE_INIT",
-                        STATE_UP : "STATE_UP"
+    state_to_str = {    STATE_ADMIN_DOWN    : "STATE_ADMIN_DOWN",
+                        STATE_DOWN          : "STATE_DOWN",
+                        STATE_INIT          : "STATE_INIT",
+                        STATE_UP            : "STATE_UP"
                         }
 
     FLAG_POLL = 0x20
@@ -115,11 +118,12 @@ class bfd_control_packet(object):
     def render(self):
         vers_diag = (BFD_VERSION << 5) + (self.diag & 0x1F)
         state_flags = (self.state << 6) + (self.flags & 0x3F)
+        packet = struct.pack("!BBBBLLLLL", vers_diag, state_flags, self.multiplier, length, self.my_discrim, self.your_discrim, self.des_min_tx, self.req_min_rx, self.req_min_echo)
         auth = ""
         if self.flags and self.flags & self.FLAG_AUTH and self.auth:
-            auth = self.auth.render()
+            auth = self.auth.render(packet)
         length = 24 + len(auth)
-        return struct.pack("!BBBBLLLLL", vers_diag, state_flags, self.multiplier, length, self.my_discrim, self.your_discrim, self.des_min_tx, self.req_min_rx, self.req_min_echo) + auth
+        return packet + auth
         
     def parse(self, data):
         (vers_diag, state_flags, self.multiplier, length, self.my_discrim, self.your_discrim, self.des_min_tx, self.req_min_rx, self.req_min_echo) = struct.unpack("!BBBBLLLLL", data[:24])
@@ -140,59 +144,192 @@ class bfd_auth(object):
     TYPE_KEYED_SHA1 = 4
     TYPE_METRIC_SHA1 = 5
     
+    type_to_str = { TYPE_RESERVED   : "TYPE_RESERVED",
+                    TYPE_SIMPLE     : "TYPE_SIMPLE",
+                    TYPE_KEYED_MD5  : "TYPE_KEYED_MD5",
+                    TYPE_METRIC_MD5 : "TYPE_METRIC_MD5",
+                    TYPE_KEYED_SHA1 : "TYPE_KEYED_SHA1",
+                    TYPE_METRIC_SHA1: "TYPE_METRIC_SHA1"
+                    }
+    
     #~  0                   1                   2                   3
     #~  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     #~ |   Auth Type   |   Auth Len    |    Authentication Data...     |
     #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-    def __init__(self, type=None, data=None):
+    def __init__(self, type=None, keyid=None, sequence=None, data=None):
         self.type = type
+        self.keyid = keyid
+        self.sequence = sequence
         self.data = data
 
-    def render(self):
-        return struct.pack("!BB", self.type, 2 + len(self.data)) + self.data
+    def render(self, packet):
+        if self.type == self.TYPE_SIMPLE:
+    #~ 0                   1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |   Auth Type   |   Auth Len    |  Auth Key ID  |  Password...  |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |                              ...                              |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            return struct.pack("!BBB", self.type, 3 + len(self.data), self.keyid) + self.data
+        elif self.type == self.TYPE_KEYED_MD5 or self.type == self.TYPE_METRIC_MD5:
+    #~ 0                   1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |   Auth Type   |   Auth Len    |  Auth Key ID  |   Reserved    |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |                        Sequence Number                        |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |                      Auth Key/Digest...                       |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |                              ...                              |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            digest = hashlib.md5()
+            digest.update(packet)
+            tmp = struct.pack("!BBBxI", self.type, 8 + 16, self.keyid, self.sequence) + self.data + b"\x00" * 16 - len(self.data)
+            digest.update(tmp)
+            tmp = digest.digest()
+            return struct.pack("!BBBxI", self.type, 8 + len(tmp), self.keyid, self.sequence) + tmp
+        elif self.type == self.TYPE_KEYED_SHA1 or self.type == self.TYPE_METRIC_SHA1:
+    #~ 0                   1                   2                   3
+    #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |   Auth Type   |   Auth Len    |  Auth Key ID  |   Reserved    |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |                        Sequence Number                        |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |                       Auth Key/Hash...                        |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   #~ |                              ...                              |
+   #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+            digest = hashlib.sha1()
+            digest.update(packet)
+            tmp = struct.pack("!BBBxI", self.type, 8 + 20, self.keyid, self.sequence) + self.data + b"\x00" * 20 - len(self.data)
+            digest.update(tmp)
+            tmp = digest.digest()
+            return struct.pack("!BBBxI", self.type, 8 + len(tmp), self.keyid, self.sequence) + tmp
+        else:
+            return b""
 
     def parse(self, data):
-        pass
+        (self.type, self.length) = struct.unpack("!BB", data[:2])
+        if self.type == self.TYPE_SIMPLE:
+            self.keyid, = struct.unpack("!B", data[2:3])
+            self.data = data[3:self.length]
+        elif self.type > self.TYPE_SIMPLE:
+            (self.keyid, self.sequence) = struct.unpack("!BxI", data[2:8])
+            self.data = data[8:self.length]
+
+class bfd_bf(threading.Thread):
+    def __init__(self, parent, ident, bf, full, wl, digest, data):
+        self.parent = parent
+        self._ident = ident
+        self.bf = bf
+        self.full = full
+        self.wl = wl
+        self.digest = digest
+        self.data = data
+        threading.Thread.__init__(self)
+
+    def run(self):
+        if self.bf and not self.wl:
+            self.wl = ""
+        #print "bf:%i full:%i, wl:%s digest:%s data:%s" % (self.bf, self.full, self.wl, self.digest.encode('hex'), self.data.encode('hex'))
+        (handle, self.tmpfile) = tempfile.mkstemp(prefix="bfd-bf-", suffix="-lock")
+        print self.tmpfile
+        os.close(handle)
+        if self.parent.platform == "Windows":
+            import bfdbf
+            pw = bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        else:
+            import loki_bindings
+            pw = loki_bindings.bfd.bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+        if os.path.exists(self.tmpfile):
+            if self.parent.ui == 'urw':
+                (iter, discrim, answer, dos, crack, data, _) = self.neighbors[self._ident]
+                button = iter[0]
+                label = button.base_widget.get_label()
+                if pw != None:
+                    label += " PASS(%s)" % pw
+                else:
+                    label += " NO_PASSWORD_FOUND"
+                button.base_widget.set_label(label)
+                button.set_attr_map({None : "button normal"})
+                self.neighbors[self._ident] = (iter, discrim, answer, dos, crack, data, pw)
+            #~ if self.parent.neighbor_liststore.iter_is_valid(self.iter):
+                #~ src = self.parent.neighbor_liststore.get_value(self.iter, self.parent.NEIGH_IP_ROW)
+                #~ if pw != None:
+                    #~ self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, pw)
+                    #~ self.parent.log("BFD: Found password '%s' for host %s" % (pw, src))
+                #~ else:
+                    #~ self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, "NOT FOUND")
+                    #~ self.parent.log("BFD: No password found for host %s" % (src))
+            os.remove(self.tmpfile)
+
+    def quit(self):
+        if os.path.exists(self.tmpfile):
+            os.remove(self.tmpfile)
 
 class mod_class(object):
     NEIGH_SRC_ROW = 0
     NEIGH_DST_ROW = 1
     NEIGH_STATE_ROW = 2
     NEIGH_DIAG_ROW = 3
-    NEIGH_ANSWER_ROW = 4
-    NEIGH_DOS_ROW = 5
+    NEIGH_AUTH_ROW = 4
+    NEIGH_ANSWER_ROW = 5
+    NEIGH_DOS_ROW = 6
     
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
         self.name = "bfd"
         self.group = "HOT-STANDBY"
         self.gladefile = "/modules/module_bfd.glade"
-        self.neighbor_treestore = gtk.TreeStore(str, str, str, str, bool, bool)
+        self.ui = ui
+        if self.ui == 'gtk':
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+            self.neighbor_treestore = gtk.TreeStore(str, str, str, str, str, bool, bool)
+        elif self.ui == 'urw':
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
         self.neighbors = {}
         self.filter = False
 
     def start_mod(self):
         self.neighbors = {}
         self.auto_answer = False
-        self.auto_answer_checkbutton.set_active(False)
+        if self.ui == 'gtk':
+            self.filter_checkbutton.set_active(False)
+        elif self.ui == 'urw':
+            self.filter_checkbox.set_state(False)
         
     def shut_mod(self):
-        self.neighbor_treestore.clear()
+        if self.ui == 'gtk':
+            self.neighbor_treestore.clear()
+        elif self.ui == 'urw':
+            if not self.hostlist is None:
+                for i in self.hostlist:
+                    self.hostlist.remove(i)
         if self.filter:
-            self.log("BFD: Removing lokal packet filter for BFD")
-            if self.platform == "Linux":
-                os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
-            elif self.platform == "Darwin":
-                os.system("ipfw -q delete 31336")
-            elif self.platform == "Windows":
-                os.system("netsh advfirewall firewall del rule name=bfd")
-            else:
-                self.fw.delete(self.bfd_filter)
-            self.filter = False
-            self.filter_checkbutton.set_active(False)
+            self.deactivate_filter()
+            if self.ui == 'gtk':
+                self.filter_checkbutton.set_active(False)
+            elif self.ui == 'urw':
+                self.answer_checkbox.set_state(False)
+        for id in self.neighbors:
+            (iter, discrim, answer, dos, crack, data, password) = self.neighbors[id]
+            if crack:
+                crack.quit()
 
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -230,6 +367,12 @@ class mod_class(object):
         column.add_attribute(render_text, 'text', self.NEIGH_DIAG_ROW)
         self.neighbor_treeview.append_column(column)
         column = gtk.TreeViewColumn()
+        column.set_title("AUTH")
+        render_text = gtk.CellRendererText()
+        column.pack_start(render_text, expand=True)
+        column.add_attribute(render_text, 'text', self.NEIGH_AUTH_ROW)
+        self.neighbor_treeview.append_column(column)
+        column = gtk.TreeViewColumn()
         column.set_title("ANSWER")
         render_toggle = gtk.CellRendererToggle()
         render_toggle.set_property('activatable', True)
@@ -248,27 +391,44 @@ class mod_class(object):
 
         self.auto_answer_checkbutton = self.glade_xml.get_widget("auto_answer_checkbutton")
         self.filter_checkbutton = self.glade_xml.get_widget("filter_checkbutton")
+        self.secret_entry = self.glade_xml.get_widget("secret_entry")
 
         return self.glade_xml.get_widget("root")
-
-    def answer_toggle_callback(self, cell, path, model):            
-        model[path][self.NEIGH_ANSWER_ROW] = not model[path][self.NEIGH_ANSWER_ROW]
-        id = "%s:%s" % (model[path][self.NEIGH_SRC_ROW], model[path][self.NEIGH_DST_ROW])
-        (iter, discrim, answer, dos) = self.neighbors[id]
-        if model[path][self.NEIGH_ANSWER_ROW] and model[path][self.NEIGH_DOS_ROW]:
-            model[path][self.NEIGH_DOS_ROW] = False
+        
+    def get_urw(self):
+        hostlist = [ urwid.AttrMap(urwid.Text("Hostlist"), 'header'), urwid.Divider() ]
+        self.hostlist = urwid.SimpleListWalker(hostlist)
+        hostlist = urwid.LineBox(urwid.ListBox(self.hostlist))
+        self.answer_checkbox = urwid.CheckBox("Auto answer requests", on_state_change=self.urw_autoanswer_checkbox_changed)
+        self.filter_checkbox = urwid.CheckBox("Activate packetfilter", on_state_change=self.urw_filter_checkbox_changed) 
+        self.pile = urwid.Pile([('weight', 10, hostlist), urwid.Filler(self.answer_checkbox), urwid.Filler(self.filter_checkbox)])
+        return self.pile
+    
+    def urw_autoanswer_checkbox_changed(self, box, state):
+        self.auto_answer = state
+    
+    def urw_filter_checkbox_changed(self, box, state):
+        if state:
+            self.activate_filter()
+        else:
+            self.deactivate_filter()
+    
+    def urw_answer_checkbox_changed(self, box, state, id):
+        (iter, discrim, answer, dos, data, password) = self.neighbors[id]
+        if state:
+            (button, answer_c, dos_c) = iter
             dos = False
-        self.neighbors[id] = (iter, discrim, model[path][self.NEIGH_ANSWER_ROW], dos)
-        
-    def dos_toggle_callback(self, cell, path, model):
-        model[path][self.NEIGH_DOS_ROW] = not model[path][self.NEIGH_DOS_ROW]
-        id = "%s:%s" % (model[path][self.NEIGH_SRC_ROW], model[path][self.NEIGH_DST_ROW])
-        (iter, discrim, answer, dos) = self.neighbors[id]
-        if model[path][self.NEIGH_DOS_ROW] and model[path][self.NEIGH_ANSWER_ROW]:
-            model[path][self.NEIGH_ANSWER_ROW] = False
+            dos_c.set_state(False)
+        self.neighbors[id] = (iter, discrim, state, dos, data, password)
+    
+    def urw_dos_checkbox_changed(self, box, state, id):
+        (iter, discrim, answer, dos, data, password) = self.neighbors[id]
+        if state:
+            (button, answer_c, dos_c) = iter
             answer = False
-        self.neighbors[id] = (iter, discrim, answer, model[path][self.NEIGH_DOS_ROW])
-        
+            answer_c.set_state(False)
+        self.neighbors[id] = (iter, discrim, answer, state, data, password)
+    
     def log(self, msg):
         self.__log(msg, self.name)
 
@@ -293,14 +453,13 @@ class mod_class(object):
                                 "dport"     : [BFD_PORT, BFD_PORT]
                                 }
 
-
     def get_udp_checks(self):
         return (self.check_udp, self.input_udp)
 
     def check_udp(self, udp):
         if udp.dport == BFD_PORT:
             return (True, True)
-        return (False, False)
+        return (False, False)            
 
     def input_udp(self, eth, ip, udp, timestamp):
         packet = bfd_control_packet()
@@ -309,27 +468,46 @@ class mod_class(object):
         dst = dnet.ip_ntoa(ip.dst)
         id = "%s:%s" % (src, dst)
         id_rev = "%s:%s" % (dst, src)
+        auth = "None"
+        if packet.flags & bfd_control_packet.FLAG_AUTH:
+            auth = bfd_auth.type_to_str[packet.auth.type]
+        password = ""
+        if packet.flags & bfd_control_packet.FLAG_AUTH and packet.auth.type == bfd_auth.TYPE_SIMPLE:
+            password = packet.auth.data
         if id not in self.neighbors and id_rev not in self.neighbors:
-            if not self.filter:
-                self.log("BFD: Setting lokal packet filter for BFD")
-                if self.platform == "Linux":
-                    os.system("iptables -A INPUT -i %s -p udp --dport %i -j DROP" % (self.interface, BFD_PORT))
-                elif self.platform == "Darwin":
-                    os.system("ipfw -q add 31336 deny udp from any to any %d" % (BFD_PORT))
-                elif self.platform == "Windows":
-                    os.system("netsh advfirewall firewall add rule name=bfd dir=in protocol=UDP localport=%d action=block" % BFD_PORT)
-                else:
-                    self.fw.add(self.bfd_filter)
-                self.filter = True
+            self.activate_filter()
+            if self.ui == 'gtk':
                 self.filter_checkbutton.set_active(True)
+            elif self.ui == 'urw':
+                self.filter_checkbox.set_state(True)
             self.log("BFD: got new session: %s -> %s" % (src, dst))
-            iter = self.neighbor_treestore.append(None, [src, dst, bfd_control_packet.state_to_str[packet.state], bfd_control_packet.diag_to_str[packet.diag], self.auto_answer, False])
-            self.neighbors[id] = (iter, random.randint(0x1, 0x7fffffff), self.auto_answer, False)
+            if self.ui == 'gtk':
+                iter = self.neighbor_treestore.append(None, [src, dst, bfd_control_packet.state_to_str[packet.state], bfd_control_packet.diag_to_str[packet.diag], auth, self.auto_answer, False])
+            elif self.ui == 'urw':
+                label = "%s - %s %s %s AUTH(%s)" % (src, dst, bfd_control_packet.state_to_str[packet.state], bfd_control_packet.diag_to_str[packet.diag], auth)
+                if password != "":
+                    label += " PASS(%s)" % password
+                answer_c = urwid.CheckBox("Answer", self.auto_answer, on_state_change=self.urw_answer_checkbox_changed, user_data=id)
+                dos_c = urwid.CheckBox("DOS", False, on_state_change=self.urw_dos_checkbox_changed, user_data=id)
+                if not auth == "None":
+                    button = self.parent.menu_button(label, self.crack_activated, id)
+                else:
+                    button = self.parent.menu_button(label)
+                self.hostlist.append(urwid.Columns([('weight', 4, button), answer_c, dos_c]))
+                iter = (button, answer_c, dos_c)
+            self.neighbors[id] = (iter, random.randint(0x1, 0x7fffffff), self.auto_answer, False, False, udp.data, password)
         if id in self.neighbors:
-            (iter, discrim, answer, dos) = self.neighbors[id]
-            if self.neighbor_treestore.iter_is_valid(iter):
-                self.neighbor_treestore.set_value(iter, self.NEIGH_STATE_ROW, bfd_control_packet.state_to_str[packet.state])
-                self.neighbor_treestore.set_value(iter, self.NEIGH_DIAG_ROW, bfd_control_packet.diag_to_str[packet.diag])
+            (iter, discrim, answer, dos, crack, data, password) = self.neighbors[id]
+            if self.ui == 'gtk':
+                if self.neighbor_treestore.iter_is_valid(iter):
+                    self.neighbor_treestore.set_value(iter, self.NEIGH_STATE_ROW, bfd_control_packet.state_to_str[packet.state])
+                    self.neighbor_treestore.set_value(iter, self.NEIGH_DIAG_ROW, bfd_control_packet.diag_to_str[packet.diag])
+            elif self.ui == 'urw':
+                (button, answer_c, dos_c) = iter
+                label = "%s - %s %s %s AUTH(%s)" % (src, dst, bfd_control_packet.state_to_str[packet.state], bfd_control_packet.diag_to_str[packet.diag], auth)
+                if password != "":
+                    label += " PASS(%s)" % password
+                button.base_widget.set_label(label)
             if answer and packet.diag == bfd_control_packet.DIAG_NO:
                 if packet.state == bfd_control_packet.STATE_DOWN:
                     packet.state = bfd_control_packet.STATE_INIT
@@ -380,6 +558,66 @@ class mod_class(object):
                                                     )
                 self.dnet.send(str(eth_hdr))
 
+    def activate_filter(self):
+        if not self.filter:
+            self.log("BFD: Setting lokal packet filter for BFD")
+            if self.platform == "Linux":
+                os.system("iptables -A INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
+            elif self.platform == "Darwin":
+                os.system("ipfw -q add 31336 deny udp from any to any %d" % (BFD_PORT))
+            elif self.platform == "Windows":
+                os.system("netsh advfirewall firewall add rule name=bfd dir=in protocol=UDP localport=%d action=block" % BFD_PORT)
+            else:
+                self.fw.add(self.bfd_filter)
+            self.filter = True
+    
+    def deactivate_filter(self):
+        if self.filter:
+            self.log("BFD: Removing lokal packet filter for BFD")
+            if self.platform == "Linux":
+                os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
+            elif self.platform == "Darwin":
+                os.system("ipfw -q delete 31336")
+            elif self.platform == "Windows":
+                os.system("netsh advfirewall firewall del rule name=bfd")
+            else:
+                self.fw.delete(self.bfd_filter)
+            self.filter = False
+
+    def answer_toggle_callback(self, cell, path, model):            
+        model[path][self.NEIGH_ANSWER_ROW] = not model[path][self.NEIGH_ANSWER_ROW]
+        id = "%s:%s" % (model[path][self.NEIGH_SRC_ROW], model[path][self.NEIGH_DST_ROW])
+        (iter, discrim, answer, dos) = self.neighbors[id]
+        if model[path][self.NEIGH_ANSWER_ROW] and model[path][self.NEIGH_DOS_ROW]:
+            model[path][self.NEIGH_DOS_ROW] = False
+            dos = False
+        self.neighbors[id] = (iter, discrim, model[path][self.NEIGH_ANSWER_ROW], dos)
+        
+    def dos_toggle_callback(self, cell, path, model):
+        model[path][self.NEIGH_DOS_ROW] = not model[path][self.NEIGH_DOS_ROW]
+        id = "%s:%s" % (model[path][self.NEIGH_SRC_ROW], model[path][self.NEIGH_DST_ROW])
+        (iter, discrim, answer, dos) = self.neighbors[id]
+        if model[path][self.NEIGH_DOS_ROW] and model[path][self.NEIGH_ANSWER_ROW]:
+            model[path][self.NEIGH_ANSWER_ROW] = False
+            answer = False
+        self.neighbors[id] = (iter, discrim, answer, model[path][self.NEIGH_DOS_ROW])
+
+    def crack_activated(self, button, ident):
+        (iter, discrim, answer, dos, crack, data, password) = self.neighbors[ident]
+        if not crack:
+            packet = bfd_control_packet()
+            packet.parse(data)
+            digest = packet.auth.data
+            if self.ui == "urw":
+                crack = bfd_bf(self, ident, self.parent.bruteforce, self.parent.bruteforce_full, self.parent.wordlist, digest, data)
+            crack.start()
+            iter[0].set_attr_map({None : "button select"})
+        else:
+            crack.quit()
+            crack = False
+            iter[0].set_attr_map({None : "button normal"})
+        self.neighbors[ident] = (iter, discrim, answer, dos, crack, data, password)
+
     # SIGNALS #
 
     def on_auto_answer_checkbutton_toggled(self, btn):
@@ -387,26 +625,6 @@ class mod_class(object):
 
     def on_filter_checkbutton_toggled(self, btn):
         if btn.get_active():
-            if not self.filter:
-                self.log("BFD: Setting lokal packet filter for BFD")
-                if self.platform == "Linux":
-                    os.system("iptables -A INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
-                elif self.platform == "Darwin":
-                    os.system("ipfw -q add 31336 deny udp from any to any %d" % (BFD_PORT))
-                elif self.platform == "Windows":
-                    os.system("netsh advfirewall firewall add rule name=bfd dir=in protocol=UDP localport=%d action=block" % BFD_PORT)
-                else:
-                    self.fw.add(self.bfd_filter)
-                self.filter = True
+            self.activate_filter()
         else:
-            if self.filter:
-                self.log("BFD: Removing lokal packet filter for BFD")
-                if self.platform == "Linux":
-                    os.system("iptables -D INPUT -i %s -p udp --dport %d -j DROP" % (self.interface, BFD_PORT))
-                elif self.platform == "Darwin":
-                    os.system("ipfw -q delete 31336")
-                elif self.platform == "Windows":
-                    os.system("netsh advfirewall firewall del rule name=bfd")
-                else:
-                    self.fw.delete(self.bfd_filter)
-                self.filter = False
+            self.deactivate_filter()
