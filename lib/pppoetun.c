@@ -32,6 +32,8 @@
  *      OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <arpa/inet.h>
+
 #include "pppoetun.h"
 
 int tun_alloc(char *tun_device) {
@@ -199,11 +201,11 @@ int pppoetun_v(char *in_device, char *out_device, uint16_t session_id, char *in_
             //add pppoe session header
             *start = 0x11; l += 1; start++; //version = 1, type = 1
             *start = 0x00; l += 1; start++; //code = session data
-            *(uint16_t *) start = session_id; l += 2; start +=2;
-            *(uint16_t *) start = len + 2; l += 2; start += 2; //plen = original len + ppp header
+            *(uint16_t *) start = htons(session_id); l += 2; start +=2;
+            *(uint16_t *) start = htons(len + 2); l += 2; start += 2; //plen = original len + ppp header
             
             //add ppp header
-            *(uint16_t *) start = 0x0021; l += 2; start += 2; //protocol = ip
+            *(uint16_t *) start = htons(0x0021); l += 2; start += 2; //protocol = ip
 
             memcpy(start, in, len);
             
@@ -229,7 +231,7 @@ int pppoetun_v(char *in_device, char *out_device, uint16_t session_id, char *in_
                 start += 6;
                 l -= 6;
                 
-                if (*(uint16_t *) start != 0x0021) {
+                if (ntohs(*(uint16_t *) start) != 0x0021) {
                     //were only interested in ip payload
                     
                     if (verbose) {
