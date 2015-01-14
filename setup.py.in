@@ -24,10 +24,10 @@ if "@USE_GTK@" == "yes":
         pygtk.require("2.0")
     except Exception, e:
         print("'import gobject' failed:" + str(e))
-        print("******************************************************")
-        print("*** You need the python module 'gobject' installed ***")
-        print("***                See REQUIREMENTS                ***")
-        print("******************************************************")
+        print("****************************************************")
+        print("*** You need the python module 'pygtk' installed ***")
+        print("***               See REQUIREMENTS               ***")
+        print("****************************************************")
 
     try:
         import gtk
@@ -160,6 +160,13 @@ mplsred_extargs = []
 mplsred_extargs += '@DEFS@'.replace("\ ", "_").split()
 mplsred_extobj = []
 
+bfd_srcs = [ '@top_srcdir@/loki_bindings/bfd/bfdbf.c', '@top_srcdir@/lib/md5.c' ]
+bfd_incdirs = [ '@top_srcdir@' ]
+bfd_libdirs = []
+bfd_libs = []
+bfd_extargs = []
+bfd_extobj = []
+
 asleap = Extension( 'loki_bindings.asleap.asleap',
                     asleap_srcs,
                     include_dirs=asleap_incdirs,
@@ -216,14 +223,22 @@ mplsred = Extension(    'loki_bindings.mpls.mplsred',
                         extra_compile_args=mplsred_extargs,
                         extra_objects=mplsred_extobj)
 
+bfd = Extension(    'loki_bindings.bfd.bfdbf',
+                    bfd_srcs,
+                    include_dirs=bfd_incdirs,
+                    library_dirs=bfd_libdirs,
+                    libraries=bfd_libs,
+                    extra_compile_args=bfd_extargs,
+                    extra_objects=bfd_extobj)
+
 setup(name='loki_bindings',
       version='@VERSION@',
       description='',
       author='Daniel Mende',
       author_email='dmende@ernw.de',
       url='http://c0decafe.de',
-      packages=['loki_bindings', 'loki_bindings.asleap', 'loki_bindings.ospfmd5', 'loki_bindings.isismd5', 'loki_bindings.tcpmd5', 'loki_bindings.mpls'],
-      ext_modules=[asleap, ospfmd5bf, isismd5bf, tcpmd5, tcpmd5bf, mplstun, mplsred]
+      packages=['loki_bindings', 'loki_bindings.asleap', 'loki_bindings.ospfmd5', 'loki_bindings.isismd5', 'loki_bindings.tcpmd5', 'loki_bindings.mpls', 'loki_bindings.bfd'],
+      ext_modules=[asleap, ospfmd5bf, isismd5bf, tcpmd5, tcpmd5bf, mplstun, mplsred, bfd]
      )
      
 os.chdir("./src/")
