@@ -368,6 +368,9 @@ class loki_urw(loki.codename_loki):
         else:
             self.logfile = "/tmp/loki.log"
         self.logfd = open(self.logfile, 'w')
+        self.wordlist = None
+        self.bruteforce = True
+        self.bruteforce_full = False
     
     def main(self):
         loki.codename_loki.main(self)
@@ -378,7 +381,10 @@ class loki_urw(loki.codename_loki):
                 self.menu_button('File', self.open_file),
             ]),
             self.sub_menu('Modules', self.modules_menu()),
-            self.sub_menu('Configure Modules', self.config_modules_menu()),
+            self.sub_menu('Configure', [
+                self.sub_menu('Modules', self.config_modules_menu()),
+                self.menu_button('Bruteforce', self.config_bruteforce)
+            ]),
             self.menu_button('Overview', self.show_overview),
             self.menu_button('Quit', self.quit)
         ])
@@ -439,6 +445,58 @@ class loki_urw(loki.codename_loki):
     
     def module_chosen(self, button, name):
         self.set_body(self.modules_ui[name])
+        
+    def config_wordlist(self, button):
+        footer_text = [
+            ('title', "Directory Browser"), "   ",
+            ('key', "UP"), ",", ('key', "DOWN"), ",",
+            ('key', "PAGE UP"), ",", ('key', "PAGE DOWN"), "  ",
+            ('key', "SPACE"), "  ",
+            ('key', "+"), ",",
+            ('key', "-"), "  ",
+            ('key', "LEFT"), "  ",
+            ('key', "HOME"), "  ", 
+            ('key', "END"), "  ",
+            ('key', "Q"),
+            ]
+        cwd = os.getcwd()
+        store_initial_cwd(cwd)
+        header = urwid.Text("Open File")
+        listbox = urwid.TreeListBox(urwid.TreeWalker(self.DirectoryNode(cwd)))
+        listbox.offset_rows = 1
+        footer = urwid.AttrWrap(urwid.Text(footer_text), 'foot')
+        view = self.DirectoryBrowser(
+            self.config_wordlist_callback,
+            urwid.AttrWrap(listbox, 'body'), 
+            header=urwid.AttrWrap(header, 'head'), 
+            footer=footer)
+        self.set_body(view)
+        
+    def config_wordlist_callback(self, files):
+        self.set_body(self.overview())
+        if len(files) > 0:
+            self.wordlist = files[0]
+        self.config_bruteforce(None)
+
+    def bruteforce_checkbox_changed(self, box, state):
+        self.bruteforce = state
+
+    def bruteforce_full_checkbox_changed(self, box, state):
+        self.bruteforce_full = state
+
+    def config_bruteforce(self, button):
+        conflist = [ urwid.AttrMap(urwid.Text("Bruteforce config"), 'header'), 
+                     urwid.Divider(),
+                     self.menu_button("Wordlist: %s" % self.wordlist, self.config_wordlist),
+                     urwid.CheckBox("Use bruteforce", state=self.bruteforce, on_state_change=self.bruteforce_checkbox_changed),
+                     urwid.CheckBox("Bruteforce full charset", state=self.bruteforce_full, on_state_change=self.bruteforce_full_checkbox_changed),
+                    ]
+        box = urwid.ListBox(urwid.SimpleFocusListWalker(conflist))
+        self.frame.set_body(urwid.Overlay(urwid.LineBox(box),
+                            self.body,
+                            align='center', width=('relative', 80),
+                            valign='middle', height=('relative', 80),
+                            min_width=24, min_height=8))
 
     def config_modules_menu(self):
         ret = []
