@@ -371,6 +371,7 @@ class loki_urw(loki.codename_loki):
         self.wordlist = None
         self.bruteforce = True
         self.bruteforce_full = False
+        self.bruteforce_threads = 4
     
     def main(self):
         loki.codename_loki.main(self)
@@ -483,13 +484,28 @@ class loki_urw(loki.codename_loki):
 
     def bruteforce_full_checkbox_changed(self, box, state):
         self.bruteforce_full = state
+    
+    def bruteforce_threads_changed(self, edit, text, attr):
+        try:
+            val = int(text)
+            assert(val >= 1)
+            assert(val <= 128)
+        except:
+            attr.set_attr_map({None : 'edit failure'})
+        else:
+            attr.set_attr_map({None : 'edit'})
+            self.bruteforce_threads = val
 
     def config_bruteforce(self, button):
+        edit = urwid.Edit("Number of threads: ", str(self.bruteforce_threads))
+        attr = urwid.AttrMap(edit, 'edit')
+        urwid.connect_signal(edit, 'change', self.bruteforce_threads_changed, attr)
         conflist = [ urwid.AttrMap(urwid.Text("Bruteforce config"), 'header'), 
                      urwid.Divider(),
                      self.menu_button("Wordlist: %s" % self.wordlist, self.config_wordlist),
                      urwid.CheckBox("Use bruteforce", state=self.bruteforce, on_state_change=self.bruteforce_checkbox_changed),
                      urwid.CheckBox("Bruteforce full charset", state=self.bruteforce_full, on_state_change=self.bruteforce_full_checkbox_changed),
+                     attr
                     ]
         box = urwid.ListBox(urwid.SimpleFocusListWalker(conflist))
         self.frame.set_body(urwid.Overlay(urwid.LineBox(box),
