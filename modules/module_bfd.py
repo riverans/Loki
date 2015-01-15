@@ -223,7 +223,7 @@ class bfd_auth(object):
             self.data = data[8:self.length]
 
 class bfd_bf(threading.Thread):
-    def __init__(self, parent, ident, bf, full, wl, digest, data):
+    def __init__(self, parent, ident, bf, full, wl, digest, data, threads):
         self.parent = parent
         self._ident = ident
         self.bf = bf
@@ -231,6 +231,7 @@ class bfd_bf(threading.Thread):
         self.wl = wl
         self.digest = digest
         self.data = data
+        self.threads = threads
         threading.Thread.__init__(self)
 
     def run(self):
@@ -242,13 +243,17 @@ class bfd_bf(threading.Thread):
         os.close(handle)
         if self.parent.platform == "Windows":
             import bfdbf
-            pw = bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+            import loki
+            with loki.HideOutput():
+                pw = bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile, self.threads)
         else:
             import loki_bindings
-            pw = loki_bindings.bfd.bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
+            import loki
+            #with loki.HideOutput():
+            pw = loki_bindings.bfd.bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile, self.threads)
         if os.path.exists(self.tmpfile):
             if self.parent.ui == 'urw':
-                (iter, discrim, answer, dos, crack, data, _) = self.neighbors[self._ident]
+                (iter, discrim, answer, dos, crack, data, _) = self.parent.neighbors[self._ident]
                 button = iter[0]
                 label = button.base_widget.get_label()
                 if pw != None:
@@ -608,8 +613,17 @@ class mod_class(object):
             packet = bfd_control_packet()
             packet.parse(data)
             digest = packet.auth.data
+            src = ident.split(":")[0]
+            dst = ident.split(":")[1]
+            packet = bfd_control_packet()
+            packet.parse(data)
+            auth = "None"
+            if packet.flags & bfd_control_packet.FLAG_AUTH:
+                auth = bfd_auth.type_to_str[packet.auth.type]
+            label = "%s - %s %s %s AUTH(%s)" % (src, dst, bfd_control_packet.state_to_str[packet.state], bfd_control_packet.diag_to_str[packet.diag], auth)
+            button.base_widget.set_label(label)
             if self.ui == "urw":
-                crack = bfd_bf(self, ident, self.parent.bruteforce, self.parent.bruteforce_full, self.parent.wordlist, digest, data)
+                crack = bfd_bf(self, ident, self.parent.bruteforce, self.parent.bruteforce_full, self.parent.wordlist, digest, data, self.parent.bruteforce_threads)
             crack.start()
             iter[0].set_attr_map({None : "button select"})
         else:

@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <pthread.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -111,23 +112,128 @@ int inc_brute_pw(char *cur, int pos, int full) {
     }
 }
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+char brute_pw[MAX_BRUTE_PW_LEN+1];
+char *md5sum;
+FILE *wlist;
+char *lockfile;
+md5_state_t base;
+char *pw = NULL;
+int full;
+
+void *thread_md5_wordlist(void *arg) {
+    int len;
+    int count = 0;
+    char line[512];
+    char *ret;
+    md5_state_t cur;
+    md5_byte_t digest[16];
+    FILE  *lock;
+    struct stat fcheck;
+    
+    pthread_mutex_lock(&mutex);
+    ret = fgets(line, 512, wlist);
+    pthread_mutex_unlock(&mutex);
+    
+    while(ret) {
+        char *tmp = strchr(line, '\n');
+        if(tmp)
+            *tmp = '\0';
+        tmp = strchr(line, '\r');
+        if(tmp)
+            *tmp = '\0';
+        len = strlen(line);
+        bzero(line + len, 16 - len);
+        if(count % CHECK_FOR_LOCKFILE == 0) {
+            if(stat(lockfile, &fcheck)) {
+                fprintf(stderr, "No lockfile, exiting.\n");
+                pthread_exit(NULL);
+            }
+            if(arg != NULL) {
+                if(!(lock = fopen(lockfile, "w"))) {
+                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
+                    pthread_exit(NULL);
+                }
+                fprintf(lock, "%s", brute_pw);
+                fclose(lock);
+            }
+            count = 0;
+        }
+        memcpy(&cur, &base, sizeof(md5_state_t));
+        md5_append(&cur, (const md5_byte_t *) line, 16);
+        md5_finish(&cur, digest);
+        if(!memcmp(md5sum, digest, 16)) {
+            pw = line;
+            fprintf(stderr, "Found pw '%s'.\n", pw);
+            //fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
+            remove(lockfile);
+            pthread_exit((void *) 1);
+        }
+        count++;
+        pthread_mutex_lock(&mutex);
+        ret = fgets(line, 512, wlist);
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_exit(NULL);
+}
+
+void *thread_md5_bruteforce(void *arg) {
+    int count = 0, ret;
+    md5_state_t cur;
+    char my_brute_pw[MAX_BRUTE_PW_LEN+1];
+    md5_byte_t digest[16];
+    FILE  *lock;
+    struct stat fcheck;
+        
+    pthread_mutex_lock(&mutex);
+    ret = inc_brute_pw(brute_pw, 0, full);
+    memcpy(my_brute_pw, brute_pw, MAX_BRUTE_PW_LEN+1);
+    pthread_mutex_unlock(&mutex);
+    
+    while (ret) {
+        if(count % CHECK_FOR_LOCKFILE == 0) {
+            if(stat(lockfile, &fcheck)) {
+                fprintf(stderr, "No lockfile, exiting.\n");
+                pthread_exit(NULL);
+            }
+            if(arg != NULL) {
+                if(!(lock = fopen(lockfile, "w"))) {
+                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
+                    pthread_exit(NULL);
+                }
+                fprintf(lock, "%s", brute_pw);
+                fclose(lock);
+            }
+            count = 0;
+        }
+        memcpy(&cur, &base, sizeof(md5_state_t));
+        md5_append(&cur, (const md5_byte_t *) my_brute_pw, 16);
+        md5_finish(&cur, digest);
+        if(!memcmp(md5sum, digest, 16)) {
+            pw = brute_pw;
+            fprintf(stderr, "Found pw '%s'.\n", pw);
+            //fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
+            remove(lockfile);
+            pthread_exit((void *) 1);
+        }
+        count++;
+        pthread_mutex_lock(&mutex);
+        ret = inc_brute_pw(brute_pw, 0, full);
+        memcpy(my_brute_pw, brute_pw, MAX_BRUTE_PW_LEN+1);
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_exit(NULL);
+}
+
 static PyObject *
 bfdbf_md5(PyObject *self, PyObject *args)
 {
-    int bf, full, len, foo;
+    int bf, len, foo, num_threads, i;
+    pthread_t *threads;
     const char *wl, *data;
-    FILE *wlist, *lock;
-    char brute_pw[MAX_BRUTE_PW_LEN+1];
-    char line[512];
-    char *pw = NULL;
-    char *md5sum;
-    int count = 0;
-    char *lockfile;
-    struct stat fcheck;
-    md5_state_t base, cur;
-    md5_byte_t digest[16];
+    void *(*thread_func)(void *);
 
-    if(!PyArg_ParseTuple(args, "iiss#s#s", &bf, &full, &wl, &md5sum, &foo, &data, &len, &lockfile))
+    if(!PyArg_ParseTuple(args, "iiss#s#si", &bf, &full, &wl, &md5sum, &foo, &data, &len, &lockfile, &num_threads))
         return NULL;
     if(foo != 16) {
         fprintf(stderr, "md5sum must have len 16!\n");
@@ -137,83 +243,33 @@ bfdbf_md5(PyObject *self, PyObject *args)
     md5_init(&base);
     md5_append(&base, (const md5_byte_t *) data, len);
 
+    threads = (pthread_t *) malloc(sizeof(pthread_t) * num_threads);
+
     if(!bf) {
         if(!(wlist = fopen(wl, "r"))) {
             fprintf(stderr, "Cant open wordlist: %s\n", strerror(errno));
             return NULL;
         }
-
-        Py_BEGIN_ALLOW_THREADS
-            
-        while(fgets(line, 512, wlist)) {
-            char *tmp = strchr(line, '\n');
-            if(tmp)
-                *tmp = '\0';
-            tmp = strchr(line, '\r');
-            if(tmp)
-                *tmp = '\0';
-            len = strlen(line);
-            bzero(line + len, 16 - len);
-            if(count % CHECK_FOR_LOCKFILE == 0) {
-                if(stat(lockfile, &fcheck)) {
-                    fprintf(stderr, "No lockfile, exiting.\n");
-                    break;
-                }
-                if(!(lock = fopen(lockfile, "w"))) {
-                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
-                    return NULL;
-                }
-                fprintf(lock, "%s", line);
-                fclose(lock);
-                count = 0;
-            }
-            memcpy(&cur, &base, sizeof(md5_state_t));
-            md5_append(&cur, (const md5_byte_t *) line, 16);
-            md5_finish(&cur, digest);
-            if(!memcmp(md5sum, digest, 16)) {
-                pw = line;
-                fprintf(stderr, "Found pw '%s'.\n", pw);
-                //fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
-                break;
-            }
-            count++;
-        }
-
-        Py_END_ALLOW_THREADS
+        thread_func = thread_md5_wordlist;
     }
     else {
         bzero(brute_pw, MAX_BRUTE_PW_LEN+1);
-
-        Py_BEGIN_ALLOW_THREADS
-
-        do {
-            if(count % CHECK_FOR_LOCKFILE == 0) {
-                if(stat(lockfile, &fcheck)) {
-                    fprintf(stderr, "No lockfile, exiting.\n");
-                    break;
-                }
-                if(!(lock = fopen(lockfile, "w"))) {
-                    fprintf(stderr, "Cant open lockfile: %s\n", strerror(errno));
-                    return NULL;
-                }
-                fprintf(lock, "%s", brute_pw);
-                fclose(lock);
-                count = 0;
-            }
-            memcpy(&cur, &base, sizeof(md5_state_t));
-            md5_append(&cur, (const md5_byte_t *) brute_pw, 16);
-            md5_finish(&cur, digest);
-            if(!memcmp(md5sum, digest, 16)) {
-                pw = brute_pw;
-                fprintf(stderr, "Found pw '%s'.\n", pw);
-                //fprintf(stderr, "Found pw '%s' ('%s' == '%s').\n", pw, md5sum, digest);
-                break;
-            }
-            count++;
-        } while(inc_brute_pw(brute_pw, 0, full));
-        
-        Py_END_ALLOW_THREADS
+        thread_func = thread_md5_bruteforce;
     }
+    
+    Py_BEGIN_ALLOW_THREADS
+
+    for(i = 0; i < num_threads; i++) {
+        pthread_create(&threads[i], NULL, thread_func, i == 0 ? (void *) 1 : NULL);
+    }
+    
+    for(i = 0; i < num_threads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+    
+    Py_END_ALLOW_THREADS
+    
+    free(threads);
 
     return Py_BuildValue("s", pw);
 }
