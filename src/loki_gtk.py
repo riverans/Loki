@@ -1424,6 +1424,43 @@ class preference_window(gtk.Window):
         scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
         scrolledwindow.add_with_viewport(module_treeview)
         notebook.append_page(scrolledwindow, tab_label=gtk.Label("Modules"))
+        
+        vbox = gtk.VBox(False, 0)
+        filechooser = gtk.FileChooserButton("Select a Wordlist")
+        if not self.par.wordlist is None:
+            filechooser.set_filename(self.par.wordlist)
+        filechooser.connect('file-set', self.wordlist_callback)
+        frame = gtk.Frame("Wordlist")
+        frame.add(filechooser)
+        vbox.pack_start(frame, expand=False, fill=False)
+        vbox2 = gtk.VBox()
+        bf_checkbutton = gtk.CheckButton("Use Bruteforce")
+        bf_checkbutton.set_active(self.par.bruteforce)
+        bf_checkbutton.connect('toggled', self.bf_callback)
+        bf_full_checkbutton = gtk.CheckButton("Use full Charset")
+        bf_full_checkbutton.set_active(self.par.bruteforce_full)
+        bf_full_checkbutton.connect('toggled', self.bf_full_callback)
+        vbox2.pack_start(bf_checkbutton)
+        vbox2.pack_start(bf_full_checkbutton)
+        frame = gtk.Frame("Bruteforce")
+        frame.add(vbox2)
+        vbox.pack_start(frame, expand=False, fill=False)
+        threads_spinbutton = gtk.SpinButton()
+        threads_spinbutton.set_range(1, 1024)
+        threads_spinbutton.set_value(self.par.bruteforce_threads)
+        threads_spinbutton.set_increments(1, 16)
+        threads_spinbutton.set_numeric(True)
+        threads_spinbutton.connect('value-changed', self.threads_callback)
+        frame = gtk.Frame("Threads")
+        frame.add(threads_spinbutton)
+        vbox.pack_start(frame, expand=False, fill=False)
+        
+        scrolledwindow = gtk.ScrolledWindow()
+        scrolledwindow.set_property("vscrollbar-policy", gtk.POLICY_AUTOMATIC)
+        scrolledwindow.set_property("hscrollbar-policy", gtk.POLICY_AUTOMATIC)
+        scrolledwindow.add_with_viewport(vbox)
+        notebook.append_page(scrolledwindow, tab_label=gtk.Label("Bruteforce"))
+        
         vbox = gtk.VBox(False, 0)
         vbox.pack_start(notebook, True, True, 0)
         buttonbox = gtk.HButtonBox()
@@ -1450,6 +1487,19 @@ class preference_window(gtk.Window):
                 traceback.print_exc(file=sys.stdout)
                 print '-'*60
             print "failed to open module %s" % module
+    
+    def wordlist_callback(self, button):
+        self.par.wordlist = button.get_filename()
+    
+    def bf_callback(self, button):
+        self.par.bruteforce = button.get_active()
+    
+    def bf_full_callback(self, button):
+        self.par.bruteforce_full = button.get_active()
+    
+    def threads_callback(self, button):
+        self.par.threads = button.get_value_as_int()
+        return True
 
     def toggle_callback(self, cell, path, model):
         model[path][self.MOD_ENABLE_ROW] = not model[path][self.MOD_ENABLE_ROW]
@@ -1496,6 +1546,10 @@ class loki_gtk(loki.codename_loki):
     def __init__(self):
         loki.codename_loki.__init__(self)
         self.ui = 'gtk'
+        self.wordlist = None
+        self.bruteforce = True
+        self.bruteforce_full = False
+        self.bruteforce_threads = 4
 
 		#gtk stuff
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
