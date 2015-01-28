@@ -74,6 +74,7 @@ int main(int argc, char *argv[])
     tun_mode tmode = NONE_TUN;
 
     int pid;
+    char *name;
     FILE *lfile;
 
     printf("%s version %s\t\tby Daniel Mende - dmende@ernw.de\n", argv[0], VERSION);
@@ -160,9 +161,15 @@ int main(int argc, char *argv[])
     }
 
     pid = getpid();
-    snprintf(lockfile, LOCKFILE_LENGTH, "/tmp/%s-%i-lock", argv[0], pid);
-    lfile = fopen(lockfile, "w");
+    name = strdup(argv[0]);
+    snprintf(lockfile, LOCKFILE_LENGTH, "/tmp/%s-%i-lock", basename(name), pid);
+    lfile = fopen(lockfile, "w+");
+    if(lfile == NULL) {
+        fprintf(stderr, "Couldn't open lockfile '%s': %s\n", lockfile, strerror(errno));
+        return 2;
+    }
     fclose(lfile);
+    free(name);
     
     mplstun_v(tmode, in_device, out_device, atoi(in_label), atoi(out_label), in_mac, out_mac, atoi(in_trans), atoi(out_trans), lockfile, verbose);
    

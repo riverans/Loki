@@ -151,7 +151,7 @@ int mplstun_v(tun_mode mode, char *in_device, char *out_device, uint16_t in_labe
 
     tun_fd = tun_alloc(mode, tun_device);
     if (tun_fd < 0) {
-        fprintf(stderr, "Couldnt't create tunnel device: %d\n", errno);
+        fprintf(stderr, "Couldnt't create tunnel device: %d\n", strerror(errno));
         return 2;
     }
     if (verbose)

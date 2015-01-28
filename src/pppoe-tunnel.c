@@ -64,6 +64,7 @@ int main(int argc, char *argv[])
     uint16_t session_id = 1;
 
     int pid;
+    char *name;
     FILE *lfile;
 
     printf("%s version %s\t\tby Daniel Mende - dmende@ernw.de\n", argv[0], VERSION);
@@ -116,9 +117,15 @@ int main(int argc, char *argv[])
     signal(SIGINT, sigint);
 
     pid = getpid();
-    snprintf(lockfile, LOCKFILE_LENGTH, "/tmp/%s-%i-lock", argv[0], pid);
-    lfile = fopen(lockfile, "w");
+    name = strdup(argv[0]);
+    snprintf(lockfile, LOCKFILE_LENGTH, "/tmp/%s-%i-lock", basename(name), pid);
+    lfile = fopen(lockfile, "w+");
+    if(lfile == NULL) {
+        fprintf(stderr, "Couldn't open lockfile '%s': %s\n", lockfile, strerror(errno));
+        return 2;
+    }
     fclose(lfile);
+    free(name);
     
     pppoetun_v(in_device, out_device, session_id, in_mac, out_mac, lockfile, verbose);
    

@@ -117,7 +117,7 @@ int pppoetun_v(char *in_device, char *out_device, uint16_t session_id, char *in_
 
     tun_fd = tun_alloc(tun_device);
     if (tun_fd < 0) {
-        fprintf(stderr, "Couldnt't create tunnel device: %d\n", errno);
+        fprintf(stderr, "Couldnt't create tunnel device: %s\n", strerror(errno));
         return 2;
     }
     if (verbose)
