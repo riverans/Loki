@@ -61,31 +61,6 @@ DATA_DIR="."
 #~ For OSX Bundeling
 #~ DATA_DIR=os.path.expandvars("$bundle_data/loki")
 
-class HideOutput(object):
-    '''
-    A context manager that block stdout for its scope, usage:
-
-    with HideOutput():
-        os.system('ls -l')
-    '''
-
-    def __init__(self, *args, **kw):
-        sys.stdout.flush()
-        self._origstdout = sys.stdout
-        self._oldstdout_fno = os.dup(sys.stdout.fileno())
-        self._devnull = os.open(os.devnull, os.O_WRONLY)
-
-    def __enter__(self):
-        self._newstdout = os.dup(1)
-        os.dup2(self._devnull, 1)
-        os.close(self._devnull)
-        sys.stdout = os.fdopen(self._newstdout, 'w')
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        sys.stdout = self._origstdout
-        sys.stdout.flush()
-        os.dup2(self._oldstdout_fno, 1)
-
 class pcap_thread(threading.Thread):
     def __init__(self, parent, interface):
         threading.Thread.__init__(self)
@@ -140,6 +115,7 @@ class pcap_thread(threading.Thread):
                     call(copy.copy(eth_new), timestamp)
                     if stop:
                         return
+            #why here and not waiting for later?
             if eth_new.type == dpkt.ethernet.ETH_TYPE_IP:
                 ip = dpkt.ip.IP(str(eth_new.data))
                 for (check, call, name) in self.parent.ip_checks:
@@ -149,6 +125,18 @@ class pcap_thread(threading.Thread):
                         if stop:
                             return
             eth = eth_new
+        
+        #strip pppoe and ppp headers
+        if eth.type == dpkt.ethernet.ETH_TYPE_PPPoE:
+            pppoe = dpkt.pppoe.PPPoE(str(eth.data))
+            ppp = dpkt.ppp.PPP(str(pppoe.data))
+            eth.data = ppp.data
+            if ppp.p == dpkt.ppp.PPP_IP:
+                eth.type = dpkt.ethernet.ETH_TYPE_IP
+            elif ppp.p == dpkt.ppp.PPP_IP6:
+                eth.type = dpkt.ethernet.ETH_TYPE_IP6
+            else:
+                return
 
         if eth.type == dpkt.ethernet.ETH_TYPE_IP:
             ip = dpkt.ip.IP(str(eth.data))
@@ -263,6 +251,16 @@ class dnet_thread(threading.Thread):
         self.out = out
         self.sem.release()
         time.sleep(0.001)
+
+class fake_eth(object):
+    def get(self):
+        return "\x00\x00\x00\x00\x00\x00"
+        
+class dnet_thread_offline(object):
+    def __init__(self):
+        self.eth = fake_eth()
+    def send(self, data):
+        pass
 
 class codename_loki(object):
     def __init__(self):
@@ -453,9 +451,12 @@ class codename_loki(object):
                     self._print(traceback.format_exc())
                     self._print('-'*60)
             try:
-                if self.dnet_thread:
-                    if "set_dnet" in dir(mod):
+                if "set_dnet" in dir(mod):
+                    if self.dnet_thread:
                         mod.set_dnet(self.dnet_thread)
+                    else:
+                        mod.set_dnet(dnet_thread_offline())
+                    
             except Exception, e:
                 self._print(e)
                 if DEBUG:
