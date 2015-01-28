@@ -25,14 +25,10 @@ AC_CHECK_LIB(ssl, [SHA1_Init, DES_ecb_encrypt])
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h netdb.h netinet/in.h stdint.h stdlib.h string.h sys/ioctl.h syslog.h unistd.h])
-AC_CHECK_HEADERS([netpacket/packet.h linux/if.h linux/if_tun.h linux/wireless.h crypt.h openssl/des.h endian.h sys/endian.h], [], [],
-[[  #ifdef HAVE_LINUX_IF_H
-     #include <linux/if.h>
-    #endif
-]])
-AC_CHECK_HEADERS([netinet/ether.h net/ethernet.h])
+AC_CHECK_HEADERS([netpacket/packet.h crypt.h openssl/des.h endian.h sys/endian.h])
+AC_CHECK_HEADERS([netinet/ether.h net/ethernet.h net/if.h])
 AC_CHECK_HEADERS([openssl/md4.h])
-AC_CHECK_HEADERS([sys/cdefs.h sys/time.h sys/socket.h net/if.h], [], [],
+AC_CHECK_HEADERS([sys/cdefs.h sys/time.h sys/socket.h linux/if.h linux/if_tun.h linux/wireless.h], [], [],
 [[  #ifdef HAVE_SYS_CDEFS_H
      #include <sys/cdefs.h>
     #endif
@@ -42,8 +38,11 @@ AC_CHECK_HEADERS([sys/cdefs.h sys/time.h sys/socket.h net/if.h], [], [],
     #ifdef HAVE_SYS_SOCKET_H
      #include <sys/socket.h>
     #endif
-    #ifdef HAVE_NET_IF_H
-     #include <net/if.h>
+    #ifdef HAVE_LINUX_IF_H
+     #include <linux/if.h>
+    #endif
+    #ifdef HAVE_LINUX_WIRELESS_H
+     #include <linux/wireless.h>
     #endif
 ]])
 
