@@ -529,7 +529,6 @@ class codename_loki(object):
         self.modules[module] = (mod, False)
         if delete:
             del self.modules[modules]
-        return pos
     
     def shut_module_ui(self, mod):
 		pass

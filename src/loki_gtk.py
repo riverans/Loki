@@ -1141,7 +1141,7 @@ class network_window(object):
 
     def get_devices(self):
         devices = {}
-        devs = pcap.findalldevs()
+        devs = loki.pcap.findalldevs()
         for (name, descr, addr, flags) in devs:
             try:
                 test = dnet.eth(name)
@@ -1512,14 +1512,12 @@ class preference_window(gtk.Window):
         model[path][self.MOD_RESET_ROW] = not model[path][self.MOD_RESET_ROW]
         if cell:
             gobject.timeout_add(750, self.reset_callback, None, path, model)
-            cur = self.par.notebook.get_current_page()
-            old_pos = self.par.shut_module(model[path][self.MOD_NAME_ROW])
+            self.par.shut_module(model[path][self.MOD_NAME_ROW])
+            self.par.shut_module(model[path][self.MOD_NAME_ROW])
             self.par.load_module(model[path][self.MOD_NAME_ROW], model[path][self.MOD_ENABLE_ROW])
             (module, enabled) = self.par.modules[model[path][self.MOD_NAME_ROW]]
             if enabled:
-                self.par.init_module(model[path][self.MOD_NAME_ROW], old_pos)
-                if old_pos == cur:
-                    self.par.notebook.set_current_page(cur)
+                self.par.init_module(model[path][self.MOD_NAME_ROW])
             return False
 
     def config_callback(self, cell, path, model):
@@ -1678,7 +1676,7 @@ class loki_gtk(loki.codename_loki):
                 pos = self.notebook.page_num(i)
                 self.notebook.remove_page(pos)
                 break
-    
+
     def log(self, msg, module=None):
         #if not gtk.Object.flags(self.statusbar) & gtk.IN_DESTRUCTION:
         self.statusbar.push(self.msg_id, "[%i] %s" % (self.msg_id, msg))
