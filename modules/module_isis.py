@@ -731,11 +731,6 @@ class mod_class(object):
         #~ self.auth_type_combobox.set_active(0)
         self.network_entry = self.glade_xml.get_widget("network_entry")
         self.netmask_entry = self.glade_xml.get_widget("netmask_entry")
-
-        self.bf_checkbutton = self.glade_xml.get_widget("bf_checkbutton")
-        self.full_checkbutton = self.glade_xml.get_widget("full_checkbutton")
-        self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
-
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -960,14 +955,6 @@ class mod_class(object):
         self.nets_changed = True
     
     def on_bf_button_clicked(self, btn):
-        bf = self.bf_checkbutton.get_active()
-        full = self.full_checkbutton.get_active()
-        wl = self.wordlist_filechooserbutton.get_filename()
-        if not wl:
-            if not bf:
-                self.log("ISIS: no wordlist given")
-                return
-            wl = ""
         select = self.neighbor_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
@@ -997,7 +984,7 @@ class mod_class(object):
                 digest = get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest
                 get_tlv(local, isis_tlv.TYPE_AUTHENTICATION).digest = None
                 data = local.render()
-            thread = isis_md5bf(self, iter, bf, full, wl, digest, data, ident)
+            thread = isis_md5bf(self, iter, self.parent.bruteforce, self.parent.bruteforce_full, self.parent.wordlist, digest, data, ident)
             model.set_value(iter, self.NEIGH_CRACK_ROW, "RUNNING")
             thread.start()
             self.bf[ident] = thread
