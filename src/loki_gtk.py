@@ -1513,7 +1513,6 @@ class preference_window(gtk.Window):
         if cell:
             gobject.timeout_add(750, self.reset_callback, None, path, model)
             self.par.shut_module(model[path][self.MOD_NAME_ROW])
-            self.par.shut_module(model[path][self.MOD_NAME_ROW])
             self.par.load_module(model[path][self.MOD_NAME_ROW], model[path][self.MOD_ENABLE_ROW])
             (module, enabled) = self.par.modules[model[path][self.MOD_NAME_ROW]]
             if enabled:
