@@ -1084,7 +1084,7 @@ class ospf_md5bf(threading.Thread):
                 else:
                     self.parent.neighbor_liststore.set_value(self.iter, self.parent.NEIGH_CRACK_ROW, "NOT FOUND")
                     self.parent.log("OSPF: No password found for host %s" % (src))
-                os.remove(self.tmpfile)
+            os.remove(self.tmpfile)
 
     def quit(self):
         if os.path.exists(self.tmpfile):
@@ -1343,10 +1343,6 @@ class mod_class(object):
         self.auth_type_combobox = self.glade_xml.get_widget("auth_type_combobox")
         self.auth_type_combobox.set_model(self.auth_type_liststore)
         self.auth_type_combobox.set_active(0)
-
-        self.bf_checkbutton = self.glade_xml.get_widget("bf_checkbutton")
-        self.full_checkbutton = self.glade_xml.get_widget("full_checkbutton")
-        self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
 
         self.network_entry = self.glade_xml.get_widget("network_entry")
         self.netmask_entry = self.glade_xml.get_widget("netmask_entry")
@@ -1835,14 +1831,6 @@ class mod_class(object):
         self.thread.hello = btn.get_active()
 
     def on_bf_button_clicked(self, btn):
-        bf = self.bf_checkbutton.get_active()
-        full = self.full_checkbutton.get_active()
-        wl = self.wordlist_filechooserbutton.get_filename()
-        if not wl:
-            if not bf:
-                self.log("OSPF: no wordlist given")
-                return
-            wl = ""
         select = self.neighbor_treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
@@ -1862,7 +1850,7 @@ class mod_class(object):
             hdr.parse(packet_str)
             digest = packet_str[hdr.len:hdr.len+16]
             data = packet_str[:12] + "\0\0" + packet_str[14:hdr.len]
-            thread = ospf_md5bf(self, iter, bf, full, wl, digest, data)
+            thread = ospf_md5bf(self, iter, self.parent.bruteforce, self.parent.bruteforce_full, self.parent.wordlist, digest, data)
             model.set_value(iter, self.NEIGH_CRACK_ROW, "RUNNING")
             thread.start()
             self.bf[ident] = thread
