@@ -115,14 +115,14 @@ class bfd_control_packet(object):
         self.req_min_echo = req_min_echo
         self.auth = auth
 
-    def render(self):
+    def render(self, crack=False):
         vers_diag = (BFD_VERSION << 5) + (self.diag & 0x1F)
         state_flags = (self.state << 6) + (self.flags & 0x3F)
+        length = 24 + len(self.auth)
         packet = struct.pack("!BBBBLLLLL", vers_diag, state_flags, self.multiplier, length, self.my_discrim, self.your_discrim, self.des_min_tx, self.req_min_rx, self.req_min_echo)
         auth = ""
         if self.flags and self.flags & self.FLAG_AUTH and self.auth:
-            auth = self.auth.render(packet)
-        length = 24 + len(auth)
+            auth = self.auth.render(packet, crack)
         return packet + auth
         
     def parse(self, data):
@@ -151,7 +151,7 @@ class bfd_auth(object):
                     TYPE_KEYED_SHA1 : "TYPE_KEYED_SHA1",
                     TYPE_METRIC_SHA1: "TYPE_METRIC_SHA1"
                     }
-    
+      
     #~  0                   1                   2                   3
     #~  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
     #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -164,7 +164,17 @@ class bfd_auth(object):
         self.sequence = sequence
         self.data = data
 
-    def render(self, packet):
+    def __len__(self):
+        if self.type == self.TYPE_SIMPLE:
+            return len(self.data) + 3
+        elif self.type == self.TYPE_KEYED_MD5 or self.type == self.TYPE_METRIC_MD5:
+            return 24
+        elif self.type == self.TYPE_KEYED_SHA1 or self.type == self.TYPE_METRIC_SHA1:
+            return 28
+        else:
+            return 0
+
+    def render(self, packet, crack=False):
         if self.type == self.TYPE_SIMPLE:
     #~ 0                   1                   2                   3
     #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -186,12 +196,15 @@ class bfd_auth(object):
    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    #~ |                              ...                              |
    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            digest = hashlib.md5()
-            digest.update(packet)
-            tmp = struct.pack("!BBBxI", self.type, 8 + 16, self.keyid, self.sequence) + self.data + b"\x00" * 16 - len(self.data)
-            digest.update(tmp)
-            tmp = digest.digest()
-            return struct.pack("!BBBxI", self.type, 8 + len(tmp), self.keyid, self.sequence) + tmp
+            if not crack:
+                digest = hashlib.md5()
+                digest.update(packet)
+                tmp = struct.pack("!BBBxI", self.type, 8 + 16, self.keyid, self.sequence) + self.data + b"\x00" * 16 - len(self.data)
+                digest.update(tmp)
+                tmp = digest.digest()
+                return struct.pack("!BBBxI", self.type, 8 + len(tmp), self.keyid, self.sequence) + tmp
+            else:
+                return struct.pack("!BBBxI", self.type, 8 + 16, self.keyid, self.sequence)
         elif self.type == self.TYPE_KEYED_SHA1 or self.type == self.TYPE_METRIC_SHA1:
     #~ 0                   1                   2                   3
     #~ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -204,12 +217,15 @@ class bfd_auth(object):
    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    #~ |                              ...                              |
    #~ +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-            digest = hashlib.sha1()
-            digest.update(packet)
-            tmp = struct.pack("!BBBxI", self.type, 8 + 20, self.keyid, self.sequence) + self.data + b"\x00" * 20 - len(self.data)
-            digest.update(tmp)
-            tmp = digest.digest()
-            return struct.pack("!BBBxI", self.type, 8 + len(tmp), self.keyid, self.sequence) + tmp
+            if not crack:
+                digest = hashlib.sha1()
+                digest.update(packet)
+                tmp = struct.pack("!BBBxI", self.type, 8 + 20, self.keyid, self.sequence) + self.data + b"\x00" * 20 - len(self.data)
+                digest.update(tmp)
+                tmp = digest.digest()
+                return struct.pack("!BBBxI", self.type, 8 + len(tmp), self.keyid, self.sequence) + tmp
+            else:
+                return struct.pack("!BBBxI", self.type, 8 + 20, self.keyid, self.sequence)
         else:
             return b""
 
@@ -230,7 +246,9 @@ class bfd_bf(threading.Thread):
         self.full = full
         self.wl = wl
         self.digest = digest
-        self.data = data
+        packet = bfd_control_packet()
+        packet.parse(data)
+        self.data = packet.render(True)
         self.threads = threads
         threading.Thread.__init__(self)
 
@@ -243,13 +261,9 @@ class bfd_bf(threading.Thread):
         os.close(handle)
         if self.parent.platform == "Windows":
             import bfdbf
-            import loki
-            with loki.HideOutput():
-                pw = bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile, self.threads)
+            pw = bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile, self.threads)
         else:
             import loki_bindings
-            import loki
-            #with loki.HideOutput():
             pw = loki_bindings.bfd.bfdbf.bfmd5(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile, self.threads)
         if os.path.exists(self.tmpfile):
             if self.parent.ui == 'urw':
@@ -262,7 +276,7 @@ class bfd_bf(threading.Thread):
                     label += " NO_PASSWORD_FOUND"
                 button.base_widget.set_label(label)
                 button.set_attr_map({None : "button normal"})
-                self.neighbors[self._ident] = (iter, discrim, answer, dos, crack, data, pw)
+                self.parent.neighbors[self._ident] = (iter, discrim, answer, dos, crack, data, pw)
             #~ if self.parent.neighbor_liststore.iter_is_valid(self.iter):
                 #~ src = self.parent.neighbor_liststore.get_value(self.iter, self.parent.NEIGH_IP_ROW)
                 #~ if pw != None:
@@ -419,20 +433,20 @@ class mod_class(object):
             self.deactivate_filter()
     
     def urw_answer_checkbox_changed(self, box, state, id):
-        (iter, discrim, answer, dos, data, password) = self.neighbors[id]
+        (iter, discrim, answer, dos, crack, data, password) = self.neighbors[id]
         if state:
             (button, answer_c, dos_c) = iter
             dos = False
             dos_c.set_state(False)
-        self.neighbors[id] = (iter, discrim, state, dos, data, password)
+        self.neighbors[id] = (iter, discrim, state, dos, crack, data, password)
     
     def urw_dos_checkbox_changed(self, box, state, id):
-        (iter, discrim, answer, dos, data, password) = self.neighbors[id]
+        (iter, discrim, answer, dos, crack, data, password) = self.neighbors[id]
         if state:
             (button, answer_c, dos_c) = iter
             answer = False
             answer_c.set_state(False)
-        self.neighbors[id] = (iter, discrim, answer, state, data, password)
+        self.neighbors[id] = (iter, discrim, answer, state, crack, data, password)
     
     def log(self, msg):
         self.__log(msg, self.name)
