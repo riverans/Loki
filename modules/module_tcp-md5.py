@@ -36,9 +36,9 @@ import threading
 import dpkt
 import dnet
 
-import gobject
-import gtk
-import gtk.glade
+gobject = None
+gtk = None
+urwid = None
 
 class bgp_md5bf(threading.Thread):
     def __init__(self, parent, iter, bf, full, wl, digest, data):
@@ -57,21 +57,22 @@ class bgp_md5bf(threading.Thread):
             self.wl = ""
         (handle, self.tmpfile) = tempfile.mkstemp(prefix="tcp-md5-", suffix="-lock")
         os.close(handle)
-        if self.platform == "Windows":
+        if self.parent.platform == "Windows":
             import tcpmd5bf
             tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         else:
             import loki_bindings
             pw = loki_bindings.tcpmd5.tcpmd5bf.bf(self.bf, self.full, self.wl, self.digest, self.data, self.tmpfile)
         if self.running:
-            src = self.parent.liststore.get_value(self.iter, self.parent.SOURCE_ROW)
-            dst = self.parent.liststore.get_value(self.iter, self.parent.DESTINATION_ROW)
-            if pw:
-                self.parent.liststore.set_value(self.iter, self.parent.SECRET_ROW, pw)
-                self.parent.log("TCP-MD5: Found password '%s' for connection %s->%s" % (pw, src, dst))
-            else:
-                self.paren.liststore.set_value(self.iter, self.parent.SECRET_ROW, "NOT FOUND")
-                self.parent.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
+            if self.parent.ui == 'gtk':
+                src = self.parent.liststore.get_value(self.iter, self.parent.SOURCE_ROW)
+                dst = self.parent.liststore.get_value(self.iter, self.parent.DESTINATION_ROW)
+                if pw:
+                    self.parent.liststore.set_value(self.iter, self.parent.SECRET_ROW, pw)
+                    self.parent.log("TCP-MD5: Found password '%s' for connection %s->%s" % (pw, src, dst))
+                else:
+                    self.paren.liststore.set_value(self.iter, self.parent.SECRET_ROW, "NOT FOUND")
+                    self.parent.log("TCP-MD5: No password found for connection %s->%s" % (src, dst))
             if os.path.exists(self.tmpfile):
                 os.remove(self.tmpfile)
 
@@ -85,12 +86,26 @@ class mod_class(object):
     DESTINATION_ROW = 1
     SECRET_ROW = 2
     
-    def __init__(self, parent, platform):
+    def __init__(self, parent, platform, ui):
         self.parent = parent
         self.platform = platform
         self.name = "tcp-md5"
         self.gladefile = "/modules/module_tcp-md5.glade"
-        self.liststore = gtk.ListStore(str, str, str)
+        self.ui = ui
+        if self.ui == 'gtk':
+            import gobject as gobject_
+            import gtk as gtk_
+            import gtk.glade as glade_
+            global gobject
+            global gtk
+            gobject = gobject_
+            gtk = gtk_
+            gtk.glade = glade_
+            self.liststore = gtk.ListStore(str, str, str)
+        elif self.ui == 'urw':
+            import urwid as urwid_
+            global urwid
+            urwid = urwid_
         self.opts = None
 
     def start_mod(self):
@@ -103,7 +118,8 @@ class mod_class(object):
                 if thread:
                     if thread.is_alive():
                         thread.quit()
-        self.liststore.clear()
+        if self.ui == 'gtk':
+            self.liststore.clear()
         
     def get_root(self):
         self.glade_xml = gtk.glade.XML(self.parent.data_dir + self.gladefile)
@@ -133,11 +149,6 @@ class mod_class(object):
         column.pack_start(render_text, expand=True)
         column.add_attribute(render_text, 'text', self.SECRET_ROW)
         self.treeview.append_column(column)
-
-        self.bf_checkbutton = self.glade_xml.get_widget("bf_checkbutton")
-        self.full_checkbutton = self.glade_xml.get_widget("full_checkbutton")
-        self.wordlist_filechooserbutton = self.glade_xml.get_widget("wordlist_filechooserbutton")
-
         return self.glade_xml.get_widget("root")
 
     def log(self, msg):
@@ -163,16 +174,14 @@ class mod_class(object):
                 dst = dnet.ip_ntoa(ip.dst)
                 ident = "%s:%i->%s:%i" % (src, tcp.sport, dst, tcp.dport)
                 if ident not in self.opts:
-                    iter = self.liststore.append(["%s:%i" % (src, tcp.sport), "%s:%i" % (dst, tcp.dport), "CAPTURED"])
+                    if self.ui == 'gtk':
+                        iter = self.liststore.append(["%s:%i" % (src, tcp.sport), "%s:%i" % (dst, tcp.dport), "CAPTURED"])
                     self.opts[ident] = (iter, str(eth.data), data, None)
                     self.log("TCP-MD5: Got MD5 data for connection %s" % (ident))
 
     # SIGNALS #
 
     def on_crack_button_clicked(self, btn):
-        bf = self.bf_checkbutton.get_active()
-        full = self.full_checkbutton.get_active()
-        wl = self.wordlist_filechooserbutton.get_filename()
         select = self.treeview.get_selection()
         (model, paths) = select.get_selected_rows()
         for i in paths:
@@ -183,7 +192,7 @@ class mod_class(object):
             (iter, data, digest, thread) = self.opts[ident]
             if thread:
                 return
-            thread = bgp_md5bf(self, iter, bf, full, wl, digest, data)
+            thread = bgp_md5bf(self, iter, self.parent.bruteforce, self.parent.bruteforce_full, self.parent.wordlist, digest, data)
             model.set_value(iter, self.SECRET_ROW, "RUNNING")
             thread.start()
             self.opts[ident] = (iter, data, digest, thread)
